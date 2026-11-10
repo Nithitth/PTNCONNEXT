@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { AdminNav } from "@/components/admin/AdminNav";
 import { ResetPasswordButton } from "@/components/admin/ResetPasswordButton";
 import { Button, Card, Container, PageHeader } from "@/components/ui";
 import { PROFILE_CLASSROOM, requireProfile } from "@/lib/auth";
@@ -39,13 +39,9 @@ export default async function UsersPage({ searchParams }: PageProps<"/admin/user
   }
 
   return (
-    <Container className="py-8">
-      <Link href="/admin" className="text-sm text-brand hover:underline">
-        ← คอนโซลผู้พัฒนา
-      </Link>
-      <div className="mt-2">
-        <PageHeader title="ผู้ใช้" subtitle="ค้นหาด้วยเลขประจำตัว ชื่อผู้ใช้ หรือชื่อ เพื่อรีเซ็ตรหัสผ่าน" />
-      </div>
+    <Container className="py-10">
+      <PageHeader eyebrow="ผู้ดูแลระบบ" title="ผู้ใช้" subtitle="ค้นหาด้วยเลขประจำตัว ชื่อผู้ใช้ หรือชื่อ เพื่อรีเซ็ตรหัสผ่าน" />
+      <AdminNav />
       <form className="mb-4 flex gap-2">
         <input
           name="q"

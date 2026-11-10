@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { AdminNav } from "@/components/admin/AdminNav";
 import { RosterImport } from "@/components/admin/RosterImport";
 import { Card, Container, PageHeader } from "@/components/ui";
 import { requireProfile } from "@/lib/auth";
@@ -10,16 +10,13 @@ export const metadata: Metadata = { title: "นำเข้ารายชื่
 export default async function RosterPage() {
   await requireProfile({ roles: ["admin"] });
   return (
-    <Container className="py-8">
-      <Link href="/admin" className="text-sm text-brand hover:underline">
-        ← คอนโซลผู้พัฒนา
-      </Link>
-      <div className="mt-2">
-        <PageHeader
-          title="นำเข้ารายชื่อจาก Excel"
-          subtitle={`ปีการศึกษา ${currentAcademicYear()} · นำเข้านักเรียนก่อน แล้วจึงนำเข้าครู`}
-        />
-      </div>
+    <Container className="py-10">
+      <PageHeader
+        eyebrow="ผู้ดูแลระบบ"
+        title="นำเข้ารายชื่อจาก Excel"
+        subtitle={`ปีการศึกษา ${currentAcademicYear()} · นำเข้านักเรียนก่อน แล้วจึงนำเข้าครู`}
+      />
+      <AdminNav />
       <Card>
         <RosterImport />
       </Card>

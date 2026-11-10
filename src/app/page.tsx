@@ -14,6 +14,7 @@ import {
   Smartphone,
   Users,
 } from "lucide-react";
+import { FeedbackForm } from "@/components/FeedbackForm";
 import { LoginForm } from "@/components/LoginForm";
 import { Brand, Container, Eyebrow, Notice, buttonStyles } from "@/components/ui";
 import { getCurrentProfile } from "@/lib/auth";
@@ -245,11 +246,13 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
               </Link>
             )}
           </div>
-          {!profile && (
-            <div className="w-full max-w-md justify-self-center rounded-3xl border border-line bg-surface p-6 shadow-brand-glow-lg sm:p-8 lg:justify-self-end">
-              <LoginForm />
-            </div>
-          )}
+          <div
+            id={profile ? "feedback" : undefined}
+            className="w-full max-w-md scroll-mt-20 justify-self-center rounded-3xl border border-line bg-surface p-6 shadow-brand-glow-lg sm:p-8 lg:justify-self-end"
+          >
+            {/* Guests log in here; logged-in users get the feedback box instead. */}
+            {profile ? <FeedbackForm /> : <LoginForm />}
+          </div>
         </Container>
       </section>
     </>

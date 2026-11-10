@@ -103,6 +103,12 @@ export const formatMonthShort = (key: DayKey) => SHORT_MONTH.format(asUtcDate(ke
 export const formatMonth = ({ year, month }: MonthRef) => MONTH.format(new Date(Date.UTC(year, month - 1, 1)));
 /** "16:30 น." */
 export const formatTime = (iso: string) => `${TIME.format(new Date(iso))} น.`;
+/** The moment `h` hours ago, as an ISO string (for "last 24 hours" filters). */
+export const hoursAgo = (h: number) => new Date(Date.now() - h * 3600 * 1000).toISOString();
+
+/** "12 พ.ย. 2569 16:30" — for logs and lists in Thai time. */
+const DATE_TIME = new Intl.DateTimeFormat("th-TH", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Bangkok" });
+export const formatDateTime = (iso: string) => DATE_TIME.format(new Date(iso));
 
 export const WEEKDAYS_SHORT = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
 

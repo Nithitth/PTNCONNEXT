@@ -171,9 +171,17 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
 - `check:security` now also covers storage uploads and attachment visibility.
 - No new migration was needed.
 
-**Next is Week 3:**
-- A feedback box on the home page for logged-in users.
-- The full Developer Console: feedback inbox, error log, and a longer login report.
-- A role-permission test pass, then a pilot.
+**Week 3 is done:**
+- **Feedback box** on the home page for logged-in users, in the spot where guests see the login form (`FeedbackForm.tsx`, `src/app/feedback/actions.ts`).
+  - It's limited to 3 messages per person per 10 minutes. That count uses the admin client, because users can't read `feedback`.
+  - The insert has no `.select()`, since students can't read their own row back.
+- **Developer Console** tabs (`AdminNav`):
+  - ภาพรวม: stats, plus "ควรตรวจดู" cards that turn red when there is new feedback, errors, or failed logins.
+  - `/admin/feedback`: the inbox, with sender name, role and room.
+  - `/admin/errors`: the `error_logs` list.
+  - `/admin/logins`: 24 h counts, a "failed only" filter, and IDs with 5+ failed tries in 24 h flagged.
+  - Existing pages: ผู้ใช้, นำเข้ารายชื่อ.
+- `check:security` (28 checks) also signs in as `admin.test`. It covers feedback (send only as yourself), who can read the console tables, and admins posting like teachers.
+- **Pilot and launch steps:** `docs/PILOT.md`.
 
-`/tcas` stays a placeholder until Phase 2.
+**Next:** the pilot (human steps in `docs/PILOT.md`). After that, Phase 2 (TCASter). `/tcas` stays a placeholder until then.

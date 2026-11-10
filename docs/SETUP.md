@@ -80,9 +80,7 @@ update public.profiles set role = 'admin' where login_id = 'your.username';
 2. Sign up at <https://vercel.com> with GitHub, then **Add New → Project** and pick the repository.
 3. Under **Environment Variables**, add the same three values from `.env.local`.
 4. Click **Deploy**. Every later `git push` updates the site automatically.
-5. Before launch:
-   - Delete the test accounts in Supabase → Authentication.
-   - Ask the school's PDPA officer to review the wording in `src/components/PdpaNotice.tsx`.
+5. Before launch, follow [PILOT.md](PILOT.md): school sign-off, cleaning the test data, a 1–2 classroom pilot, then everyone.
 
 ## Everyday commands
 

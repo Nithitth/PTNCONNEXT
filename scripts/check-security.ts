@@ -110,7 +110,39 @@ async function main() {
   const attachToOthers = await s1.from("attachments").insert({ post_id: postId, kind: "link", url: "https://x.com", file_name: "x" });
   check("student can't add attachments to a teacher's post", Boolean(attachToOthers.error));
 
+  console.log("\nFeedback and the Developer Console (Week 3)");
+  // No .select() here: students may not read feedback, and insert-then-read would be refused.
+  const sent = await s1.from("feedback").insert({ user_id: studentId, message: "[security check] ทดสอบ" });
+  check("student can send feedback as themselves", !sent.error, sent.error?.message);
+  const forgedFb = await s1.from("feedback").insert({ user_id: teacherId, message: "[security check] ปลอม" });
+  check("student can't send feedback in someone else's name", Boolean(forgedFb.error));
+  const tFb = await t.from("feedback").select("id");
+  const tErr = await t.from("error_logs").select("id");
+  const tLog = await t.from("login_events").select("id");
+  check(
+    "teacher can't read feedback, error log or login report",
+    (tFb.data ?? []).length + (tErr.data ?? []).length + (tLog.data ?? []).length === 0,
+  );
+  const sErr = await s1.from("error_logs").select("id");
+  check("student can't read the error log", (sErr.data ?? []).length === 0);
+  const a = await signIn("admin.test", "01011990");
+  const aFb = await a.from("feedback").select("id").like("message", "[security check]%");
+  check("admin can read feedback", (aFb.data ?? []).length >= 1, aFb.error?.message);
+  const aErr = await a.from("error_logs").select("id").limit(1);
+  const aLog = await a.from("login_events").select("id").limit(1);
+  check("admin can read the error log and login report", !aErr.error && !aLog.error);
+  const aPost = await a
+    .from("posts")
+    .insert({ type: "assignment", title: "[security check] admin", author_id: (await a.auth.getUser()).data.user!.id })
+    .select("id")
+    .single();
+  const aTarget = await a.from("post_targets").insert({ post_id: aPost.data?.id, classroom_id: notTaught });
+  check("admin can post to a classroom like a teacher", !aPost.error && !aTarget.error, aPost.error?.message ?? aTarget.error?.message);
+
   // Clean up
+  await admin.from("feedback").delete().like("message", "[security check]%");
+  if (aPost.data?.id) await admin.from("posts").delete().eq("id", aPost.data.id);
+  await a.auth.signOut();
   await admin.storage.from("materials").remove([ownPath, `${studentId}/x.pdf`]);
   if (postId) await admin.from("posts").delete().eq("id", postId);
   await Promise.all([s1.auth.signOut(), s2.auth.signOut(), t.auth.signOut()]);
