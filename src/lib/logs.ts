@@ -12,7 +12,14 @@ export async function logLogin(loginId: string, success: boolean, userId: string
 
 /** Records a server error for the Developer Console's error list. Never throws. */
 export async function logError(route: string, error: unknown) {
-  const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+  let message = String(error);
+  if (error instanceof Error) {
+    message = `${error.name}: ${error.message}`;
+  } else if (error && typeof error === "object" && "message" in error) {
+    // Supabase errors are plain objects like { code, message }, not Error instances.
+    const code = "code" in error ? `${String(error.code)}: ` : "";
+    message = `${code}${String(error.message)}`;
+  }
   console.error(`[${route}]`, error);
   try {
     await createAdminClient().from("error_logs").insert({ route, message: message.slice(0, 2000) });

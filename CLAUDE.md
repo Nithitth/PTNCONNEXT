@@ -25,7 +25,7 @@ npm run dev               # localhost:3000 (needs .env.local, see .env.example)
 npm run build             # production build — run before pushing
 npm run lint              # eslint
 npm run typecheck         # tsc --noEmit (run `npx next typegen` first if PageProps/LayoutProps are missing)
-npm test                  # node:test via tsx on src/lib/roster.test.ts
+npm test                  # node:test via tsx on src/lib/roster.test.ts + calendar.test.ts
 npx tsx --test --test-name-pattern "birthdate" src/lib/roster.test.ts   # single test
 npm run seed              # create test classrooms/subjects + one account per role (idempotent)
 npm run check:security    # logs in as test student/teacher against the real Supabase project and verifies RLS
@@ -80,6 +80,7 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
 - **Migrations aren't run by tooling.** There's no Supabase CLI or Docker here. Each file is pasted into the Supabase SQL Editor once, in number order.
   - Never edit an applied migration. Add the next numbered file instead.
   - Tell the user to run it: `Get-Content <file> -Raw | Set-Clipboard` makes pasting easy.
+- **Never rewrite source files with Windows PowerShell 5.1** (`Get-Content` / `Set-Content`). It reads UTF-8 without a BOM as the ANSI codepage and scrambles every Thai string. Use the Edit tool, or a Node script with `fs.readFileSync(f, "utf8")`.
 
 **Roster import:**
 - `src/lib/roster.ts` is pure and shared by both sides. The admin's browser parses the `.xlsx` (with `read-excel-file`) and validates it for a preview. The server action re-validates the same rows before writing.
@@ -92,6 +93,35 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
 - The academic year rolls over in May.
 - Rows are sent in chunks of 25, and a teacher's rows are kept in the same chunk.
 - Birthdates are used only as the first password and are never stored.
+
+**Phase 1 scope — 6 subjects, 8 classrooms (`src/lib/school.ts`):**
+- The subjects are คณิตศาสตร์ (orange), PAT (purple), สังคมศึกษา (brown), วิทยาศาสตร์ (green), ภาษาไทย (gold) and ภาษาอังกฤษ (blue).
+  - Each has a short `code` key (`math`, `pat`, `social`, `science`, `thai`, `english`), and the UI shows names, not codes.
+  - Migration `0003` creates them and moves older subjects onto them. A DB check constraint (`subjects_only_six`) allows no others.
+  - `findSubject()` reads roster text: names, nicknames, or Thai course codes such as `ค32101` → math.
+- The classrooms are ม.4/1–4 and ม.5/1–4 (`CLASSROOMS`). This is enforced in the app, not the DB:
+  - The roster import rejects any other room.
+  - `teaching.ts` lists only these rooms.
+  - `0003` creates them for the current academic year.
+- **To change either list:** edit `school.ts`, plus a new migration for subjects (the constraint and colors).
+
+**Calendar colors:**
+- **Exams have two kinds** (`posts.exam_kind`, migration `0004`):
+  - `quiz` (สอบเก็บคะแนน / สอบย่อย) is light amber before the exam (`exam-tint`) and dark amber on the day (`exam-soft`).
+  - `major` (สอบกลางภาค / ปลายภาค) is light red before (`major-tint`) and dark red on the day (`major-soft`).
+  - `EXAM_LOOK` in `DayDrawer.tsx` maps each kind to its classes. When both kinds fall on one day, major wins.
+- **School activities** use `.bg-event-stripes`: light amber with 45° stripes.
+- **Due within 24 h:** the dot turns `urgent` red and blinks. `urgent` is the same red used on midterm/final exam chips.
+
+**Calendar and Teacher's Console (Week 2):**
+- **Time:** everything is Thai time (Asia/Bangkok, UTC+7). `src/lib/calendar.ts` is pure and shared by server and browser. It holds day keys (`"2026-11-12"`), the 6-week month grid starting on Sunday, `placeItems()` (deadlines, exam + lead-up days, multi-day events), `upcoming()`, `sortMaterials()`, and the Thai labels. Teachers' date boxes are read as Bangkok time by `bangkokInputToIso()`.
+- **Rules:** `src/lib/postForm.ts` (pure) validates a post: assignment = one deadline per room; exam = a date per room plus lead days 0–30; material = needs a PDF or link; event = admin-only, start/end. Links must be http(s). The form runs it before uploading, and `savePost` in `src/app/teacher/actions.ts` runs it again. It's also the one home for `PostKind`, `MATERIALS_BUCKET`, `SCHOOL` (the form's "ทั้งโรงเรียน" id) and `isUuid()`; import these instead of retyping the strings.
+- **Who may post where:** `src/lib/teaching.ts` lists the subjects and rooms from `teaching_assignments` for the current academic year (admins get every subject and room). `savePost` checks against it, and RLS checks again.
+- **Reads:** `src/lib/posts.ts` (`loadDatedItems`, `loadMaterials`, `loadMyPosts`) always uses the user's own client. A post sent to 2 rooms becomes 2 calendar items; students only get their own room's row.
+- **PDF uploads go browser → Supabase Storage directly** (`src/lib/supabase/browser.ts`), into `materials/<uid>/<uuid>.pdf`, because server actions have a 1 MB body limit. The server then checks that the path is in the user's own folder and that the file exists before saving. If saving fails, the form deletes the upload.
+- **Downloads:** files are opened through `/files/[id]` (route handler). It reads the attachment via RLS, then redirects to a 60-second signed URL (`?download=1` saves the file instead). Never put signed URLs or storage paths in pages.
+- **Editing** replaces the post's targets. The attachment is kept unless the teacher picks a new one. Only the author can edit; RLS stops admins adding targets to other people's posts.
+- The day drawer is a native `<dialog>`: a bottom sheet on phones, a side sheet from `sm` up.
 
 **Server actions:**
 - Forms are client components using `useActionState`. Actions return `{ error }` with a Thai message.
@@ -120,16 +150,26 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
 - **Icons:** `lucide-react`.
 - **Shared primitives** are in `src/components/ui.tsx`:
   - `Button` and `buttonStyles`, with variants `primary`, `secondary`, `inverse` (for red backgrounds), `ghost` and `danger`. Use `buttonStyles` to style `<Link>`s as buttons.
-  - `Brand`, `Card` (`bold` adds the outline and hard shadow), `Field`, `Notice`, `Eyebrow` (`light` for use on red), `PageHeader`, `EmptyState` and `Container`.
+  - `smallButtonStyles` (h-9 list/toolbar buttons) and `iconButtonStyles` (square icon buttons, always with `aria-label`). **Don't resize `buttonStyles` by adding classes.** There's no tailwind-merge, so `px-0` next to the built-in `px-5` clashes (an icon button once rendered empty). Use the dedicated style instead.
+  - `inputStyles` for text boxes, selects and textareas. It has no width, so add `w-full` or `w-24` yourself.
+  - `Brand`, `Card` (`bold` adds a bigger soft shadow), `Field`, `Notice`, `Eyebrow` (`light` for use on red), `PageHeader`, `EmptyState` and `Container`.
+  - Calendar colors: `exam` / `exam-soft` / `exam-tint`, and `event` / `event-strong` / `event-ink`. For deadline dots, use the `BLINK` class from `DayDrawer.tsx`: a blink, or a red ring when reduced motion is on.
 - Navigation items per role are defined in `itemsFor()` in `src/components/NavBar.tsx`.
 - Layouts must work at 375px width with no horizontal page scroll.
 
 ## Status
 
-Week 1 is done: auth, PDPA, roles and navigation, the roster import, admin user search and password reset, and a basic Developer Console.
+**Week 1 is done:** auth, PDPA, roles and navigation, the roster import, admin user search and password reset, and a basic Developer Console.
 
-Next is Week 2:
-- The calendar month grid, with subject-colored deadline dots that blink only within 24 hours (with a reduced-motion fallback), exam/lead-up and event bands, a day drawer, and a sortable side panel.
-- Teacher's Console tabs: assign homework (one file or link, per-classroom deadlines), share a document, announce an exam, my posts.
+**Week 2 is done:**
+- `/calendar`: the month grid, subject-colored deadline dots that blink within 24 h, exam and lead-up shading, event bands, the day drawer, "ใกล้ถึงกำหนด" (the next 14 days), and the materials list sortable by subject, ก–ฮ or content order.
+- `/teacher` tabs: มอบหมายงาน, แชร์เอกสาร, ประกาศวันสอบ, กิจกรรมโรงเรียน (admin only), and งานของฉัน (edit at `/teacher/posts/[id]`, two-tap delete).
+- `check:security` now also covers storage uploads and attachment visibility.
+- No new migration was needed.
 
-`/calendar`, `/teacher` and `/tcas` are placeholders until then. The tables and the storage bucket for Week 2 already exist in `0001_init.sql`.
+**Next is Week 3:**
+- A feedback box on the home page for logged-in users.
+- The full Developer Console: feedback inbox, error log, and a longer login report.
+- A role-permission test pass, then a pilot.
+
+`/tcas` stays a placeholder until Phase 2.

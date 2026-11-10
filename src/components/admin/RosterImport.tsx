@@ -16,6 +16,7 @@ import {
   validateTeacherRow,
   type Cell,
 } from "@/lib/roster";
+import { CLASSROOM_RULE, SUBJECT_NAMES } from "@/lib/school";
 
 type Kind = "student" | "teacher";
 
@@ -33,8 +34,8 @@ const TEMPLATES: Record<Kind, { file: string; rows: string[][] }> = {
     file: "แม่แบบ-รายชื่อครู.xlsx",
     rows: [
       TEACHER_COLUMNS.map((c) => c.header),
-      ["somsri.k", "ครูสมศรี มีสุข", "12/03/2523", "ค32101", "คณิตศาสตร์", "ม.5/1, ม.5/2"],
-      ["somsri.k", "ครูสมศรี มีสุข", "12/03/2523", "ค32201", "คณิตศาสตร์เพิ่มเติม", "ม.5/1"],
+      ["somsri.k", "ครูสมศรี มีสุข", "12/03/2523", "คณิตศาสตร์", "", "ม.5/1, ม.5/2"],
+      ["somsri.k", "ครูสมศรี มีสุข", "12/03/2523", "PAT", "", "ม.4/1"],
     ],
   },
 };
@@ -58,7 +59,7 @@ function previewTeachers(data: Cell[][]) {
     const v = validateTeacherRow(r);
     if (!v.ok) return { rowNumber: r.rowNumber, loginId: String(r.cells.loginId ?? ""), summary: "", errors: v.errors, cells: r.cells };
     const t = v.value;
-    const summary = [t.displayName, t.subject && `${t.subject.code} ${t.subject.name}`, t.classrooms.map(formatClassroom).join(", ")]
+    const summary = [t.displayName, t.subject?.name, t.classrooms.map(formatClassroom).join(", ")]
       .filter(Boolean)
       .join(" · ");
     return { rowNumber: r.rowNumber, loginId: t.loginId, summary, errors: [], cells: r.cells };
@@ -282,7 +283,9 @@ function ColumnGuide({ kind }: { kind: Kind }) {
       <p className="mt-3 text-xs leading-relaxed text-muted">
         {kind === "student"
           ? "วันเกิดใช้เป็นรหัสผ่านครั้งแรก (วว ดด ปปปป ค.ศ.) ระบบแปลงปี พ.ศ. ให้อัตโนมัติ และไม่เก็บวันเกิดไว้หลังสร้างบัญชี นักเรียนที่มีบัญชีอยู่แล้วจะถูกอัปเดตชื่อและห้อง รหัสผ่านเดิมไม่เปลี่ยน"
-          : "ครูหนึ่งคนสอนหลายวิชาได้ ใส่หนึ่งแถวต่อหนึ่งวิชา ห้องที่สอนคั่นด้วยจุลภาค เช่น ม.5/1, ม.5/2"}
+          : `ครูหนึ่งคนสอนหลายวิชาได้ ใส่หนึ่งแถวต่อหนึ่งวิชา วิชาต้องเป็นหนึ่งใน: ${SUBJECT_NAMES} (หรือรหัสวิชา เช่น ค32101) ห้องที่สอนคั่นด้วยจุลภาค เช่น ม.5/1, ม.5/2`}
+        {" "}
+        {CLASSROOM_RULE}
       </p>
     </div>
   );

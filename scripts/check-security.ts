@@ -89,7 +89,34 @@ async function main() {
   const del = await s1.from("posts").delete().eq("id", postId).select("id");
   check("student can't delete the teacher's post", (del.data ?? []).length === 0);
 
+  console.log("\nFiles (Week 2)");
+  const pdf = new Blob(["%PDF-1.4\n%%EOF"], { type: "application/pdf" });
+  const ownPath = `${teacherId}/security-check.pdf`;
+  await admin.storage.from("materials").remove([ownPath]); // leftover from an interrupted run
+  const up = await t.storage.from("materials").upload(ownPath, pdf, { contentType: "application/pdf" });
+  check("teacher can upload a PDF into their own folder", !up.error, up.error?.message);
+  const studentId = (await s1.auth.getUser()).data.user!.id;
+  const otherUp = await t.storage.from("materials").upload(`${studentId}/x.pdf`, pdf, { contentType: "application/pdf" });
+  check("teacher can't upload into someone else's folder", Boolean(otherUp.error));
+  const studentUp = await s1.storage.from("materials").upload(`${studentId}/x.pdf`, pdf, { contentType: "application/pdf" });
+  check("student can't upload files", Boolean(studentUp.error));
+  const att = await t
+    .from("attachments")
+    .insert({ post_id: postId, kind: "file", storage_path: ownPath, file_name: "security-check.pdf", size_bytes: 20 })
+    .select("id")
+    .single();
+  check("teacher can attach the file to their post", !att.error, att.error?.message);
+  const att1 = await s1.from("attachments").select("id").eq("post_id", postId);
+  check("student in ม.5/1 sees the attachment", att1.data?.length === 1);
+  const att2 = await s2.from("attachments").select("id").eq("post_id", postId);
+  check("student in ม.5/2 does NOT see the attachment", (att2.data ?? []).length === 0);
+  const direct = await s2.storage.from("materials").createSignedUrl(ownPath, 60);
+  check("student can't make their own download link for a file", Boolean(direct.error) || !direct.data?.signedUrl);
+  const attachToOthers = await s1.from("attachments").insert({ post_id: postId, kind: "link", url: "https://x.com", file_name: "x" });
+  check("student can't add attachments to a teacher's post", Boolean(attachToOthers.error));
+
   // Clean up
+  await admin.storage.from("materials").remove([ownPath, `${studentId}/x.pdf`]);
   if (postId) await admin.from("posts").delete().eq("id", postId);
   await admin.from("classrooms").delete().eq("id", notTaught);
   await Promise.all([s1.auth.signOut(), s2.auth.signOut(), t.auth.signOut()]);

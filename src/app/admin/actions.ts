@@ -7,7 +7,6 @@ import {
   currentAcademicYear,
   generateTempPassword,
   loginIdToEmail,
-  subjectColor,
   validateStudentRow,
   validateTeacherRow,
   type ClassroomRef,
@@ -215,7 +214,7 @@ export async function importTeachers(rows: SerializedRow<TeacherKey>[]): Promise
           const { data, error } = await admin
             .from("subjects")
             .upsert(
-              { code: t.subject.code, name_th: t.subject.name, color: subjectColor(t.subject.code) },
+              { code: t.subject.code, name_th: t.subject.name, color: t.subject.color },
               { onConflict: "code" },
             )
             .select("id")

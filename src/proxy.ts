@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 // Pages that need a signed-in user. Fine-grained checks (role, PDPA,
 // first-login password) happen in requireProfile() and in the database.
-const PROTECTED = ["/calendar", "/tcas", "/teacher", "/admin", "/account", "/pdpa", "/change-password"];
+const PROTECTED = ["/calendar", "/tcas", "/teacher", "/admin", "/account", "/pdpa", "/change-password", "/files"];
 
 /**
  * Runs before every page: keeps the Supabase login cookie fresh and

@@ -1,5 +1,5 @@
 /**
- * Creates TEST data for development: 2 classrooms, 3 subjects, and one
+ * Creates TEST data for development: the 8 classrooms, the 6 subjects, and one
  * account per role. Safe to run more than once (skips what already exists).
  *
  *   npm run seed
@@ -7,14 +7,15 @@
  * Test accounts (first password = birthdate DDMMYYYY; you'll be offered a chance to change it):
  *   นักเรียน ม.5/1   90001          05052009
  *   นักเรียน ม.5/2   90002          06062009
- *   ครู              teacher.test   12031980   (สอน ค32101 ใน ม.5/1 และ ม.5/2)
+ *   ครู              teacher.test   12031980   (สอนคณิตศาสตร์ ใน ม.5/1 และ ม.5/2)
  *   ผู้ดูแลระบบ      admin.test     01011990   (log in with “ครู”)
  *
  * Never run this against the real school project after launch.
  */
 import { config } from "dotenv";
 import { createClient } from "@supabase/supabase-js";
-import { currentAcademicYear, loginIdToEmail, subjectColor } from "../src/lib/roster";
+import { currentAcademicYear, loginIdToEmail } from "../src/lib/roster";
+import { CLASSROOMS, SUBJECTS } from "../src/lib/school";
 
 config({ path: ".env.local" });
 
@@ -38,36 +39,30 @@ async function must<T>(p: PromiseLike<{ data: T; error: unknown }>, what: string
 async function main() {
   const year = currentAcademicYear();
 
+  // The 8 Phase 1 classrooms and 6 subjects (src/lib/school.ts).
   const rooms = await must(
     db
       .from("classrooms")
       .upsert(
-        [
-          { grade: 5, room: 1, academic_year: year },
-          { grade: 5, room: 2, academic_year: year },
-        ],
+        CLASSROOMS.map((c) => ({ ...c, academic_year: year })),
         { onConflict: "grade,room,academic_year" },
       )
-      .select("id, room"),
+      .select("id, grade, room"),
     "classrooms",
   );
-  const roomId = (r: number) => (rooms ?? []).find((x) => x.room === r)!.id as string;
+  const roomId = (r: number) => (rooms ?? []).find((x) => x.grade === 5 && x.room === r)!.id as string;
 
   const subjects = await must(
     db
       .from("subjects")
       .upsert(
-        [
-          { code: "ค32101", name_th: "คณิตศาสตร์", color: subjectColor("ค32101") },
-          { code: "ว32201", name_th: "ฟิสิกส์", color: subjectColor("ว32201") },
-          { code: "อ32101", name_th: "ภาษาอังกฤษ", color: subjectColor("อ32101") },
-        ],
+        SUBJECTS.map((s) => ({ code: s.code, name_th: s.name, color: s.color })),
         { onConflict: "code" },
       )
       .select("id, code"),
     "subjects",
   );
-  const math = (subjects ?? []).find((s) => s.code === "ค32101")!.id as string;
+  const math = (subjects ?? []).find((s) => s.code === "math")!.id as string;
 
   const accounts = [
     { login_id: "90001", password: "05052009", role: "student", display_name: "ด.ญ.ทดสอบ ห้องหนึ่ง", classroom_id: roomId(1) },

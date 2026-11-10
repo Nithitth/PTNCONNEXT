@@ -17,14 +17,14 @@ export type Profile = {
   display_name: string;
   must_change_password: boolean;
   pdpa_version: number | null;
-  classroom: { grade: number; room: number } | null;
+  classroom: { id: string; grade: number; room: number } | null;
 };
 
 /**
  * A student's own classroom. Profiles also reach classrooms through
  * teaching_assignments, so the join must name which link to follow.
  */
-export const PROFILE_CLASSROOM = "classroom:classrooms!profiles_classroom_id_fkey(grade, room)";
+export const PROFILE_CLASSROOM = "classroom:classrooms!profiles_classroom_id_fkey(id, grade, room)";
 
 /**
  * The signed-in user's profile, or null for guests.

@@ -17,6 +17,7 @@ import {
 import { LoginForm } from "@/components/LoginForm";
 import { Brand, Container, Eyebrow, Notice, buttonStyles } from "@/components/ui";
 import { getCurrentProfile } from "@/lib/auth";
+import { SUBJECTS } from "@/lib/school";
 
 const GOALS = [
   { title: "ข้อมูลไม่กระจัดกระจาย", body: "งาน วันสอบ สไลด์ และประกาศ อยู่ในที่เดียว ไม่ต้องไล่หาในหลายกลุ่มแชต" },
@@ -275,11 +276,13 @@ function RoleCard({ icon, title, points }: { icon: ReactNode; title: string; poi
 
 /** Decorative: the calendar card with a sample reminder and file. */
 function HeroVisual() {
+  const color = (code: string) => SUBJECTS.find((s) => s.code === code)!.color;
   const dots: Record<number, string[]> = {
-    3: ["#378ADD"], 6: ["#D85A30"], 11: ["#1D9E75", "#378ADD"], 13: ["#378ADD"], 17: ["#D85A30"], 24: ["#1D9E75"],
+    3: [color("english")], 6: [color("math")], 11: [color("science"), color("thai")],
+    13: [color("pat")], 17: [color("math")], 24: [color("social")],
   };
   const band = (d: number) =>
-    d === 20 ? "bg-exam" : d >= 16 && d <= 19 ? "bg-exam-soft" : d === 26 || d === 27 ? "bg-event" : "bg-surface";
+    d === 20 ? "bg-exam-soft" : d >= 16 && d <= 19 ? "bg-exam-tint" : d === 26 || d === 27 ? "bg-event-stripes" : "bg-surface";
 
   return (
     <div aria-hidden className="relative text-ink">

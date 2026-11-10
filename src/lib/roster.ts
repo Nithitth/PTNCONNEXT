@@ -2,6 +2,8 @@
 // No server or browser APIs here, so the same rules run in the
 // admin's browser (preview) and again on the server (before saving).
 
+import { CLASSROOM_RULE, SUBJECT_NAMES, findSubject, isSchoolClassroom, type SchoolSubject } from "./school";
+
 export type Cell = string | number | boolean | Date | null | undefined;
 
 /** Hidden email domain: Supabase Auth needs an email, users only type their ID. */
@@ -162,13 +164,13 @@ export const STUDENT_COLUMNS: ColumnDef<
 ];
 
 export const TEACHER_COLUMNS: ColumnDef<
-  "loginId" | "displayName" | "birthdate" | "subjectCode" | "subjectName" | "classrooms"
+  "loginId" | "displayName" | "birthdate" | "subjectName" | "subjectCode" | "classrooms"
 >[] = [
   { key: "loginId", header: "ชื่อผู้ใช้", aliases: ["username"], required: true },
   { key: "displayName", header: "ชื่อ-นามสกุล", aliases: ["ชื่อครู", "ชื่อ", "name"], required: true },
   { key: "birthdate", header: "วันเกิด", aliases: ["วันเดือนปีเกิด", "birthdate"], required: true },
+  { key: "subjectName", header: "วิชา", aliases: ["ชื่อวิชา", "subject", "subject_name"], required: false },
   { key: "subjectCode", header: "รหัสวิชา", aliases: ["subject_code"], required: false },
-  { key: "subjectName", header: "ชื่อวิชา", aliases: ["subject_name"], required: false },
   { key: "classrooms", header: "ห้องที่สอน", aliases: ["classrooms"], required: false },
 ];
 
@@ -248,6 +250,7 @@ export function validateStudentRow(row: RawRow<(typeof STUDENT_COLUMNS)[number][
 
   const classroom = parseClassroom(row.cells.grade, row.cells.room);
   if (!classroom) errors.push("ชั้น/ห้องไม่ถูกต้อง (เช่น ม.5 ห้อง 2 หรือ ม.5/2)");
+  else if (!isSchoolClassroom(classroom)) errors.push(`${formatClassroom(classroom)}: ${CLASSROOM_RULE}`);
 
   const bd = parseBirthdate(row.cells.birthdate, now);
   if (!bd.ok) errors.push(bd.error);
@@ -261,7 +264,8 @@ export type TeacherRow = {
   loginId: string;
   displayName: string;
   password: string;
-  subject: { code: string; name: string } | null;
+  /** One of the six subjects in src/lib/school.ts. */
+  subject: SchoolSubject | null;
   classrooms: ClassroomRef[];
 };
 
@@ -283,26 +287,19 @@ export function validateTeacherRow(row: RawRow<(typeof TEACHER_COLUMNS)[number][
   let subject: TeacherRow["subject"] = null;
   let classrooms: ClassroomRef[] = [];
   if (code || name || roomsText) {
-    if (!code) errors.push("ไม่มีรหัสวิชา");
-    if (!name) errors.push("ไม่มีชื่อวิชา");
+    subject = findSubject(name, code);
+    if (!subject) errors.push(`วิชาต้องเป็นหนึ่งใน: ${SUBJECT_NAMES}`);
     const parsed = parseClassroomList(roomsText);
     if (!parsed) errors.push("ห้องที่สอนไม่ถูกต้อง (เช่น ม.5/1, ม.5/2)");
-    else classrooms = parsed;
-    subject = { code, name };
+    else {
+      const outside = parsed.filter((c) => !isSchoolClassroom(c));
+      if (outside.length) errors.push(`${outside.map(formatClassroom).join(", ")}: ${CLASSROOM_RULE}`);
+      classrooms = parsed;
+    }
   }
 
   if (errors.length || !bd.ok) return { ok: false, rowNumber: row.rowNumber, errors };
   return { ok: true, value: { rowNumber: row.rowNumber, loginId, displayName, password: bd.password, subject, classrooms } };
-}
-
-// ─── Subject colors ──────────────────────────────────────────
-
-const SUBJECT_PALETTE = ["#378ADD", "#1D9E75", "#D85A30", "#7F77DD", "#D4537E", "#BA7517", "#639922", "#0F6E56", "#993556", "#185FA5"];
-
-export function subjectColor(code: string): string {
-  let h = 0;
-  for (const ch of code) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return SUBJECT_PALETTE[h % SUBJECT_PALETTE.length];
 }
 
 // ─── Temporary passwords (admin reset) ───────────────────────

@@ -14,14 +14,23 @@ const PRESS =
 const BUTTON_BASE =
   "inline-flex h-11 items-center justify-center gap-2 rounded-xl px-5 text-sm font-bold disabled:pointer-events-none disabled:opacity-60";
 
+/** White button with a thin grey border that turns light red on hover. */
+const SECONDARY = `${PRESS} border border-line bg-surface text-ink shadow-soft-sm hover:border-brand/30 hover:bg-brand-soft hover:text-brand hover:shadow-soft`;
+
 export const buttonStyles = {
   primary: `${BUTTON_BASE} ${PRESS} border border-brand bg-brand text-white shadow-brand-glow hover:bg-brand-hot hover:shadow-brand-glow-lg active:bg-brand-deep`,
-  secondary: `${BUTTON_BASE} ${PRESS} border border-line bg-surface text-ink shadow-soft-sm hover:border-brand/30 hover:bg-brand-soft hover:text-brand hover:shadow-soft`,
+  secondary: `${BUTTON_BASE} ${SECONDARY}`,
   /** White button for use on red backgrounds. */
   inverse: `${BUTTON_BASE} ${PRESS} border border-white bg-white text-brand shadow-soft hover:bg-ink hover:text-white hover:shadow-soft-lg`,
   ghost: `${BUTTON_BASE} text-muted transition-colors hover:bg-sunken hover:text-brand`,
   danger: `${BUTTON_BASE} ${PRESS} border border-line bg-surface text-danger shadow-soft-sm hover:bg-danger hover:text-white hover:shadow-soft`,
 };
+
+/** Smaller secondary button (lists, toolbars). Don't shrink buttonStyles with extra classes — they clash. */
+export const smallButtonStyles = `inline-flex h-9 items-center justify-center gap-1.5 rounded-lg px-3 text-sm font-bold ${SECONDARY}`;
+
+/** Square icon-only button (e.g. ‹ ›). Always give it an aria-label. */
+export const iconButtonStyles = `inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${SECONDARY}`;
 
 export function Button({ variant = "secondary", className, ...props }: ButtonProps) {
   return <button className={cx(buttonStyles[variant], className)} {...props} />;
@@ -46,6 +55,10 @@ export function Card({ className, children, bold }: { className?: string; childr
   );
 }
 
+/** Shared look for text boxes, selects and textareas. Add a width (w-full, w-24…) where used. */
+export const inputStyles =
+  "rounded-xl border border-line bg-surface px-3.5 text-base text-ink transition-[border-color,box-shadow] duration-150 placeholder:text-faint hover:border-line-strong focus:border-brand focus:shadow-brand-glow focus:outline-none disabled:bg-sunken disabled:text-faint";
+
 export function Field({
   label,
   hint,
@@ -54,10 +67,7 @@ export function Field({
   return (
     <label className="block">
       <span className="mb-1.5 block text-sm font-bold text-ink">{label}</span>
-      <input
-        className="h-12 w-full rounded-xl border border-line bg-surface px-3.5 text-base text-ink transition-[border-color,box-shadow] duration-150 placeholder:text-faint hover:border-line-strong focus:border-brand focus:shadow-brand-glow focus:outline-none"
-        {...input}
-      />
+      <input className={cx(inputStyles, "h-12 w-full")} {...input} />
       {hint && <span className="mt-1.5 block text-xs leading-relaxed text-muted">{hint}</span>}
     </label>
   );

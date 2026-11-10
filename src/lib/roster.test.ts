@@ -15,6 +15,7 @@ import {
   validateStudentRow,
   validateTeacherRow,
 } from "./roster";
+import { CLASSROOMS, SUBJECTS, findSubject, isSchoolClassroom } from "./school";
 
 const NOW = new Date("2026-11-10T00:00:00Z");
 const pw = (v: Parameters<typeof parseBirthdate>[0]) => {
@@ -105,13 +106,14 @@ test("missing required columns are reported", () => {
   assert.deepEqual(missingColumns, ["นามสกุล", "ชั้น", "วันเกิด"]);
 });
 
-test("teacher rows", () => {
+test("teacher rows: one of the 6 subjects, only the 8 Phase 1 rooms", () => {
   const { rows } = mapSheet(
     [
-      ["ชื่อผู้ใช้", "ชื่อ-นามสกุล", "วันเกิด", "รหัสวิชา", "ชื่อวิชา", "ห้องที่สอน"],
-      ["somsri", "ครูสมศรี มีสุข", "12/03/2523", "ค32101", "คณิตศาสตร์", "ม.5/1, ม.5/2"],
+      ["ชื่อผู้ใช้", "ชื่อ-นามสกุล", "วันเกิด", "ชื่อวิชา", "รหัสวิชา", "ห้องที่สอน"],
+      ["somsri", "ครูสมศรี มีสุข", "12/03/2523", "คณิตศาสตร์", "ค32101", "ม.5/1, ม.5/2"],
       ["somsri", "ครูสมศรี มีสุข", "12/03/2523", "", "", ""],
-      ["ครูแดง", "ครูแดง", "12/03/2523", "ว30201", "", "ม.4/1"],
+      ["ครูแดง", "ครูแดง", "12/03/2523", "ดนตรี", "", "ม.4/1"],
+      ["daeng", "ครูแดง", "12/03/2523", "", "ว30201", "ม.4/4, ม.6/1"],
     ],
     TEACHER_COLUMNS,
   );
@@ -120,12 +122,39 @@ test("teacher rows", () => {
   if (a.ok) {
     assert.equal(a.value.password, "12031980");
     assert.equal(a.value.classrooms.length, 2);
-    assert.deepEqual(a.value.subject, { code: "ค32101", name: "คณิตศาสตร์" });
+    assert.equal(a.value.subject?.code, "math");
   }
   const b = validateTeacherRow(rows[1], NOW);
   assert.ok(b.ok && b.value.subject === null);
   const c = validateTeacherRow(rows[2], NOW);
-  assert.equal(c.ok, false); // Thai username + missing subject name
+  assert.ok(!c.ok && c.errors.length === 2); // Thai username + "ดนตรี" isn't one of the 6
+  const d = validateTeacherRow(rows[3], NOW);
+  assert.ok(!d.ok && d.errors.length === 1 && d.errors[0].includes("ม.6/1")); // ว30201 → science is fine; ม.6/1 isn't
+});
+
+test("subjects: names, nicknames and Thai course codes map to the 6", () => {
+  assert.equal(findSubject("คณิต")?.code, "math");
+  assert.equal(findSubject("PAT 1")?.code, "pat");
+  assert.equal(findSubject("สังคม")?.code, "social");
+  assert.equal(findSubject("", "ว32201")?.code, "science");
+  assert.equal(findSubject("ฟิสิกส์")?.code, "science");
+  assert.equal(findSubject("ภาษา ไทย")?.code, "thai");
+  assert.equal(findSubject("English")?.code, "english");
+  assert.equal(findSubject("พลศึกษา", "พ32101"), null);
+  assert.equal(SUBJECTS.length, 6);
+});
+
+test("classrooms: only ม.4/1–4 and ม.5/1–4", () => {
+  assert.equal(CLASSROOMS.length, 8);
+  assert.ok(isSchoolClassroom({ grade: 4, room: 4 }));
+  assert.ok(!isSchoolClassroom({ grade: 5, room: 5 }));
+  assert.ok(!isSchoolClassroom({ grade: 6, room: 1 }));
+  const { rows } = mapSheet(
+    [["เลขประจำตัว", "ชื่อ", "นามสกุล", "ชั้น", "ห้อง", "วันเกิด"], [1, "ก", "ข", "ม.6", 1, "05/05/2552"]],
+    STUDENT_COLUMNS,
+  );
+  const r = validateStudentRow(rows[0], NOW);
+  assert.ok(!r.ok && r.errors[0].includes("ม.6/1"));
 });
 
 test("serializeCell keeps dates as calendar dates", () => {
