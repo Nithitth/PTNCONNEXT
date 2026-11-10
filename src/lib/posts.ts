@@ -127,12 +127,18 @@ export type MyPost = {
   examKind: ExamKind;
   subjectId: string | null;
   subject: { code: string; name: string; color: string } | null;
+  authorId: string;
+  /** Null when this user may not read the author's profile (teachers only see their own). */
+  authorName: string | null;
   targets: { classroomId: string | null; room: string; dueAt: string | null; endsAt: string | null }[];
   attachments: Attachment[];
 };
 
-/** Posts this person wrote, newest first — for "งานของฉัน" and the edit page. */
-export async function loadMyPosts(
+/**
+ * Posts this person may edit and delete, newest first — for the console list and the edit page.
+ * Admins: every post. Teachers: their own, plus every post in a subject they teach.
+ */
+export async function loadManagedPosts(
   supabase: SupabaseClient,
   profile: Profile,
   opts: { id?: string; limit?: number } = {},
@@ -140,19 +146,33 @@ export async function loadMyPosts(
   let query = supabase
     .from("posts")
     .select(
-      `id, type, title, description, content_order, exam_kind, subject_id,
+      `id, type, title, description, content_order, exam_kind, subject_id, author_id,
+       author:profiles(display_name),
        subject:subjects(code, name_th, color), attachments(id, kind, url, file_name),
        post_targets(classroom_id, due_at, ends_at, classroom:classrooms(grade, room))`,
     )
-    .eq("author_id", profile.id)
     .in("type", KINDS)
     .order("created_at", { ascending: false })
-    .limit(opts.limit ?? 100);
+    .limit(opts.limit ?? 200);
+  if (profile.role !== "admin") {
+    const { data: taught, error } = await supabase
+      .from("teaching_assignments")
+      .select("subject_id")
+      .eq("teacher_id", profile.id);
+    if (error) throw error;
+    const ids = [...new Set((taught ?? []).map((t) => t.subject_id as string))];
+    query = query.or(ids.length ? `author_id.eq.${profile.id},subject_id.in.(${ids.join(",")})` : `author_id.eq.${profile.id}`);
+  }
   if (opts.id) query = query.eq("id", opts.id);
   const { data, error } = await query;
   if (error) throw error;
 
-  type Row = PostRow & { subject_id: string | null; post_targets: TargetRow[] };
+  type Row = PostRow & {
+    subject_id: string | null;
+    author_id: string;
+    author: { display_name: string } | null;
+    post_targets: TargetRow[];
+  };
   return ((data ?? []) as unknown as Row[]).map((p) => ({
     id: p.id,
     type: p.type,
@@ -162,6 +182,8 @@ export async function loadMyPosts(
     examKind: p.exam_kind,
     subjectId: p.subject_id,
     subject: toSubject(p.subject),
+    authorId: p.author_id,
+    authorName: p.author?.display_name ?? null,
     targets: p.post_targets
       .map((t) => ({
         classroomId: t.classroom_id,

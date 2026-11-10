@@ -7,7 +7,7 @@ import { MyPosts } from "@/components/teacher/MyPosts";
 import { Card, Container, Notice, PageHeader, cx } from "@/components/ui";
 import { requireProfile } from "@/lib/auth";
 import type { PostKind } from "@/lib/postForm";
-import { loadMyPosts } from "@/lib/posts";
+import { loadManagedPosts } from "@/lib/posts";
 import { createClient } from "@/lib/supabase/server";
 import { loadCurrentRooms, loadTeachingOptions } from "@/lib/teaching";
 
@@ -57,7 +57,9 @@ export default async function TeacherConsolePage({ searchParams }: PageProps<"/t
   const profile = await requireProfile({ roles: ["teacher", "admin"] });
   const isAdmin = profile.role === "admin";
   const params = await searchParams;
-  const tabs = TABS.filter((t) => !t.adminOnly || isAdmin);
+  const tabs = TABS.filter((t) => !t.adminOnly || isAdmin).map((t) =>
+    t.id === "mine" && isAdmin ? { ...t, label: "โพสต์ทั้งหมด" } : t,
+  );
   const tab = tabs.find((t) => t.id === params.tab) ?? tabs[0];
   const saved = typeof params.saved === "string" ? SAVED[params.saved] : undefined;
 
@@ -65,7 +67,7 @@ export default async function TeacherConsolePage({ searchParams }: PageProps<"/t
   const [subjects, rooms, myPosts] = await Promise.all([
     tab.kind ? loadTeachingOptions(supabase, profile) : Promise.resolve([]),
     tab.kind ? loadCurrentRooms(supabase) : Promise.resolve([]),
-    tab.id === "mine" ? loadMyPosts(supabase, profile) : Promise.resolve([]),
+    tab.id === "mine" ? loadManagedPosts(supabase, profile) : Promise.resolve([]),
   ]);
 
   return (
@@ -105,7 +107,7 @@ export default async function TeacherConsolePage({ searchParams }: PageProps<"/t
       )}
 
       {!tab.kind ? (
-        <MyPosts posts={myPosts} />
+        <MyPosts posts={myPosts} meId={profile.id} isAdmin={isAdmin} />
       ) : (
         <div className="grid items-start gap-5 lg:grid-cols-[1.65fr_1fr]">
           <Card bold className="animate-rise">

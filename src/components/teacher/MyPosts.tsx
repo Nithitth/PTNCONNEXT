@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarClock, ExternalLink, FileText, Link2, Pencil } from "lucide-react";
+import { CalendarClock, ExternalLink, FileText, Link2, Pencil, UserRound } from "lucide-react";
 import { dayKey, formatDayShort, formatTime } from "@/lib/calendar";
 import { EXAM_KIND_LABEL, EXAM_LEAD_DAYS, KIND_LABEL } from "@/lib/postForm";
 import type { MyPost } from "@/lib/posts";
@@ -19,13 +19,18 @@ function whenLabel(post: MyPost, t: MyPost["targets"][number]) {
   return null;
 }
 
-export function MyPosts({ posts }: { posts: MyPost[] }) {
+/** The console list. Admins get every post; teachers their own plus their subjects' posts. */
+export function MyPosts({ posts, meId, isAdmin }: { posts: MyPost[]; meId: string; isAdmin: boolean }) {
   if (posts.length === 0) {
     return (
       <EmptyState
         icon={<FileText aria-hidden className="h-6 w-6" />}
         title="ยังไม่มีโพสต์"
-        body="งาน เอกสาร และวันสอบที่คุณโพสต์จะแสดงที่นี่ แก้ไขหรือลบได้ตลอด"
+        body={
+          isAdmin
+            ? "ทุกโพสต์ในระบบจะแสดงที่นี่ ผู้ดูแลระบบแก้ไขหรือลบได้ทุกโพสต์"
+            : "งาน เอกสาร และวันสอบในวิชาที่คุณสอนจะแสดงที่นี่ รวมถึงของครูท่านอื่นในวิชาเดียวกัน แก้ไขหรือลบได้ตลอด"
+        }
       />
     );
   }
@@ -59,6 +64,12 @@ export function MyPosts({ posts }: { posts: MyPost[] }) {
                     <span className="inline-flex items-center gap-1.5 text-muted">
                       <span aria-hidden className="h-2 w-2 rounded-full" style={{ background: post.subject.color }} />
                       {post.subject.name}
+                    </span>
+                  )}
+                  {post.authorId !== meId && (
+                    <span className="inline-flex items-center gap-1 text-faint">
+                      <UserRound aria-hidden className="h-3.5 w-3.5" />
+                      {post.authorName ? `โดย ${post.authorName}` : "โดยครูท่านอื่น"}
                     </span>
                   )}
                 </div>

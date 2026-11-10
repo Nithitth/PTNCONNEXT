@@ -139,7 +139,51 @@ async function main() {
   const aTarget = await a.from("post_targets").insert({ post_id: aPost.data?.id, classroom_id: notTaught });
   check("admin can post to a classroom like a teacher", !aPost.error && !aTarget.error, aPost.error?.message ?? aTarget.error?.message);
 
+  console.log("\nWho can edit and delete posts");
+  const subjectId = async (code: string) =>
+    (await admin.from("subjects").select("id").eq("code", code).single()).data!.id as string;
+  const [math, science] = await Promise.all([subjectId("math"), subjectId("science")]); // teacher.test teaches math only
+  const adminId = (await a.auth.getUser()).data.user!.id;
+  const otherPost = async (subject: string) => {
+    const { data } = await a
+      .from("posts")
+      .insert({ type: "assignment", title: "[security check] ของครูท่านอื่น", subject_id: subject, author_id: adminId })
+      .select("id")
+      .single();
+    await a.from("post_targets").insert({ post_id: data!.id, classroom_id: room51, due_at: new Date().toISOString() });
+    return data!.id as string;
+  };
+  const mathPost = await otherPost(math);
+  const sciencePost = await otherPost(science);
+
+  const seeMath = await t.from("posts").select("id").eq("id", mathPost);
+  check("teacher sees another teacher's post in their subject", seeMath.data?.length === 1);
+  const editMath = await t.from("posts").update({ title: "[security check] แก้แล้ว" }).eq("id", mathPost).select("id");
+  check("teacher can edit a post in their subject", editMath.data?.length === 1, editMath.error?.message);
+  const retarget = await t.from("post_targets").insert({ post_id: mathPost, classroom_id: notTaught });
+  check("teacher can change the rooms of a post in their subject", !retarget.error, retarget.error?.message);
+  const delMath = await t.from("posts").delete().eq("id", mathPost).select("id");
+  check("teacher can delete a post in their subject", delMath.data?.length === 1, delMath.error?.message);
+
+  const editSci = await t.from("posts").update({ title: "hack" }).eq("id", sciencePost).select("id");
+  const delSci = await t.from("posts").delete().eq("id", sciencePost).select("id");
+  const sciTarget = await t.from("post_targets").insert({ post_id: sciencePost, classroom_id: notTaught });
+  check(
+    "teacher can't edit, delete or retarget a post in a subject they don't teach",
+    (editSci.data ?? []).length === 0 && (delSci.data ?? []).length === 0 && Boolean(sciTarget.error),
+  );
+  // Even the admin can't (only the server's service key could).
+  const steal = await a.from("posts").update({ author_id: adminId }).eq("id", postId);
+  check("nobody can change who wrote a post", Boolean(steal.error));
+
+  const aEdit = await a.from("posts").update({ title: "[security check] admin แก้" }).eq("id", postId).select("id");
+  const aTarget2 = await a.from("post_targets").insert({ post_id: postId, classroom_id: notTaught });
+  check("admin can edit and retarget a teacher's post", aEdit.data?.length === 1 && !aTarget2.error, aTarget2.error?.message);
+  const aDel = await a.from("posts").delete().eq("id", sciencePost).select("id");
+  check("admin can delete any post", aDel.data?.length === 1, aDel.error?.message);
+
   // Clean up
+  await admin.from("posts").delete().in("id", [mathPost, sciencePost]);
   await admin.from("feedback").delete().like("message", "[security check]%");
   if (aPost.data?.id) await admin.from("posts").delete().eq("id", aPost.data.id);
   await a.auth.signOut();

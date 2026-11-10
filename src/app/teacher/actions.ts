@@ -2,7 +2,7 @@
 
 import { requireProfile, type Profile } from "@/lib/auth";
 import { logError } from "@/lib/logs";
-import { MATERIALS_BUCKET, MAX_FILE_BYTES, validatePost, type CleanPost, type PostInput } from "@/lib/postForm";
+import { MATERIALS_BUCKET, MAX_FILE_BYTES, isUuid, validatePost, type CleanPost, type PostInput } from "@/lib/postForm";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { loadCurrentRooms, loadTeachingOptions } from "@/lib/teaching";
@@ -27,6 +27,18 @@ async function checkAllowed(supabase: Awaited<ReturnType<typeof createClient>>, 
     return "เลือกได้เฉพาะ ม.4/1–ม.4/4 และ ม.5/1–ม.5/4";
   }
   return null;
+}
+
+/** Admins manage every post; teachers their own, or one in a subject they teach. */
+async function canManage(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  profile: Profile,
+  post: { author_id: string; subject_id: string | null },
+) {
+  if (profile.role === "admin" || post.author_id === profile.id) return true;
+  if (!post.subject_id) return false;
+  const subjects = await loadTeachingOptions(supabase, profile);
+  return subjects.some((s) => s.id === post.subject_id);
 }
 
 /** The PDF was uploaded by the browser — make sure it's really there, in this user's folder. */
@@ -71,8 +83,8 @@ export async function savePost(postId: string | null, input: PostInput): Promise
     ]);
     if (problem || fileProblem) return { error: (problem || fileProblem)! };
 
+    // author_id and type are set once, when the post is created.
     const fields = {
-      type: post.type,
       subject_id: post.subject_id,
       title: post.title,
       description: post.description,
@@ -82,14 +94,15 @@ export async function savePost(postId: string | null, input: PostInput): Promise
 
     let id: string;
     if (postId) {
-      // Only your own posts, and the kind can't change.
+      // Admins: any post. Teachers: their own, or one in a subject they teach. The kind can't change.
       const { data: existing } = await supabase
         .from("posts")
-        .select("id, type, author_id")
+        .select("id, type, author_id, subject_id")
         .eq("id", postId)
-        .eq("author_id", profile.id)
         .maybeSingle();
-      if (!existing) return { error: "ไม่พบโพสต์นี้ หรือคุณไม่มีสิทธิ์แก้ไข" };
+      if (!existing || !(await canManage(supabase, profile, existing))) {
+        return { error: "ไม่พบโพสต์นี้ หรือคุณไม่มีสิทธิ์แก้ไข" };
+      }
       if (existing.type !== post.type) return { error: "เปลี่ยนประเภทโพสต์ไม่ได้" };
       const { error } = await supabase
         .from("posts")
@@ -102,7 +115,7 @@ export async function savePost(postId: string | null, input: PostInput): Promise
     } else {
       const { data, error } = await supabase
         .from("posts")
-        .insert({ ...fields, author_id: profile.id })
+        .insert({ ...fields, type: post.type, author_id: profile.id })
         .select("id")
         .single();
       if (error || !data) throw error ?? new Error("post insert returned nothing");
@@ -145,18 +158,26 @@ export async function savePost(postId: string | null, input: PostInput): Promise
   }
 }
 
-/** Deletes one of your own posts, with its classroom targets, attachments and uploaded PDFs. */
+/**
+ * Deletes a post with its classroom targets, attachments and uploaded PDFs.
+ * Admins: any post. Teachers: their own, or one in a subject they teach.
+ */
 export async function deletePost(postId: string): Promise<SaveResult> {
   const profile = await requireProfile({ roles: ["teacher", "admin"] });
+  if (!isUuid(postId)) return { error: "ไม่พบโพสต์นี้" };
   try {
     const supabase = await createClient();
-    const { data: files } = await supabase.from("attachments").select("storage_path").eq("post_id", postId);
-    const { data, error } = await supabase
+    const { data: existing } = await supabase
       .from("posts")
-      .delete()
+      .select("id, author_id, subject_id")
       .eq("id", postId)
-      .eq("author_id", profile.id)
-      .select("id");
+      .maybeSingle();
+    if (!existing || !(await canManage(supabase, profile, existing))) {
+      return { error: "ไม่พบโพสต์นี้ หรือคุณไม่มีสิทธิ์ลบ" };
+    }
+    const { data: files } = await supabase.from("attachments").select("storage_path").eq("post_id", postId);
+    // RLS checks the same rule again.
+    const { data, error } = await supabase.from("posts").delete().eq("id", postId).select("id");
     if (error) throw error;
     if (!data?.length) return { error: "ไม่พบโพสต์นี้ หรือคุณไม่มีสิทธิ์ลบ" };
     await removeFiles(files);

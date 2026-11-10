@@ -1,6 +1,7 @@
 "use server";
 
 import { requireProfile } from "@/lib/auth";
+import { hoursAgo } from "@/lib/calendar";
 import { logError } from "@/lib/logs";
 import { MAX_DESCRIPTION } from "@/lib/postForm";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -10,8 +11,8 @@ export type FeedbackState = { ok?: true; error?: string };
 
 // Same 2000-character limit as the database column.
 const MAX_FEEDBACK = MAX_DESCRIPTION;
-/** Stops accidental double-sends and spam: at most this many messages per person per 10 minutes. */
-const LIMIT_PER_10_MIN = 3;
+/** Stops spam: at most this many messages per person in any 24 hours. */
+const LIMIT_PER_DAY = 3;
 
 /** Saves a message from the home page's feedback box. Only admins can read it. */
 export async function sendFeedback(_prev: FeedbackState, formData: FormData): Promise<FeedbackState> {
@@ -22,13 +23,15 @@ export async function sendFeedback(_prev: FeedbackState, formData: FormData): Pr
 
   try {
     // Users can't read the feedback table, so the count uses the admin client.
-    const since = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-    const { count } = await createAdminClient()
+    const { count, error: countErr } = await createAdminClient()
       .from("feedback")
       .select("id", { count: "exact", head: true })
       .eq("user_id", profile.id)
-      .gte("created_at", since);
-    if ((count ?? 0) >= LIMIT_PER_10_MIN) return { error: "ส่งบ่อยเกินไป รอสักครู่แล้วลองใหม่" };
+      .gte("created_at", hoursAgo(24));
+    if (countErr) throw countErr;
+    if ((count ?? 0) >= LIMIT_PER_DAY) {
+      return { error: `ส่งได้วันละ ${LIMIT_PER_DAY} ข้อความ คุณส่งครบแล้ว ลองใหม่พรุ่งนี้` };
+    }
 
     // The insert itself goes through the user's own client (RLS: only as yourself).
     const supabase = await createClient();

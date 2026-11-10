@@ -124,7 +124,13 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
 - **Reads:** `src/lib/posts.ts` (`loadDatedItems`, `loadMaterials`, `loadMyPosts`) always uses the user's own client. A post sent to 2 rooms becomes 2 calendar items; students only get their own room's row.
 - **PDF uploads go browser → Supabase Storage directly** (`src/lib/supabase/browser.ts`), into `materials/<uid>/<uuid>.pdf`, because server actions have a 1 MB body limit. The server then checks that the path is in the user's own folder and that the file exists before saving. If saving fails, the form deletes the upload.
 - **Downloads:** files are opened through `/files/[id]` (route handler). It reads the attachment via RLS, then redirects to a 60-second signed URL (`?download=1` saves the file instead). Never put signed URLs or storage paths in pages.
-- **Editing** replaces the post's targets. The attachment is kept unless the teacher picks a new one. Only the author can edit; RLS stops admins adding targets to other people's posts.
+- **Editing** replaces the post's targets. The attachment is kept unless the teacher picks a new one.
+- **Who may edit and delete** (migration `0006`):
+  - Admins: every post. Their console tab is "โพสต์ทั้งหมด".
+  - Teachers: their own posts, plus every post in a subject they teach, including colleagues' posts. School events (no subject) only by their author or an admin.
+  - This is `canManage()` in `teacher/actions.ts`, `loadManagedPosts()` in `posts.ts`, and in RLS `teaches_subject()` / `can_manage_post()`.
+  - `author_id` and `type` can't be updated by anyone (column grants). Don't put them in an update.
+  - Teachers can't read other profiles, so a colleague's post shows "โดยครูท่านอื่น" instead of a name.
 - The day drawer is a native `<dialog>`: a bottom sheet on phones, a side sheet from `sm` up.
 
 **Server actions:**
@@ -173,7 +179,7 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
 
 **Week 3 is done:**
 - **Feedback box** on the home page for logged-in users, in the spot where guests see the login form (`FeedbackForm.tsx`, `src/app/feedback/actions.ts`).
-  - It's limited to 3 messages per person per 10 minutes. That count uses the admin client, because users can't read `feedback`.
+  - It's limited to 3 messages per person in any 24 hours. That count uses the admin client, because users can't read `feedback`.
   - The insert has no `.select()`, since students can't read their own row back.
 - **Developer Console** tabs (`AdminNav`):
   - ภาพรวม: stats, plus "ควรตรวจดู" cards that turn red when there is new feedback, errors, or failed logins.

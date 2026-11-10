@@ -7,7 +7,7 @@ import { Card, Container, PageHeader } from "@/components/ui";
 import { requireProfile } from "@/lib/auth";
 import { isoToBangkokInput } from "@/lib/calendar";
 import { KIND_LABEL, SCHOOL, isUuid } from "@/lib/postForm";
-import { loadMyPosts, type MyPost } from "@/lib/posts";
+import { loadManagedPosts, type MyPost } from "@/lib/posts";
 import { createClient } from "@/lib/supabase/server";
 import { loadCurrentRooms, loadTeachingOptions } from "@/lib/teaching";
 
@@ -40,7 +40,7 @@ export default async function EditPostPage({ params }: PageProps<"/teacher/posts
   const supabase = await createClient();
   const isAdmin = profile.role === "admin";
   const [[post], subjects, rooms] = await Promise.all([
-    loadMyPosts(supabase, profile, { id, limit: 1 }),
+    loadManagedPosts(supabase, profile, { id, limit: 1 }),
     loadTeachingOptions(supabase, profile),
     loadCurrentRooms(supabase),
   ]);
@@ -54,7 +54,7 @@ export default async function EditPostPage({ params }: PageProps<"/teacher/posts
         className="mb-4 inline-flex items-center gap-1.5 rounded-lg px-2 py-1 -ml-2 text-sm font-bold text-muted transition-colors hover:bg-surface hover:text-brand"
       >
         <ArrowLeft aria-hidden className="h-4 w-4" />
-        งานของฉัน
+        {isAdmin ? "โพสต์ทั้งหมด" : "งานของฉัน"}
       </Link>
       <PageHeader eyebrow={`แก้ไข${KIND_LABEL[kind]}`} title={post.title} />
       <Card bold className="mx-auto max-w-3xl">
