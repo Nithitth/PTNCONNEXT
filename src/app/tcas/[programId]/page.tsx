@@ -93,8 +93,10 @@ export default async function ProgramPage({ params }: PageProps<"/tcas/[programI
       <PageHeader eyebrow={`${program.universityName} · ${program.faculty}`} title={program.nameTh} subtitle={program.nameEn} />
 
       {!program.active && (
-        <div className="mb-5">
+        <div className="mb-5 space-y-3">
           <Notice tone="warning">หลักสูตรนี้ไม่มีในข้อมูลล่าสุด</Notice>
+          {/* A dead target must stay removable (the PDPA notice promises it). */}
+          {saved && <TargetButtons programId={program.programId} initiallySaved removeOnly />}
         </div>
       )}
 

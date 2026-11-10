@@ -138,6 +138,11 @@ export type CalcResult = {
   minTotal: number | null;
   gap: number;
   passesTotal: boolean;
+  /**
+   * pass: total and every minimum met · short: total below the minimum ·
+   * minimums: total reached but a per-exam/GPAX minimum isn't · noMinimum: the program publishes no minimum total.
+   */
+  status: "pass" | "short" | "minimums" | "noMinimum";
   failedMinimums: string[];
   hint: { code: string; points: number } | null;
 };
@@ -172,7 +177,9 @@ export function calculate(option: Round3Option, scores: Record<string, number>):
       }
     }
   }
-  return { total, minTotal: option.minTotal, gap, passesTotal: gap === 0, failedMinimums, hint };
+  const status: CalcResult["status"] =
+    option.minTotal === null ? "noMinimum" : gap > 0 ? "short" : failedMinimums.length > 0 ? "minimums" : "pass";
+  return { total, minTotal: option.minTotal, gap, passesTotal: gap === 0, status, failedMinimums, hint };
 }
 
 /** Validates scores sent from the browser. Unknown codes are dropped; any bad value rejects the lot. */

@@ -67,10 +67,23 @@ test("hint skips an exam that can't cover the gap alone", () => {
   assert.deepEqual(r.hint, { code: "a_lv_64", points: 58 }); // tpat3 needs 39 but has 5 left; tgat/a_lv_61 are full
 });
 
-test("no minimum total means it passes", () => {
-  const r = calculate({ ...chula, minTotal: null }, { tgat: 10 });
+test("no published minimum total is its own status, never 'passed'", () => {
+  const r = calculate({ ...chula, minTotal: null, minGpax: null, minimums: {} }, { tgat: 0 });
   assert.equal(r.gap, 0);
+  assert.equal(r.status, "noMinimum");
+});
+
+test("total reached but a minimum failed is not 'passed'", () => {
+  const r = calculate(chula, { tgat: 62, tpat3: 48, a_lv_61: 70, a_lv_64: 40, a_lv_65: 50, gpax: 1.5 });
   assert.equal(r.passesTotal, true);
+  assert.deepEqual(r.failedMinimums, ["gpax"]);
+  assert.equal(r.status, "minimums");
+});
+
+test("status is pass only when the total and every minimum are met", () => {
+  const scores = { tgat: 62, tpat3: 48, a_lv_61: 70, a_lv_64: 40, a_lv_65: 50 };
+  assert.equal(calculate(chula, { ...scores, gpax: 3 }).status, "pass");
+  assert.equal(calculate(chula, { ...scores, tpat3: 30, gpax: 3 }).status, "short");
 });
 
 test("unsupported formulas are flagged", () => {

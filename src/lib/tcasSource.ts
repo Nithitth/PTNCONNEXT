@@ -54,6 +54,16 @@ export function parseRounds(body: string): RawRound[] {
   }
 }
 
+/**
+ * A rounds/<id>.json response. 200 → its rounds; 403/404 → the program has no rounds file;
+ * anything else (429 throttling, 5xx) throws so the whole pull stops instead of wiping that program's rounds.
+ */
+export function roundsFromResponse(status: number, body: string): RawRound[] {
+  if (status === 200) return parseRounds(body);
+  if (status === 403 || status === 404) return [];
+  throw new Error(`rounds: HTTP ${status}`);
+}
+
 const num = (v: unknown): number | null => {
   if (v === null || v === undefined || v === "") return null;
   const n = Number(v);

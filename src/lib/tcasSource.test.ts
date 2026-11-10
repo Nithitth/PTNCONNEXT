@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { diffPrograms, mapLimit, normalizeProgram, parseRounds, uniqueCourses, type RawCourse, type RawRound } from "./tcasSource";
+import { diffPrograms, mapLimit, normalizeProgram, parseRounds, roundsFromResponse, uniqueCourses, type RawCourse, type RawRound } from "./tcasSource";
 
 const course: RawCourse = {
   program_id: "10010121300001A",
@@ -46,6 +46,15 @@ test("parseRounds returns [] for anything that isn't a JSON array", () => {
   assert.deepEqual(parseRounds('{"a":1}'), []);
   assert.deepEqual(parseRounds(""), []);
   assert.deepEqual(parseRounds('[{"type":"3_2570"}]'), [{ type: "3_2570" }]);
+});
+
+test("roundsFromResponse: missing file means no rounds, a throttled or broken server stops the pull", () => {
+  assert.deepEqual(roundsFromResponse(200, '[{"type":"3_2570"}]'), [{ type: "3_2570" }]);
+  assert.deepEqual(roundsFromResponse(403, "<Error/>"), []);
+  assert.deepEqual(roundsFromResponse(404, "<Error/>"), []);
+  assert.throws(() => roundsFromResponse(429, ""), /429/);
+  assert.throws(() => roundsFromResponse(500, ""), /500/);
+  assert.throws(() => roundsFromResponse(503, "<Error><Code>SlowDown</Code></Error>"), /503/);
 });
 
 test("normalizeProgram keeps round 1 and round 3 of the TCAS year only", () => {

@@ -14,14 +14,20 @@ export function TargetButtons({
   initiallySaved,
   getScores,
   position = 0,
+  removeOnly = false,
 }: {
   programId: string;
   initiallySaved: boolean;
   getScores?: () => Record<string, number>;
   position?: number;
+  /** Only offer removal (the program is no longer in the TCAS data). */
+  removeOnly?: boolean;
 }) {
   const [saved, setSaved] = useState(initiallySaved);
-  const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
+  const [message, setMessage] = useState<{
+    tone: "success" | "error";
+    text: string;
+  } | null>(null);
   const [pending, start] = useTransition();
 
   const save = () =>
@@ -31,7 +37,10 @@ export function TargetButtons({
       if (res.error) setMessage({ tone: "error", text: res.error });
       else {
         setSaved(true);
-        setMessage({ tone: "success", text: "บันทึกเป้าหมายแล้ว ดูได้ที่หน้า TCASter" });
+        setMessage({
+          tone: "success",
+          text: "บันทึกเป้าหมายแล้ว ดูได้ที่หน้า TCASter",
+        });
       }
     });
   const remove = () =>
@@ -48,12 +57,30 @@ export function TargetButtons({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <button type="button" onClick={save} disabled={pending} className={buttonStyles.primary}>
-          <Star aria-hidden className="h-4 w-4" />
-          {pending ? "กำลังบันทึก…" : saved && getScores ? "บันทึกคะแนนล่าสุด" : saved ? "บันทึกแล้ว" : "บันทึกเป็นเป้าหมาย"}
-        </button>
+        {!removeOnly && (
+          <button
+            type="button"
+            onClick={save}
+            disabled={pending}
+            className={buttonStyles.primary}
+          >
+            <Star aria-hidden className="h-4 w-4" />
+            {pending
+              ? "กำลังบันทึก…"
+              : saved && getScores
+                ? "บันทึกคะแนนล่าสุด"
+                : saved
+                  ? "บันทึกแล้ว"
+                  : "บันทึกเป็นเป้าหมาย"}
+          </button>
+        )}
         {saved && (
-          <button type="button" onClick={remove} disabled={pending} className={smallButtonStyles}>
+          <button
+            type="button"
+            onClick={remove}
+            disabled={pending}
+            className={smallButtonStyles}
+          >
             <Trash2 aria-hidden className="h-4 w-4" />
             เอาออกจากเป้าหมาย
           </button>

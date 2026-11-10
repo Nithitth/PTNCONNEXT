@@ -106,13 +106,19 @@ export function Calculator({ programId, options, saved, canSave }: Props) {
         </div>
         <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-line" aria-hidden>
           <div
-            className={cx("h-full rounded-full transition-[width] duration-300", result.passesTotal ? "bg-success" : "bg-brand")}
+            className={cx("h-full rounded-full transition-[width] duration-300", result.status === "pass" ? "bg-success" : "bg-brand")}
             style={{ width: `${Math.min(100, (result.total / max) * 100)}%` }}
           />
         </div>
-        <p className={cx("mt-3 flex items-center gap-1.5 text-sm font-bold", result.passesTotal ? "text-success" : "text-brand")}>
-          {result.passesTotal ? <CheckCircle2 aria-hidden className="h-4 w-4" /> : <AlertCircle aria-hidden className="h-4 w-4" />}
-          {result.passesTotal ? "ผ่านเกณฑ์ขั้นต่ำแล้ว" : `ขาดอีก ${fmt(result.gap)} คะแนน`}
+        <p className={cx("mt-3 flex items-center gap-1.5 text-sm font-bold", result.status === "pass" ? "text-success" : "text-brand")}>
+          {result.status === "pass" ? <CheckCircle2 aria-hidden className="h-4 w-4" /> : <AlertCircle aria-hidden className="h-4 w-4" />}
+          {result.status === "pass"
+            ? "ผ่านเกณฑ์ขั้นต่ำแล้ว"
+            : result.status === "short"
+              ? `ขาดอีก ${fmt(result.gap)} คะแนน`
+              : result.status === "minimums"
+                ? "คะแนนรวมถึงเกณฑ์แล้ว แต่ยังไม่ผ่านเงื่อนไขขั้นต่ำ"
+                : "หลักสูตรนี้ไม่ได้ประกาศคะแนนรวมขั้นต่ำ"}
         </p>
         {result.hint && (
           <p className="mt-1.5 flex gap-1.5 text-sm text-ink">
