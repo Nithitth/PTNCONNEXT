@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --test src/lib/roster.test.ts src/lib/calendar.test.ts",
+    "test": "tsx --test src/lib/roster.test.ts src/lib/calendar.test.ts src/lib/tcas.test.ts",
     "typecheck": "tsc --noEmit",
     "seed": "tsx scripts/seed.ts",
     "check:security": "tsx scripts/check-security.ts"
