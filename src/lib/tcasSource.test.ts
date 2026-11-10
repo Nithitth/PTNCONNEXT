@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { diffPrograms, normalizeProgram, parseRounds, type RawCourse, type RawRound } from "./tcasSource";
+import { diffPrograms, mapLimit, normalizeProgram, parseRounds, type RawCourse, type RawRound } from "./tcasSource";
 
 const course: RawCourse = {
   program_id: "10010121300001A",
@@ -94,6 +94,30 @@ test("fingerprint is stable and notices changes", () => {
   assert.equal(normalizeProgram({ ...course, updated_at: "2027-01-01T00:00:00Z" }, rounds).fingerprint, a);
   const changed = rounds.map((r) => (r.type === "3_2570" && r.min_total_score ? { ...r, min_total_score: 55 } : r));
   assert.notEqual(normalizeProgram(course, changed).fingerprint, a);
+});
+
+test("mapLimit keeps order and never runs more than the limit at once", async () => {
+  let running = 0;
+  let peak = 0;
+  const out = await mapLimit([5, 1, 4, 2, 3, 0], 2, async (n) => {
+    running++;
+    peak = Math.max(peak, running);
+    await new Promise((r) => setTimeout(r, n));
+    running--;
+    return n * 10;
+  });
+  assert.deepEqual(out, [50, 10, 40, 20, 30, 0]);
+  assert.equal(peak, 2);
+});
+
+test("mapLimit stops with the first error", async () => {
+  await assert.rejects(
+    mapLimit([1, 2, 3], 2, async (n) => {
+      if (n === 2) throw new Error("boom");
+      return n;
+    }),
+    /boom/,
+  );
 });
 
 test("diffPrograms finds added, changed and removed", () => {
