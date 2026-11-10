@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { diffPrograms, mapLimit, normalizeProgram, parseRounds, type RawCourse, type RawRound } from "./tcasSource";
+import { diffPrograms, mapLimit, normalizeProgram, parseRounds, uniqueCourses, type RawCourse, type RawRound } from "./tcasSource";
 
 const course: RawCourse = {
   program_id: "10010121300001A",
@@ -118,6 +118,13 @@ test("mapLimit stops with the first error", async () => {
     }),
     /boom/,
   );
+});
+
+test("uniqueCourses keeps the first entry of a program listed twice", () => {
+  const twice = [course, { ...course, field_name_th: "ซ้ำ" }, { ...course, program_id: "X1" }];
+  const out = uniqueCourses(twice);
+  assert.deepEqual(out.map((c) => c.program_id), [course.program_id, "X1"]);
+  assert.equal(out[0].field_name_th, course.field_name_th);
 });
 
 test("diffPrograms finds added, changed and removed", () => {

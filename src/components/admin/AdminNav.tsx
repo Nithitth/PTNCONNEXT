@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { AlertTriangle, LayoutDashboard, LogIn, MessageSquareText, Upload, UserSearch } from "lucide-react";
+import { AlertTriangle, GraduationCap, LayoutDashboard, LogIn, MessageSquareText, Upload, UserSearch } from "lucide-react";
 import { cx } from "@/components/ui";
 
 const TABS = [
@@ -11,6 +11,7 @@ const TABS = [
   { href: "/admin/errors", label: "ข้อผิดพลาด", Icon: AlertTriangle },
   { href: "/admin/logins", label: "การเข้าสู่ระบบ", Icon: LogIn },
   { href: "/admin/users", label: "ผู้ใช้", Icon: UserSearch },
+  { href: "/admin/tcas", label: "ข้อมูล TCAS", Icon: GraduationCap },
   { href: "/admin/roster", label: "นำเข้ารายชื่อ", Icon: Upload },
 ];
 

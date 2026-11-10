@@ -22,6 +22,7 @@ const chula: Round3Option = {
   minimums: { gpax: 2 },
   link: null,
   problem: null,
+  extraConditions: false,
 };
 
 test("weighted total and gap", () => {
@@ -73,14 +74,26 @@ test("no minimum total means it passes", () => {
 });
 
 test("unsupported formulas are flagged", () => {
-  assert.equal(checkRound3({ tgat: 50, a_lv_82: 50 }, { min_gpax: 2 }), null);
-  assert.equal(checkRound3({ tgat: 50, gpa22: 50 }, { min_a_lv_61: 30, min_gpa22: 3 }), null);
-  assert.ok(checkRound3({ tgat: 50, cal_score_sum: 51 }, {}));
-  assert.ok(checkRound3({ tgat: 50, tu002: 50 }, {}));
-  assert.ok(checkRound3({ tgat: 40, a_lv_82: 50 }, {})); // sums to 90
-  assert.ok(checkRound3({}, {})); // no weights
-  assert.ok(checkRound3({ tgat: 100 }, { score_condition: 1 }));
-  assert.ok(checkRound3({ tgat: 100 }, { min_vnet_51: 30 }));
+  assert.equal(checkRound3({ tgat: 50, a_lv_82: 50 }), null);
+  assert.equal(checkRound3({ tgat: 50, gpa22: 50 }), null);
+  assert.ok(checkRound3({ tgat: 50, cal_score_sum: 51 }));
+  assert.ok(checkRound3({ tgat: 50, tu002: 50 }));
+  assert.ok(checkRound3({ tgat: 40, a_lv_82: 50 })); // sums to 90
+  assert.ok(checkRound3({})); // no weights
+});
+
+test("conditions the calculator can't check don't block it", () => {
+  // Real Mahidol data: complete weights, plus a combined-score rule and English-test alternatives.
+  assert.equal(checkRound3({ tgat: 100 }), null);
+  const row = {
+    position: 0, project_name: null, seats: 5, min_gpax: 3, min_total: null,
+    weights: { tgat: 100 }, link: null, problem: null,
+  };
+  assert.equal(toRound3Option({ ...row, conditions: { min_gpax: 3, score_condition: 2, score_minimum: 250 } }).extraConditions, true);
+  assert.equal(toRound3Option({ ...row, conditions: { min_vnet_51: 30 } }).extraConditions, true);
+  assert.equal(toRound3Option({ ...row, conditions: { min_gpax: 3, min_tgat: 30 } }).extraConditions, false);
+  // Unknown conditions never become minimums the calculator checks.
+  assert.deepEqual(toRound3Option({ ...row, conditions: { min_gpax: 3, min_ielts: 5 } }).minimums, { gpax: 3 });
 });
 
 test("toRound3Option strips min_ prefixes", () => {

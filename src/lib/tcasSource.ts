@@ -141,8 +141,8 @@ export function normalizeProgram(course: RawCourse, rounds: RawRound[], year: nu
       weights,
       conditions,
       link: textOrNull(r.link),
-      // Check the raw objects so non-numeric keys (e.g. subject_names) are flagged too.
-      problem: checkRound3(obj(r.scores), obj(r.score_conditions)),
+      // Check the raw object so non-numeric weights are flagged too.
+      problem: checkRound3(obj(r.scores)),
     };
   });
 
@@ -150,6 +150,12 @@ export function normalizeProgram(course: RawCourse, rounds: RawRound[], year: nu
   void _ignored;
   const fingerprint = JSON.stringify(stable({ program: fingerprinted, round1, round3 }));
   return { program, round1, round3, fingerprint };
+}
+
+/** courses.json can list one program more than once (e.g. per major); keep the first entry. */
+export function uniqueCourses(courses: RawCourse[]): RawCourse[] {
+  const seen = new Set<string>();
+  return courses.filter((c) => !seen.has(c.program_id) && (seen.add(c.program_id), true));
 }
 
 /** Runs `fn` over `items` with at most `limit` running at once. Results keep the input order; the first error rejects. */

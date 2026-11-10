@@ -79,6 +79,8 @@ export type Round3Option = {
   link: string | null;
   /** Why the calculator can't be used for this option (Thai), or null. */
   problem: string | null;
+  /** The program has extra conditions the calculator can't check (e.g. combined-score rules, IELTS). */
+  extraConditions: boolean;
 };
 
 /** One Round 3 option as stored in the database (tcas_round3) and in the staging payload. */
@@ -94,25 +96,29 @@ export type Round3Row = {
   problem: string | null;
 };
 
-/** Returns a short Thai reason when this Round 3 formula can't be calculated here, or null. */
-export function checkRound3(weights: Record<string, unknown>, conditions: Record<string, unknown>): string | null {
+/** A condition the calculator understands: min_gpax or min_<known exam/grade code>. */
+const knownCondition = (key: string) => key.startsWith("min_") && examInfo(key.slice(4)) !== null;
+
+/**
+ * Returns a short Thai reason when this Round 3 total can't be calculated here, or null.
+ * Only the weights decide this; other conditions are shown as "extra conditions" instead.
+ */
+export function checkRound3(weights: Record<string, unknown>): string | null {
   const entries = Object.entries(weights);
   if (entries.length === 0) return "ไม่มีสัดส่วนคะแนน";
   if (entries.some(([code]) => !examInfo(code))) return "ใช้วิชาหรือสูตรคะแนนเฉพาะของมหาวิทยาลัย";
   if (entries.some(([, v]) => !isNum(v) || v <= 0)) return "สัดส่วนคะแนนไม่ถูกต้อง";
   const sum = round2(entries.reduce((s, [, v]) => s + (v as number), 0));
   if (sum !== 100) return `สัดส่วนคะแนนรวม ${sum}% ไม่ใช่ 100%`;
-  for (const key of Object.keys(conditions)) {
-    if (!key.startsWith("min_") || !examInfo(key.slice(4))) return "มีเงื่อนไขคะแนนพิเศษ";
-  }
   return null;
 }
 
 export function toRound3Option(row: Round3Row): Round3Option {
   const minimums: Record<string, number> = {};
   for (const [key, v] of Object.entries(row.conditions ?? {})) {
-    if (key.startsWith("min_") && isNum(v)) minimums[key.slice(4)] = v;
+    if (knownCondition(key) && isNum(v)) minimums[key.slice(4)] = v;
   }
+  const extraConditions = Object.keys(row.conditions ?? {}).some((key) => !knownCondition(key));
   return {
     position: row.position,
     projectName: row.project_name,
@@ -123,6 +129,7 @@ export function toRound3Option(row: Round3Row): Round3Option {
     minimums,
     link: row.link,
     problem: row.problem,
+    extraConditions,
   };
 }
 

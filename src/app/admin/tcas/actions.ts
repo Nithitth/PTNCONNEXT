@@ -7,7 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { TCAS_UNIVERSITIES } from "@/lib/tcas";
 import { fetchCourses, fetchRounds } from "@/lib/tcasFetch";
-import { mapLimit, normalizeProgram } from "@/lib/tcasSource";
+import { mapLimit, normalizeProgram, uniqueCourses } from "@/lib/tcasSource";
 
 export type TcasActionResult = {
   ok?: true;
@@ -29,7 +29,7 @@ export async function pullUniversity(universityId: string): Promise<TcasActionRe
   await requireProfile({ roles: ["admin"] });
   if (!known(universityId)) return { error: "ไม่รู้จักมหาวิทยาลัยนี้" };
   try {
-    const courses = await fetchCourses(universityId);
+    const courses = uniqueCourses(await fetchCourses(universityId));
     if (courses.length === 0) return { error: "ไม่พบหลักสูตรของมหาวิทยาลัยนี้ในข้อมูล TCAS" };
     const programs = await mapLimit(courses, 5, async (c) => normalizeProgram(c, await fetchRounds(c.program_id)));
 
@@ -39,7 +39,11 @@ export async function pullUniversity(universityId: string): Promise<TcasActionRe
     const rows = programs.map((p) => ({ university_id: universityId, program_id: p.program.program_id, payload: p }));
     for (let i = 0; i < rows.length; i += 100) {
       const { error } = await admin.from("tcas_staging").insert(rows.slice(i, i + 100));
-      if (error) throw error;
+      if (error) {
+        // Never leave half a university staged: publishing it would hide every program not yet inserted.
+        await admin.from("tcas_staging").delete().eq("university_id", universityId);
+        throw error;
+      }
     }
     revalidatePath("/admin/tcas");
     return {
