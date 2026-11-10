@@ -7,7 +7,7 @@ with real users. Tick each box before moving to the next stage.
 
 The school must sign off on these. They are not technical tasks, but launching without them is a PDPA risk.
 
-- [ ] **PDPA wording approved.** The school's PDPA officer reads the notice in `src/components/PdpaNotice.tsx`. If they change any wording, ask Claude to update it; that also bumps `PDPA_VERSION`, so everyone is asked again.
+- [ ] **PDPA wording approved.** The school's PDPA officer reads the notice in `src/components/PdpaNotice.tsx`. If they change any wording, ask Claude to update it; that also bumps `PDPA_VERSION`, so everyone is asked again. The notice now also covers TCASter: saved target programs and the scores students type, which only the student sees (staff see anonymous totals of 3+ students).
 - [ ] **Guardian consent decided.** Most students are under 20. Ask the school whether a parent or guardian must also agree.
 - [ ] **Permission to use the roster.** The school formally OKs giving us student and teacher names and birthdates. Birthdates are only used as the first password and are never stored.
 - [ ] **Teacher usernames agreed**, e.g. `somsri.k`.
@@ -19,7 +19,8 @@ Testers and the real school share one Supabase database, so the test content mus
 - [ ] Delete the sample posts: log in as `teacher.test` and `admin.test`, open คอนโซลครู → งานของฉัน, and delete each one.
 - [ ] In Supabase → **Authentication → Users**, delete `90001`, `90002` and `teacher.test`. Keep **one** admin account; change its password to a strong one first.
   - After this, `npm run check:security` and `npm run seed` won't work against this project. That's expected. They are for development, not for the live school.
-- [ ] In Supabase → **Table Editor**, empty `feedback`, `login_events` and `error_logs` (select all rows → delete).
+- [ ] In Supabase → **Table Editor**, empty `feedback`, `login_events`, `error_logs` and `tcas_targets` (select all rows → delete).
+- [ ] Developer Console → **ข้อมูล TCAS**: pull and publish all 5 universities, so TCASter has current data.
 
 ## Stage 2 — Pilot with 1–2 classrooms (about 1–2 weeks)
 

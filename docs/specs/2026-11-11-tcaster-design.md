@@ -130,6 +130,11 @@ Targets and slider scores are new personal data about minors.
   - Thammasat's own exams (`tu002`…);
   - V-NET (`vnet_51`).
 - **The calculator supports** TGAT, TPAT, A-Level, GPAX and subject-group grades. Anything else shows "โครงการนี้ใช้เกณฑ์พิเศษ ดูรายละเอียดที่ mytcas" (this project uses special criteria; see mytcas).
+- **Settled during the build, after a real pull (632 programs):**
+  - **Only the weights decide whether a program gets the calculator.** Extra conditions the calculator can't check (combined-score rules, IELTS/TOEFL, combined GPA groups) show a note instead. Under the stricter first rule, 38% of มหิดล programs lost the calculator. Now 34 of 632 programs (5%) have no calculator.
+  - **Programs without a calculator** can still be saved as a target, with no scores.
+  - **`courses.json` lists some programs more than once**, one entry per major; the first entry is kept.
+  - **Round 1 criteria** sit inside `folio`.
 
 ## Calls Claude made (check these)
 - **A program with several Round 3 entries** (`type` `3_2570` appears more than once): show one calculator per entry, labelled by its project name or by "แบบที่ 1/2".

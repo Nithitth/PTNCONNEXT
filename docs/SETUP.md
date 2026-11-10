@@ -65,6 +65,7 @@ npm run dev
 - [ ] As the student, open <http://localhost:3000/admin>. You should be sent back to the home page.
 - [ ] Log in as `admin.test` using "ครู". You should see **คอนโซลผู้พัฒนา** in the menu, and the login report should list your logins.
 - [ ] Go to Admin → **นำเข้ารายชื่อ**. Download the student template, add 2 rows, and import it. Both rows should show as created.
+- [ ] Go to Admin → **ข้อมูล TCAS**. Click **ดึงข้อมูลจาก TCAS** for มหิดล, then **เผยแพร่**. Open **TCAS** in the menu and search for a program.
 
 ## 5. Make yourself a real admin
 

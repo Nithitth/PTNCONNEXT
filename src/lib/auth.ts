@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 export type Role = "student" | "teacher" | "admin";
 
 /** Bump this when the PDPA notice text changes — everyone will be asked again. */
-export const PDPA_VERSION = 1;
+export const PDPA_VERSION = 2; // 2: TCASter targets (2026-11-11)
 
 export type Profile = {
   id: string;

@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 PTN Connext is a school web app for one Thai high school.
 - **Phase 1 (current):** Smart Calendar. Teachers post assignments, exams and materials to classrooms, and students view them.
-- **Phase 2 (later):** TCASter, a university-admissions hub.
+- **Phase 2 (in progress):** TCASter, a university-admissions hub. Release 1 (program info + score calculator) is built; design in `docs/specs/2026-11-11-tcaster-design.md`, plan in `docs/plans/2026-11-11-tcaster.md`.
 
 The approved design is in `docs/specs/2026-11-10-ptn-connext-design.md`. Setup steps for humans are in `docs/SETUP.md`.
 
@@ -25,7 +25,7 @@ npm run dev               # localhost:3000 (needs .env.local, see .env.example)
 npm run build             # production build — run before pushing
 npm run lint              # eslint
 npm run typecheck         # tsc --noEmit (run `npx next typegen` first if PageProps/LayoutProps are missing)
-npm test                  # node:test via tsx on src/lib/roster.test.ts + calendar.test.ts
+npm test                  # node:test via tsx on src/lib/{roster,calendar,tcas,tcasSource}.test.ts
 npx tsx --test --test-name-pattern "birthdate" src/lib/roster.test.ts   # single test
 npm run seed              # create test classrooms/subjects + one account per role (idempotent)
 npm run check:security    # logs in as test student/teacher against the real Supabase project and verifies RLS
@@ -190,4 +190,44 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
 - `check:security` (28 checks) also signs in as `admin.test`. It covers feedback (send only as yourself), who can read the console tables, and admins posting like teachers.
 - **Pilot and launch steps:** `docs/PILOT.md`.
 
-**Next:** the pilot (human steps in `docs/PILOT.md`). After that, Phase 2 (TCASter). `/tcas` stays a placeholder until then.
+**Phase 2, TCASter release 1 is built** (branch `tcaster`; migrations `0007` and `0008`). The pilot is on hold.
+
+**Next:** TCASter release 2 (the roadmap), then the pilot (human steps in `docs/PILOT.md`).
+
+## TCASter (Phase 2)
+
+**Data flow:**
+- The source is the official TCAS database: the public JSON behind course.mytcas.com (`courses.json` and `rounds/<program_id>.json` on `my-tcas.s3…`). Last year's admitted scores (`ly-programs`) are locked (403), so the calculator compares against each program's published minimum.
+- The admin pulls **one university per click** in Developer Console → **ข้อมูล TCAS** (`src/app/admin/tcas`). This runs `pullUniversity`: `fetchCourses`/`fetchRounds` in `src/lib/tcasFetch.ts`, then `normalizeProgram`, writing `tcas_staging` via the admin client.
+  - Staging is replaced only after every request succeeds. A failed insert clears that university's staging.
+- The page shows new, changed and removed programs, plus the ones with no calculator. **Publish** calls `tcas_publish(p_university)`, an all-or-nothing database function.
+  - Programs that disappear are set `active = false`, not deleted.
+- The 5 universities and their TCAS ids are in `TCAS_UNIVERSITIES` (`src/lib/tcas.ts`). The year is `TCAS_YEAR = 2570`; change both for a new TCAS year.
+- The data has quirks the code already handles:
+  - `courses.json` lists some programs more than once (`uniqueCourses`).
+  - Round 1 `criteria` sits inside `folio`.
+  - One program can have many Round 3 options.
+
+**Pure, tested logic:**
+- `src/lib/tcas.ts`: the exam-code table (`examInfo`), `checkRound3`, `toRound3Option`, `calculate`, `cleanScores`, `pickOption` and `cleanSearch`.
+  - Exams use 0–100. GPAX and subject-group GPA (`gpa21`–`gpa28`) use 0–4 and count ×25.
+- `src/lib/tcasSource.ts`: `parseRounds`, `normalizeProgram` (the staging payload shape), `uniqueCourses`, `mapLimit` and `diffPrograms`.
+
+**Calculator rule:**
+- **Only the weights decide whether a Round 3 option gets a calculator.** Unknown exam codes (`tu002`, `vnet_51`, `cal_*`) or weights not summing to 100 set `problem`, and the page shows "ดูรายละเอียดที่ mytcas".
+- Other conditions the calculator can't check (`score_condition`, IELTS/TOEFL, combined GPA groups) set `extraConditions` and show a note.
+
+**Pages:**
+- `/tcas`: search, field group, university chips, and "เป้าหมายของฉัน".
+- `/tcas/[programId]`: Round 1, Round 3, `Calculator`, and `TargetButtons`.
+- `/tcas/stats`: staff only. It calls `tcas_target_totals()`, which is anonymous and hides groups under 3.
+
+**Privacy:**
+- `tcas_targets` can be read and written only by the student who owns them; admins can't read them either.
+- The limit is 5 per student, enforced by the `tcas_targets_limit` trigger (migration `0008`). `saveTarget` updates an existing target instead of re-inserting it.
+- Programs without a calculator can still be saved, with no scores.
+- `PDPA_VERSION` is 2: the notice mentions TCASter.
+
+**Terms of use:** mytcas.com's terms forbid copying content beyond the service's purpose; the team chose to use the data anyway.
+- Every program page credits "ข้อมูล TCAS70 จาก mytcas.com (ทปอ.)" and links to the original.
+- Keep pulls admin-triggered, and never add a bulk download.

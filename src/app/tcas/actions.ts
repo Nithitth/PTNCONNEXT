@@ -36,16 +36,11 @@ export async function saveTarget(programId: string, position: number, scores: un
       return { error: `เก็บเป้าหมายได้สูงสุด ${MAX_TARGETS} หลักสูตร ลบเป้าหมายเดิมก่อน` };
     }
 
-    const { error } = await supabase.from("tcas_targets").upsert(
-      {
-        student_id: profile.id,
-        program_id: programId,
-        position: option?.position ?? 0,
-        slider_scores: clean,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "student_id,program_id" },
-    );
+    // Update an existing target; insert a new one (the database caps new ones at 5).
+    const fields = { position: option?.position ?? 0, slider_scores: clean, updated_at: new Date().toISOString() };
+    const { error } = already
+      ? await supabase.from("tcas_targets").update(fields).eq("program_id", programId)
+      : await supabase.from("tcas_targets").insert({ ...fields, student_id: profile.id, program_id: programId });
     if (error) throw error;
     revalidatePath("/tcas");
     revalidatePath(`/tcas/${programId}`);

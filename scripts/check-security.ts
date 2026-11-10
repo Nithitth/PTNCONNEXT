@@ -182,6 +182,52 @@ async function main() {
   const aDel = await a.from("posts").delete().eq("id", sciencePost).select("id");
   check("admin can delete any post", aDel.data?.length === 1, aDel.error?.message);
 
+  console.log("\nTCASter (Phase 2)");
+  const dummyIds = Array.from({ length: 6 }, (_, i) => `TEST00000000${i}A`);
+  await admin.from("tcas_programs").upsert(
+    dummyIds.map((program_id) => ({
+      program_id, university_id: "000", university_name: "[security check]", name_th: "[security check]", tcas_year: 2570,
+    })),
+  );
+  const s2Id = (await s2.auth.getUser()).data.user!.id;
+  // Start the test student with no targets (also clears leftovers from an interrupted run).
+  await admin.from("tcas_targets").delete().eq("student_id", studentId);
+  const myTarget = await s1.from("tcas_targets").insert({ student_id: studentId, program_id: dummyIds[0], slider_scores: { tgat: 50 } });
+  check("student can save a target", !myTarget.error, myTarget.error?.message);
+  const peek = await s2.from("tcas_targets").select("program_id").eq("student_id", studentId);
+  check("another student can't see it", (peek.data ?? []).length === 0);
+  const tTargets = await t.from("tcas_targets").select("program_id");
+  const aTargets = await a.from("tcas_targets").select("program_id");
+  check("teachers and admins can't read anyone's targets", (tTargets.data ?? []).length + (aTargets.data ?? []).length === 0);
+  const forgedTarget = await s1.from("tcas_targets").insert({ student_id: s2Id, program_id: dummyIds[1] });
+  check("student can't save a target for someone else", Boolean(forgedTarget.error));
+  const tooMany = await s1.from("tcas_targets").insert(dummyIds.slice(1, 6).map((program_id) => ({ student_id: studentId, program_id })));
+  check("can't get past 5 targets by saving several at once", Boolean(tooMany.error));
+  const more = await s1.from("tcas_targets").insert(dummyIds.slice(1, 5).map((program_id) => ({ student_id: studentId, program_id })));
+  const sixth = await s1.from("tcas_targets").insert({ student_id: studentId, program_id: dummyIds[5] });
+  check("a 6th target is refused", !more.error && Boolean(sixth.error), more.error?.message);
+  const rescore = await s1
+    .from("tcas_targets")
+    .update({ slider_scores: { tgat: 70 } })
+    .eq("student_id", studentId)
+    .eq("program_id", dummyIds[0])
+    .select("program_id");
+  check("with 5 targets, a student can still update one's scores", rescore.data?.length === 1, rescore.error?.message);
+  const tPublish = await t.rpc("tcas_publish", { p_university: "006" });
+  check("teacher can't publish TCAS data", Boolean(tPublish.error));
+  const sTotals = await s1.rpc("tcas_target_totals");
+  check("student can't read the staff totals", Boolean(sTotals.error));
+  const aTotals = await a.rpc("tcas_target_totals");
+  check(
+    "totals hide groups under 3 students",
+    !aTotals.error && !(aTotals.data ?? []).some((r: { university_name: string }) => r.university_name === "[security check]"),
+    aTotals.error?.message,
+  );
+  const sStage = await s1.from("tcas_staging").select("program_id").limit(1);
+  const tStage = await t.from("tcas_staging").select("program_id").limit(1);
+  check("students and teachers can't read TCAS staging", (sStage.data ?? []).length + (tStage.data ?? []).length === 0);
+  await admin.from("tcas_programs").delete().in("program_id", dummyIds); // cascades to the targets
+
   // Clean up
   await admin.from("posts").delete().in("id", [mathPost, sciencePost]);
   await admin.from("feedback").delete().like("message", "[security check]%");
