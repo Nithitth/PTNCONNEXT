@@ -9,21 +9,22 @@ import { loadCurrentRooms, loadTeachingOptions } from "@/lib/teaching";
 
 export type SaveResult = { ok?: true; error?: string };
 
-/** Teachers may only post a subject they teach, to rooms they teach it in. */
+/** Teachers may post a subject they teach, to any of the 8 rooms. Whole-school and events are admin-only. */
 async function checkAllowed(supabase: Awaited<ReturnType<typeof createClient>>, profile: Profile, post: CleanPost) {
   const schoolWide = post.targets.some((t) => t.classroom_id === null);
   if (profile.role !== "admin") {
     if (post.type === "event") return "เฉพาะผู้ดูแลระบบที่สร้างกิจกรรมโรงเรียนได้";
     if (schoolWide) return "เฉพาะผู้ดูแลระบบที่โพสต์ถึงทั้งโรงเรียนได้";
   }
-  const allowedRooms =
-    post.type === "event"
-      ? await loadCurrentRooms(supabase)
-      : (await loadTeachingOptions(supabase, profile)).find((s) => s.id === post.subject_id)?.rooms;
-  if (!allowedRooms) return "คุณไม่ได้สอนวิชานี้";
-  const ok = new Set(allowedRooms.map((r) => r.id));
+  const [subjects, rooms] = await Promise.all([
+    post.type === "event" ? null : loadTeachingOptions(supabase, profile),
+    loadCurrentRooms(supabase),
+  ]);
+  if (subjects && !subjects.some((s) => s.id === post.subject_id)) return "คุณไม่ได้สอนวิชานี้";
+  // Any of the 8 Phase 1 classrooms.
+  const ok = new Set(rooms.map((r) => r.id));
   if (post.targets.some((t) => t.classroom_id !== null && !ok.has(t.classroom_id))) {
-    return "มีห้องที่คุณไม่ได้สอนวิชานี้";
+    return "เลือกได้เฉพาะ ม.4/1–ม.4/4 และ ม.5/1–ม.5/4";
   }
   return null;
 }

@@ -8,9 +8,9 @@ import { bangkokInputToIso } from "./calendar";
  */
 export type PostKind = "assignment" | "material" | "exam" | "event";
 
-/** What the form may offer: subjects you teach, each with the rooms you teach it in. */
+/** What the form may offer: the subjects you teach, and the 8 classrooms. */
 export type RoomOption = { id: string; label: string };
-export type SubjectOption = { id: string; code: string; name: string; color: string; rooms: RoomOption[] };
+export type SubjectOption = { id: string; code: string; name: string; color: string };
 
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
 export const MAX_DESCRIPTION = 2000;

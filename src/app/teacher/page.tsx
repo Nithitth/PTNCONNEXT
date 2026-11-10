@@ -25,7 +25,7 @@ const TABS: { id: TabId; kind?: PostKind; label: string; Icon: typeof BookOpen; 
 
 const TIPS: Record<PostKind, string[]> = {
   assignment: [
-    "เลือกได้หลายห้อง และกำหนดส่งแต่ละห้องต่างกันได้",
+    "เลือกได้ทีละห้อง หรือกด “เลือกทั้ง 8 ห้อง” แล้วกำหนดส่งแต่ละห้องต่างกันได้",
     "จุดของงานในปฏิทินนักเรียนจะกะพริบเมื่อเหลือเวลาไม่ถึง 24 ชั่วโมง",
     "แนบได้ 1 อย่าง: ไฟล์ PDF ไม่เกิน 10 MB หรือลิงก์ Google Drive / Slides / Canva",
   ],
@@ -62,9 +62,9 @@ export default async function TeacherConsolePage({ searchParams }: PageProps<"/t
   const saved = typeof params.saved === "string" ? SAVED[params.saved] : undefined;
 
   const supabase = await createClient();
-  const [subjects, eventRooms, myPosts] = await Promise.all([
+  const [subjects, rooms, myPosts] = await Promise.all([
     tab.kind ? loadTeachingOptions(supabase, profile) : Promise.resolve([]),
-    isAdmin && tab.kind === "event" ? loadCurrentRooms(supabase) : Promise.resolve([]),
+    tab.kind ? loadCurrentRooms(supabase) : Promise.resolve([]),
     tab.id === "mine" ? loadMyPosts(supabase, profile) : Promise.resolve([]),
   ]);
 
@@ -120,8 +120,8 @@ export default async function TeacherConsolePage({ searchParams }: PageProps<"/t
               kind={tab.kind}
               userId={profile.id}
               subjects={subjects}
-              eventRooms={eventRooms}
-              allowSchoolWide={isAdmin}
+              rooms={rooms}
+              allowSchoolWide={isAdmin && tab.kind === "event"}
             />
           </Card>
 
@@ -129,7 +129,7 @@ export default async function TeacherConsolePage({ searchParams }: PageProps<"/t
             <Card className="animate-rise delay-1">
               <h2 className="flex items-center gap-2 font-display text-base font-bold text-ink">
                 <BookOpen aria-hidden className="h-5 w-5 text-brand" />
-                {isAdmin ? "วิชาในระบบ" : "วิชาและห้องที่คุณสอน"}
+                {isAdmin ? "วิชาในระบบ" : "วิชาที่คุณสอน"}
               </h2>
               {subjects.length === 0 ? (
                 <p className="mt-3 text-sm leading-relaxed text-muted">
@@ -143,15 +143,6 @@ export default async function TeacherConsolePage({ searchParams }: PageProps<"/t
                         <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: s.color }} />
                         <span className="truncate font-bold">{s.name}</span>
                       </span>
-                      {!isAdmin && (
-                        <span className="mt-1.5 flex flex-wrap gap-1 pl-5">
-                          {s.rooms.map((r) => (
-                            <span key={r.id} className="rounded-md bg-sunken px-1.5 py-0.5 text-xs font-medium text-muted">
-                              {r.label}
-                            </span>
-                          ))}
-                        </span>
-                      )}
                     </li>
                   ))}
                 </ul>

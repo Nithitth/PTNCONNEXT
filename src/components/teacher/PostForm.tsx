@@ -2,7 +2,7 @@
 
 import { startTransition, useActionState, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Check, CopyCheck, FileText, Link2, Paperclip, Upload, X } from "lucide-react";
+import { Check, CheckCheck, CopyCheck, FileText, Link2, Paperclip, Upload, X } from "lucide-react";
 import { savePost, type SaveResult } from "@/app/teacher/actions";
 import type { Attachment } from "@/lib/calendar";
 import {
@@ -39,8 +39,9 @@ type Props = {
   kind: PostKind;
   userId: string;
   subjects: SubjectOption[];
-  /** Admins: every classroom, for school events. */
-  eventRooms: RoomOption[];
+  /** The 8 classrooms; any of them can be picked, one by one or all at once. */
+  rooms: RoomOption[];
+  /** Admins on school events: also offer "ทั้งโรงเรียน". */
   allowSchoolWide: boolean;
   editing?: { postId: string; initial: FormInitial; current: Attachment | null };
 };
@@ -57,10 +58,13 @@ const COPY: Record<PostKind, { submit: string; titlePlaceholder: string; dateLab
   event: { submit: "สร้างกิจกรรม", titlePlaceholder: "เช่น กีฬาสี", roomsLabel: "ใครเข้าร่วม" },
 };
 
+const LINK_BUTTON =
+  "inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-bold text-brand transition-colors hover:bg-brand-soft";
+
 const sizeLabel = (bytes: number) =>
   bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 
-export function PostForm({ kind, userId, subjects, eventRooms, allowSchoolWide, editing }: Props) {
+export function PostForm({ kind, userId, subjects, rooms: classrooms, allowSchoolWide, editing }: Props) {
   const router = useRouter();
   const uid = useId();
   const copy = COPY[kind];
@@ -85,17 +89,20 @@ export function PostForm({ kind, userId, subjects, eventRooms, allowSchoolWide, 
   const [fileError, setFileError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
-  const subject = subjects.find((s) => s.id === subjectId);
-  const roomOptions = useMemo<RoomOption[]>(() => {
-    const base = kind === "event" ? eventRooms : (subject?.rooms ?? []);
-    return allowSchoolWide ? [{ id: SCHOOL, label: "ทั้งโรงเรียน" }, ...base] : base;
-  }, [kind, eventRooms, subject, allowSchoolWide]);
+  const roomOptions = useMemo<RoomOption[]>(
+    () => (allowSchoolWide ? [{ id: SCHOOL, label: "ทั้งโรงเรียน" }, ...classrooms] : classrooms),
+    [classrooms, allowSchoolWide],
+  );
+  const allPicked = classrooms.length > 0 && classrooms.every((r) => r.id in rooms);
 
-  function chooseSubject(id: string) {
-    setSubjectId(id);
-    // Keep only rooms that the new subject is taught in.
-    const allowed = new Set((subjects.find((s) => s.id === id)?.rooms ?? []).map((r) => r.id));
-    setRooms((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => k === SCHOOL || allowed.has(k))));
+  /** "เลือกทั้ง 8 ห้อง": tick every classroom (each keeps its own date box), or untick them all. */
+  function toggleAllRooms() {
+    setRooms((prev) => {
+      if (allPicked) return SCHOOL in prev ? { [SCHOOL]: prev[SCHOOL] } : {};
+      const next = { ...prev };
+      for (const r of classrooms) if (!(r.id in next)) next[r.id] = lastDate;
+      return next;
+    });
   }
 
   function toggleRoom(id: string) {
@@ -201,7 +208,7 @@ export function PostForm({ kind, userId, subjects, eventRooms, allowSchoolWide, 
           <select
             id={`${uid}-subject`}
             value={subjectId}
-            onChange={(e) => chooseSubject(e.target.value)}
+            onChange={(e) => setSubjectId(e.target.value)}
             className={cx(inputStyles, "h-12 w-full")}
             disabled={noSubjects}
             required
@@ -298,21 +305,25 @@ export function PostForm({ kind, userId, subjects, eventRooms, allowSchoolWide, 
       <Section
         label={copy.roomsLabel}
         aside={
-          datedPerRoom && checkedIds.length > 1 ? (
-            <button
-              type="button"
-              onClick={sameForAll}
-              className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-bold text-brand transition-colors hover:bg-brand-soft"
-            >
-              <CopyCheck aria-hidden className="h-3.5 w-3.5" />
-              ใช้วันเดียวกันทุกห้อง
-            </button>
-          ) : null
+          <span className="flex flex-wrap justify-end gap-1">
+            {datedPerRoom && checkedIds.length > 1 && (
+              <button type="button" onClick={sameForAll} className={LINK_BUTTON}>
+                <CopyCheck aria-hidden className="h-3.5 w-3.5" />
+                ใช้วันเดียวกันทุกห้อง
+              </button>
+            )}
+            {classrooms.length > 1 && (
+              <button type="button" onClick={toggleAllRooms} aria-pressed={allPicked} className={LINK_BUTTON}>
+                <CheckCheck aria-hidden className="h-3.5 w-3.5" />
+                {allPicked ? "ไม่เลือกทั้งหมด" : `เลือกทั้ง ${classrooms.length} ห้อง`}
+              </button>
+            )}
+          </span>
         }
       >
         {roomOptions.length === 0 ? (
           <p className="rounded-xl border border-dashed border-line-strong px-4 py-3 text-sm text-muted">
-            {kind === "event" ? "ยังไม่มีห้องเรียนในปีการศึกษานี้" : "เลือกวิชาก่อน แล้วห้องที่คุณสอนจะแสดงที่นี่"}
+            ยังไม่มีห้องเรียนในปีการศึกษานี้ ผู้ดูแลระบบต้องสร้างห้องก่อน
           </p>
         ) : datedPerRoom ? (
           <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line">

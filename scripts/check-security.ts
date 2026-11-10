@@ -39,12 +39,7 @@ async function main() {
   const room = async (grade: number, r: number) =>
     (await admin.from("classrooms").select("id").match({ grade, room: r, academic_year: year }).single()).data!.id as string;
   const room51 = await room(5, 1);
-  const { data: temp } = await admin
-    .from("classrooms")
-    .upsert({ grade: 6, room: 99, academic_year: year }, { onConflict: "grade,room,academic_year" })
-    .select("id")
-    .single();
-  const notTaught = temp!.id as string;
+  const notTaught = await room(5, 3); // teacher.test teaches ม.5/1 and ม.5/2 only
 
   const s1 = await signIn("90001", "05052009"); // ม.5/1
   const s2 = await signIn("90002", "06062009"); // ม.5/2
@@ -74,8 +69,8 @@ async function main() {
   const postId = post.data?.id as string;
   const okTarget = await t.from("post_targets").insert({ post_id: postId, classroom_id: room51, due_at: new Date().toISOString() });
   check("teacher can post to a room they teach (ม.5/1)", !okTarget.error, okTarget.error?.message);
-  const badTarget = await t.from("post_targets").insert({ post_id: postId, classroom_id: notTaught });
-  check("teacher can't post to a room they don't teach (ม.6/99)", Boolean(badTarget.error));
+  const otherRoom = await t.from("post_targets").insert({ post_id: postId, classroom_id: notTaught });
+  check("teacher can also post to a room they don't teach (ม.5/3)", !otherRoom.error, otherRoom.error?.message);
   const schoolWide = await t.from("post_targets").insert({ post_id: postId, classroom_id: null });
   check("teacher can't post to the whole school", Boolean(schoolWide.error));
   const forged = await t.from("posts").insert({ type: "announcement", title: "x", author_id: (await s1.auth.getUser()).data.user!.id });
@@ -118,7 +113,6 @@ async function main() {
   // Clean up
   await admin.storage.from("materials").remove([ownPath, `${studentId}/x.pdf`]);
   if (postId) await admin.from("posts").delete().eq("id", postId);
-  await admin.from("classrooms").delete().eq("id", notTaught);
   await Promise.all([s1.auth.signOut(), s2.auth.signOut(), t.auth.signOut()]);
 
   console.log(failures ? `\n${failures} check(s) FAILED` : "\nAll security checks passed");

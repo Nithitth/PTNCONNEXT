@@ -116,7 +116,11 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
 **Calendar and Teacher's Console (Week 2):**
 - **Time:** everything is Thai time (Asia/Bangkok, UTC+7). `src/lib/calendar.ts` is pure and shared by server and browser. It holds day keys (`"2026-11-12"`), the 6-week month grid starting on Sunday, `placeItems()` (deadlines, exam + lead-up days, multi-day events), `upcoming()`, `sortMaterials()`, and the Thai labels. Teachers' date boxes are read as Bangkok time by `bangkokInputToIso()`.
 - **Rules:** `src/lib/postForm.ts` (pure) validates a post: assignment = one deadline per room; exam = a date per room plus lead days 0–30; material = needs a PDF or link; event = admin-only, start/end. Links must be http(s). The form runs it before uploading, and `savePost` in `src/app/teacher/actions.ts` runs it again. It's also the one home for `PostKind`, `MATERIALS_BUCKET`, `SCHOOL` (the form's "ทั้งโรงเรียน" id) and `isUuid()`; import these instead of retyping the strings.
-- **Who may post where:** `src/lib/teaching.ts` lists the subjects and rooms from `teaching_assignments` for the current academic year (admins get every subject and room). `savePost` checks against it, and RLS checks again.
+- **Who may post where:**
+  - **Subjects:** teachers get the subjects listed for them in `teaching_assignments`; admins get all 6 (`loadTeachingOptions`).
+  - **Rooms:** anyone may post to any of the 8 rooms (`loadCurrentRooms`). The form has a "เลือกทั้ง 8 ห้อง" button that ticks all 8; each room still gets its own row and date.
+  - **Whole school** (`classroom_id` null) is admin-only and offered only for school events.
+  - `savePost` checks all of this. RLS checks it again (migration `0005`; `teaches_classroom()` is no longer used by policies).
 - **Reads:** `src/lib/posts.ts` (`loadDatedItems`, `loadMaterials`, `loadMyPosts`) always uses the user's own client. A post sent to 2 rooms becomes 2 calendar items; students only get their own room's row.
 - **PDF uploads go browser → Supabase Storage directly** (`src/lib/supabase/browser.ts`), into `materials/<uid>/<uuid>.pdf`, because server actions have a 1 MB body limit. The server then checks that the path is in the user's own folder and that the file exists before saving. If saving fails, the form deletes the upload.
 - **Downloads:** files are opened through `/files/[id]` (route handler). It reads the attachment via RLS, then redirects to a 60-second signed URL (`?download=1` saves the file instead). Never put signed URLs or storage paths in pages.

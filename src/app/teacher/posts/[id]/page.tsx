@@ -39,14 +39,13 @@ export default async function EditPostPage({ params }: PageProps<"/teacher/posts
 
   const supabase = await createClient();
   const isAdmin = profile.role === "admin";
-  const [[post], subjects, allRooms] = await Promise.all([
+  const [[post], subjects, rooms] = await Promise.all([
     loadMyPosts(supabase, profile, { id, limit: 1 }),
     loadTeachingOptions(supabase, profile),
-    isAdmin ? loadCurrentRooms(supabase) : Promise.resolve([]), // only school events use it
+    loadCurrentRooms(supabase),
   ]);
   if (!post) notFound();
   const kind = post.type;
-  const eventRooms = kind === "event" ? allRooms : [];
 
   return (
     <Container className="py-10">
@@ -69,8 +68,8 @@ export default async function EditPostPage({ params }: PageProps<"/teacher/posts
           kind={kind}
           userId={profile.id}
           subjects={subjects}
-          eventRooms={eventRooms}
-          allowSchoolWide={isAdmin}
+          rooms={rooms}
+          allowSchoolWide={isAdmin && kind === "event"}
           editing={{ postId: post.id, initial: toInitial(post), current: post.attachments[0] ?? null }}
         />
       </Card>
