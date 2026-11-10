@@ -9,7 +9,7 @@ function itemsFor(role: Role | null): NavItem[] {
   if (!role) return items;
   items.push(
     { href: "/calendar", label: "ปฏิทิน", icon: "calendar" },
-    { href: "/tcas", label: "TCAS", icon: "tcas", badge: "เร็วๆ นี้" },
+    { href: "/tcas", label: "TCAS", icon: "tcas" },
   );
   if (role === "teacher" || role === "admin") items.push({ href: "/teacher", label: "คอนโซลครู", icon: "teacher" });
   if (role === "admin") items.push({ href: "/admin", label: "คอนโซลผู้พัฒนา", icon: "admin" });

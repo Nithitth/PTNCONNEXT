@@ -66,6 +66,14 @@ test("portfolio questions are joined in order", () => {
   assert.equal(n.round1[1].portfolio, "");
 });
 
+test("criteria are read from inside folio too (real TCAS shape)", () => {
+  const n = normalizeProgram(course, [
+    { type: "1_2570", folio: { folio_q1: "ข้อหนึ่ง", closed_date: "2026-11-12T00:00:00.000Z", criteria: "เกณฑ์ใน folio" } },
+  ]);
+  assert.equal(n.round1[0].criteria, "เกณฑ์ใน folio");
+  assert.equal(n.round1[0].portfolio, "ข้อหนึ่ง");
+});
+
 test("round 3 options keep their order, numbers and problems", () => {
   const [a, b] = normalizeProgram(course, rounds).round3;
   assert.equal(a.position, 0);

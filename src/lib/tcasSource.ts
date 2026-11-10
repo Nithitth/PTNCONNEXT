@@ -125,7 +125,8 @@ export function normalizeProgram(course: RawCourse, rounds: RawRound[], year: nu
     project_name: textOrNull(r.project_name_th),
     seats: num(r.receive_student_number),
     portfolio: portfolioText(r.folio),
-    criteria: text(r.criteria).trim(),
+    // TCAS puts the selection criteria inside `folio`; accept either place.
+    criteria: (text(r.criteria) || text(obj(r.folio).criteria)).trim(),
     link: textOrNull(r.link),
   }));
 
