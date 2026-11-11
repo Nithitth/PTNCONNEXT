@@ -109,17 +109,20 @@ export function PageHeader({
   eyebrow,
   subtitle,
   children,
+  as: Heading = "h1",
 }: {
   title: string;
   eyebrow?: string;
   subtitle?: ReactNode;
   children?: ReactNode;
+  /** Use "h2" when the page already has its own h1 (e.g. a hero above). */
+  as?: "h1" | "h2";
 }) {
   return (
     <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
       <div>
         {eyebrow && <Eyebrow className="mb-2">{eyebrow}</Eyebrow>}
-        <h1 className="font-display text-3xl font-extrabold tracking-tight text-ink sm:text-4xl">{title}</h1>
+        <Heading className="font-display text-3xl font-extrabold tracking-tight text-ink sm:text-4xl">{title}</Heading>
         {subtitle && <p className="mt-1.5 text-sm text-muted">{subtitle}</p>}
       </div>
       {children}

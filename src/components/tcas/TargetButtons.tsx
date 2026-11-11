@@ -39,7 +39,7 @@ export function TargetButtons({
         setSaved(true);
         setMessage({
           tone: "success",
-          text: "บันทึกเป้าหมายแล้ว ดูได้ที่หน้า TCASter",
+          text: "บันทึกเป้าหมายแล้ว ดูได้ที่หน้า TCAS",
         });
       }
     });
@@ -58,29 +58,13 @@ export function TargetButtons({
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         {!removeOnly && (
-          <button
-            type="button"
-            onClick={save}
-            disabled={pending}
-            className={buttonStyles.primary}
-          >
+          <button type="button" onClick={save} disabled={pending} className={buttonStyles.primary}>
             <Star aria-hidden className="h-4 w-4" />
-            {pending
-              ? "กำลังบันทึก…"
-              : saved && getScores
-                ? "บันทึกคะแนนล่าสุด"
-                : saved
-                  ? "บันทึกแล้ว"
-                  : "บันทึกเป็นเป้าหมาย"}
+            {pending ? "กำลังบันทึก…" : saved && getScores ? "บันทึกคะแนนล่าสุด" : saved ? "บันทึกแล้ว" : "บันทึกเป็นเป้าหมาย"}
           </button>
         )}
         {saved && (
-          <button
-            type="button"
-            onClick={remove}
-            disabled={pending}
-            className={smallButtonStyles}
-          >
+          <button type="button" onClick={remove} disabled={pending} className={smallButtonStyles}>
             <Trash2 aria-hidden className="h-4 w-4" />
             เอาออกจากเป้าหมาย
           </button>

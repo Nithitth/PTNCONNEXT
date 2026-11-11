@@ -107,7 +107,7 @@ export default async function TcasDataPage() {
 
   return (
     <Container className="py-10">
-      <PageHeader eyebrow="ผู้ดูแลระบบ" title="ข้อมูล TCAS" subtitle="หลักสูตรและเกณฑ์รับสมัครรอบ 1 และรอบ 3 สำหรับ TCASter" />
+      <PageHeader eyebrow="ผู้ดูแลระบบ" title="ข้อมูล TCAS" subtitle="หลักสูตรและเกณฑ์รับสมัครรอบ 1 และรอบ 3 สำหรับหน้า TCAS" />
       <AdminNav />
       <div className="mb-5">
         <Notice tone="info">ข้อมูลจาก mytcas.com (ทปอ.) — ดึงทีละมหาวิทยาลัย ตรวจรายการด้านล่างก่อนกดเผยแพร่</Notice>

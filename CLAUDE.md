@@ -217,8 +217,15 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
 - **Only the weights decide whether a Round 3 option gets a calculator.** Unknown exam codes (`tu002`, `vnet_51`, `cal_*`) or weights not summing to 100 set `problem`, and the page shows "ดูรายละเอียดที่ mytcas".
 - Other conditions the calculator can't check (`score_condition`, IELTS/TOEFL, combined GPA groups) set `extraConditions` and show a note.
 
+**Naming:** the UI says **"TCAS"**. "TCASter" is only the project/code name (file names, docs, and the PDPA notice, which isn't reworded to avoid a re-consent).
+
 **Pages:**
-- `/tcas`: search, field group, university chips, and "เป้าหมายของฉัน".
+- `/tcas` opens with the **"อยากเข้า Top University ต้องทำยังไง?" window** (`UniversityShowcase.tsx`), which fills the first screen.
+  - It shows the 5 universities as cards: an emblem in a white circle over a campus photo. Each card links to `/tcas?u=<id>#search`.
+  - "Top University" uses the red→purple `.text-tcas-gradient`. The big gradient "t" (`.t-mark`, which masks `public/brand/arrow-white.png`) launches on load and moves with parallax; emblems float around it on xl screens.
+  - `ShowcaseMotion.tsx` (client) sets `--scroll` for `.tcas-parallax`, reveals `[data-reveal]` elements, and lands on `#search` after a search. It does nothing under `prefers-reduced-motion`.
+  - The images are Wikimedia Commons files in `public/tcas/`, with credits in `src/lib/tcasArt.ts` (shown on the page by `TcasCredits`) and in `public/tcas/CREDITS.md`. Keep both in sync when swapping images.
+- Below the window is the `#search` section: search, field group, university chips, and "เป้าหมายของฉัน".
 - `/tcas/[programId]`: Round 1, Round 3, `Calculator`, and `TargetButtons`.
 - `/tcas/stats`: staff only. It calls `tcas_target_totals()`, which is anonymous and hides groups under 3.
 

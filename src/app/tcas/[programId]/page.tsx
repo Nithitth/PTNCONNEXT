@@ -11,7 +11,7 @@ import { createClient } from "@/lib/supabase/server";
 import { examInfo, type Round3Option } from "@/lib/tcas";
 import { loadMyTargets, loadProgram } from "@/lib/tcasData";
 
-export const metadata: Metadata = { title: "หลักสูตร · TCASter" };
+export const metadata: Metadata = { title: "หลักสูตร · TCAS" };
 
 const PROGRAM_ID = /^[0-9A-Z]{10,20}$/;
 const UNSUPPORTED = "โครงการนี้ใช้เกณฑ์พิเศษ ดูรายละเอียดที่ mytcas";
@@ -88,7 +88,7 @@ export default async function ProgramPage({ params }: PageProps<"/tcas/[programI
         className="-ml-2 mb-4 inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-bold text-muted transition-colors hover:bg-surface hover:text-brand"
       >
         <ArrowLeft aria-hidden className="h-4 w-4" />
-        TCASter
+        TCAS
       </Link>
       <PageHeader eyebrow={`${program.universityName} · ${program.faculty}`} title={program.nameTh} subtitle={program.nameEn} />
 

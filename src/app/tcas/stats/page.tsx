@@ -5,7 +5,7 @@ import { Card, Container, EmptyState, PageHeader } from "@/components/ui";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
-export const metadata: Metadata = { title: "สถิติเป้าหมาย · TCASter" };
+export const metadata: Metadata = { title: "สถิติเป้าหมาย · TCAS" };
 
 type Row = { group_field: string; faculty: string; university_name: string; grade: number | null; students: number };
 
@@ -38,7 +38,7 @@ function BarList({ title, data }: { title: string; data: [string, number][] }) {
   );
 }
 
-/** Anonymous totals of students' TCASter targets, for teachers and admins. */
+/** Anonymous totals of students' TCAS targets, for teachers and admins. */
 export default async function TcasStatsPage() {
   await requireProfile({ roles: ["teacher", "admin"] });
   const supabase = await createClient();
@@ -53,9 +53,9 @@ export default async function TcasStatsPage() {
         className="-ml-2 mb-4 inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-bold text-muted transition-colors hover:bg-surface hover:text-brand"
       >
         <ArrowLeft aria-hidden className="h-4 w-4" />
-        TCASter
+        TCAS
       </Link>
-      <PageHeader eyebrow="TCASter" title="สถิติเป้าหมายของนักเรียน" subtitle="นักเรียนตั้งเป้าหมายเข้าคณะไหนบ้าง (ไม่แสดงชื่อ)" />
+      <PageHeader eyebrow="TCAS" title="สถิติเป้าหมายของนักเรียน" subtitle="นักเรียนตั้งเป้าหมายเข้าคณะไหนบ้าง (ไม่แสดงชื่อ)" />
 
       <p className="mb-6 flex gap-2 text-sm text-muted">
         <ShieldCheck aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-success" />

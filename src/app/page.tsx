@@ -183,7 +183,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
                 </span>
                 <span className="rounded-md border border-line-strong px-2.5 py-1 text-xs font-bold text-muted">เร็วๆ นี้</span>
               </div>
-              <h3 className="mt-6 font-display text-3xl font-extrabold text-ink">TCASter</h3>
+              <h3 className="mt-6 font-display text-3xl font-extrabold text-ink">TCAS</h3>
               <p className="mt-2 text-sm leading-relaxed text-muted">ข้อมูลและเครื่องมือวางแผนเข้ามหาวิทยาลัย</p>
               <ul className="mt-6 space-y-3 text-sm">
                 {[
@@ -204,7 +204,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
             <RoleCard
               icon={<Users aria-hidden className="h-5 w-5" strokeWidth={2.4} />}
               title="สำหรับนักเรียน"
-              points={["ดูงานและวันสอบของห้องตัวเอง", "ดาวน์โหลดสื่อการสอน", "วางแผนเรียนต่อด้วย TCASter"]}
+              points={["ดูงานและวันสอบของห้องตัวเอง", "ดาวน์โหลดสื่อการสอน", "วางแผนเรียนต่อด้วย TCAS"]}
             />
             <RoleCard
               icon={<Presentation aria-hidden className="h-5 w-5" strokeWidth={2.4} />}

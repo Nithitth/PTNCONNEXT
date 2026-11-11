@@ -74,11 +74,13 @@ export async function searchPrograms(
   return ((data ?? []) as ProgramRow[]).map(toCard);
 }
 
-/** How many programs are published (0 = TCAS data not ready yet). */
-export async function countPrograms(supabase: SupabaseClient): Promise<number> {
-  const { count, error } = await supabase.from("tcas_programs").select("program_id", { count: "exact", head: true }).eq("active", true);
+/** Published programs per TCAS university id (empty = TCAS data not ready yet). */
+export async function countByUniversity(supabase: SupabaseClient): Promise<Record<string, number>> {
+  const { data, error } = await supabase.from("tcas_programs").select("university_id").eq("active", true).range(0, 4999);
   if (error) throw error;
-  return count ?? 0;
+  const counts: Record<string, number> = {};
+  for (const r of (data ?? []) as { university_id: string }[]) counts[r.university_id] = (counts[r.university_id] ?? 0) + 1;
+  return counts;
 }
 
 /** Field groups (e.g. "วิศวกรรมศาสตร์"), sorted ก–ฮ. */
