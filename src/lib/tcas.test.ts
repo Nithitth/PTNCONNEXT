@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  paginateGroups,
   calculate,
   chanceLevel,
   checkRound3,
@@ -218,4 +219,26 @@ test("shared helpers: program ids, number format, university short names", async
   assert.equal(fmtNum(1234), "1,234");
   assert.equal(universityShort("006"), "มหิดล");
   assert.equal(universityShort("999"), "");
+});
+
+test("paginateGroups: pages of about 100 that keep each group whole", () => {
+  const items = (groups: number[]) => groups.flatMap((n, g) => Array.from({ length: n }, () => `g${g}`));
+  const sizes = (pages: string[][]) => pages.map((p) => p.length);
+  const byGroup = (x: string) => x;
+
+  // 30 + 40 + 25 = 95; the next group of 20 makes 115, still within the 15-item slack, so it joins.
+  assert.deepEqual(sizes(paginateGroups(items([30, 40, 25, 20, 50]), byGroup)), [115, 50]);
+  // A group that would push a non-empty page well past 100 starts a new page.
+  assert.deepEqual(sizes(paginateGroups(items([60, 30, 40, 10]), byGroup)), [90, 50]);
+  // A group bigger than a page gets its own page, never split.
+  assert.deepEqual(sizes(paginateGroups(items([10, 150, 5]), byGroup)), [10, 150, 5]);
+  // Every item is kept, in order, and no group spans two pages.
+  const all = items([12, 33, 7, 48, 21, 64, 9, 40, 18, 25]);
+  const pages = paginateGroups(all, byGroup);
+  assert.deepEqual(pages.flat(), all);
+  const firstPage = new Map<string, number>();
+  pages.forEach((p, i) => p.forEach((x) => assert.equal(firstPage.get(x) ?? (firstPage.set(x, i), i), i)));
+  // One item per group = plain chunks of 100.
+  assert.deepEqual(sizes(paginateGroups(Array.from({ length: 250 }, (_, i) => String(i)), byGroup)), [100, 100, 50]);
+  assert.deepEqual(paginateGroups([], byGroup), []);
 });

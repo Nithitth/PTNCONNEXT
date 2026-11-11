@@ -290,3 +290,30 @@ export function cleanSearch(q: string): string {
     .trim()
     .slice(0, 60);
 }
+
+/**
+ * Splits a sorted list into pages of about `size` items without splitting a group (e.g. one faculty)
+ * across two pages. A group joins the current page if the page stays within `size + slack`; otherwise it
+ * starts a new page. A group bigger than a page gets a page of its own. Order is kept.
+ */
+export function paginateGroups<T>(items: T[], groupOf: (item: T) => string, size = 100, slack = 15): T[][] {
+  const pages: T[][] = [];
+  let page: T[] = [];
+  for (let i = 0; i < items.length; ) {
+    let end = i + 1;
+    while (end < items.length && groupOf(items[end]) === groupOf(items[i])) end++;
+    const group = items.slice(i, end);
+    if (page.length && page.length + group.length > size + slack) {
+      pages.push(page);
+      page = [];
+    }
+    page.push(...group);
+    if (page.length >= size) {
+      pages.push(page);
+      page = [];
+    }
+    i = end;
+  }
+  if (page.length) pages.push(page);
+  return pages;
+}

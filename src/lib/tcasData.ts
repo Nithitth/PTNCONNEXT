@@ -5,8 +5,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { TCAS_UNIVERSITIES, cleanSearch, toRound3Option, type Round3Option, type Round3Row } from "@/lib/tcas";
 
 // Reads published TCAS data for the /tcas pages.
-// - Searches and personal data (targets) use the user's own client (RLS).
-// - Reference data that is the same for every signed-in user (counts, field groups, one program's detail)
+// - Personal data (targets) uses the user's own client (RLS).
+// - Reference data that is the same for every signed-in user (the program list, counts, field groups,
+//   one program's detail)
 //   is cached across requests with unstable_cache. Cached code can't read cookies, so it uses the admin
 //   client; callers must run requireProfile() first. Publishing a university clears the "tcas" tag.
 
@@ -79,7 +80,7 @@ const toCard = (p: ProgramRow): ProgramCard => ({
   lastApplicants: p.last_applicants,
 });
 
-/** Active programs matching the search, ordered university → faculty → name (at most 80). */
+/** How the program list can be sorted (the `?s=` parameter on /tcas). */
 export type ProgramSort = "faculty" | "low" | "high" | "competition";
 export const PROGRAM_SORTS: ProgramSort[] = ["faculty", "low", "high", "competition"];
 
@@ -87,29 +88,52 @@ export const PROGRAM_SORTS: ProgramSort[] = ["faculty", "low", "high", "competit
 export const competition = (p: Pick<ProgramCard, "lastApplicants" | "lastSeats">) =>
   p.lastApplicants !== null && p.lastSeats ? p.lastApplicants / p.lastSeats : null;
 
+type SearchableCard = ProgramCard & { field: string };
+
 /**
- * Active programs matching the search (at most 120). Sort: by university → faculty → name (default),
- * by last year's lowest score (low/high), or by competition (applicants per seat, lowest first).
+ * Every active program as a list card (about 630 small rows), ordered university → faculty → name.
+ * Cached for everyone and cleared on publish, so browsing and searching never hit the database.
+ */
+const loadAllCards = unstable_cache(
+  async (): Promise<SearchableCard[]> => {
+    const { data, error } = await createAdminClient()
+      .from("tcas_programs")
+      .select(`${CARD_FIELDS}, field`)
+      .eq("active", true)
+      .order("university_name")
+      .order("faculty")
+      .order("name_th")
+      .range(0, 4999);
+    if (error) throw error;
+    return ((data ?? []) as (ProgramRow & { field: string | null })[]).map((r) => ({ ...toCard(r), field: r.field ?? "" }));
+  },
+  ["tcas-all-cards"],
+  CACHE,
+);
+
+/**
+ * All active programs matching the filters (none = every program). Sort: university → faculty → name
+ * (default), last year's lowest score (low/high), or competition (applicants per seat, lowest first).
  * Programs without last-year data go last in the score/competition sorts.
  */
-export async function searchPrograms(
-  supabase: SupabaseClient,
-  f: { q?: string; university?: string; group?: string; sort?: ProgramSort },
-): Promise<ProgramCard[]> {
-  const sort = f.sort ?? "faculty";
-  let query = supabase.from("tcas_programs").select(CARD_FIELDS).eq("active", true);
-  if (sort === "low" || sort === "high") query = query.order("last_min", { ascending: sort === "low", nullsFirst: false });
-  query = query.order("university_name").order("faculty").order("name_th").limit(120);
-  const q = cleanSearch(f.q ?? "");
-  if (q) query = query.or(`name_th.ilike.%${q}%,faculty.ilike.%${q}%,field.ilike.%${q}%`);
-  if (f.university) query = query.eq("university_id", f.university);
-  if (f.group) query = query.eq("group_field", f.group);
-  const { data, error } = await query;
-  if (error) throw error;
-  const cards = ((data ?? []) as ProgramRow[]).map(toCard);
-  if (sort === "competition") {
-    cards.sort((a, b) => (competition(a) ?? Infinity) - (competition(b) ?? Infinity));
-  }
+export async function searchPrograms(f: {
+  q?: string;
+  university?: string;
+  group?: string;
+  sort?: ProgramSort;
+}): Promise<ProgramCard[]> {
+  const q = cleanSearch(f.q ?? "").toLowerCase();
+  const cards = (await loadAllCards()).filter(
+    (p) =>
+      (!f.university || p.universityId === f.university) &&
+      (!f.group || p.groupField === f.group) &&
+      (!q || [p.nameTh, p.faculty, p.field].some((t) => t.toLowerCase().includes(q))),
+  );
+  // Array.prototype.sort is stable, so ties keep the university → faculty → name order.
+  const last = (n: number | null, dir: 1 | -1) => (n === null ? Infinity : dir * n);
+  if (f.sort === "low") cards.sort((a, b) => last(a.lastMin, 1) - last(b.lastMin, 1));
+  if (f.sort === "high") cards.sort((a, b) => last(a.lastMin, -1) - last(b.lastMin, -1));
+  if (f.sort === "competition") cards.sort((a, b) => (competition(a) ?? Infinity) - (competition(b) ?? Infinity));
   return cards;
 }
 

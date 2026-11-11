@@ -1,17 +1,18 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BarChart3, GraduationCap, Search, Star } from "lucide-react";
+import { BarChart3, ChevronLeft, ChevronRight, GraduationCap, Search, Star } from "lucide-react";
 import { CompareTray } from "@/components/tcas/CompareTray";
 import { GroupSelect, SortSelect } from "@/components/tcas/FilterSelect";
 import { ProgramList } from "@/components/tcas/ProgramList";
 import { TcasCredits } from "@/components/tcas/TcasCredits";
 import { UniversityShowcase } from "@/components/tcas/UniversityShowcase";
-import { Container, EmptyState, Notice, PageHeader, buttonStyles, cx, inputStyles, smallButtonStyles } from "@/components/ui";
+import { Container, EmptyState, PageHeader, buttonStyles, cx, inputStyles, smallButtonStyles } from "@/components/ui";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { TCAS_UNIVERSITIES } from "@/lib/tcas";
+import { TCAS_UNIVERSITIES, fmtNum, paginateGroups, universityShort } from "@/lib/tcas";
 import {
   PROGRAM_SORTS,
+  type ProgramCard,
   type ProgramSort,
   countByUniversity,
   loadGroupFields,
@@ -23,6 +24,80 @@ export const metadata: Metadata = { title: "TCAS" };
 
 const param = (v: string | string[] | undefined) => (typeof v === "string" ? v : "");
 
+/**
+ * Page links under the list: ← ก่อนหน้า, numbered pages, ถัดไป →. When grouped by faculty, each
+ * number also says which university and faculties that page covers (shown on hover/long-press).
+ */
+function Pager({
+  pages,
+  page,
+  href,
+  grouped,
+}: {
+  pages: ProgramCard[][];
+  page: number;
+  href: (p: number) => string;
+  grouped: boolean;
+}) {
+  if (pages.length < 2) return null;
+  const covers = (list: ProgramCard[]) => {
+    const a = list[0];
+    const b = list[list.length - 1];
+    const start = `${universityShort(a.universityId)} ${a.faculty}`;
+    const end = `${universityShort(b.universityId)} ${b.faculty}`;
+    return start === end ? start : `${start} – ${end}`;
+  };
+  const step = (p: number, label: string, icon: "prev" | "next") => {
+    const Icon = icon === "prev" ? ChevronLeft : ChevronRight;
+    const off = p < 1 || p > pages.length;
+    const inner = (
+      <>
+        {icon === "prev" && <Icon aria-hidden className="h-4 w-4" />}
+        <span className="hidden sm:inline">{label}</span>
+        {icon === "next" && <Icon aria-hidden className="h-4 w-4" />}
+      </>
+    );
+    return off ? (
+      <span aria-hidden className={cx(smallButtonStyles, "pointer-events-none opacity-40")}>
+        {inner}
+      </span>
+    ) : (
+      <Link href={href(p)} aria-label={label} className={smallButtonStyles}>
+        {inner}
+      </Link>
+    );
+  };
+
+  return (
+    <nav aria-label="เลือกหน้า" className="mt-8 flex flex-wrap items-center justify-center gap-1 sm:gap-1.5">
+      {step(page - 1, "ก่อนหน้า", "prev")}
+      {pages.map((list, i) => {
+        const n = i + 1;
+        const on = n === page;
+        const title = grouped ? `หน้า ${n}: ${covers(list)} (${list.length} หลักสูตร)` : `หน้า ${n} (${list.length} หลักสูตร)`;
+        return (
+          <Link
+            key={n}
+            href={href(n)}
+            title={title}
+            aria-label={title}
+            aria-current={on ? "page" : undefined}
+            className={cx(
+              "grid h-9 min-w-8 place-items-center rounded-xl border px-1.5 text-sm font-bold tabular-nums transition-colors sm:min-w-9 sm:px-2",
+              on
+                ? "border-brand bg-brand text-white shadow-brand-glow"
+                : "border-line bg-surface text-muted hover:border-brand/30 hover:text-brand",
+            )}
+          >
+            {n}
+          </Link>
+        );
+      })}
+      {step(page + 1, "ถัดไป", "next")}
+    </nav>
+  );
+}
+
 export default async function TcasPage({ searchParams }: PageProps<"/tcas">) {
   const profile = await requireProfile();
   const isStudent = profile.role === "student";
@@ -30,7 +105,6 @@ export default async function TcasPage({ searchParams }: PageProps<"/tcas">) {
   const q = param(params.q).slice(0, 100);
   const u = TCAS_UNIVERSITIES.some((x) => x.id === param(params.u)) ? param(params.u) : "";
   const g = param(params.g).slice(0, 200); // some TCAS group names are over 100 characters
-  const searching = Boolean(q || u || g);
   const sort: ProgramSort = PROGRAM_SORTS.find((x) => x === param(params.s)) ?? "faculty";
 
   const supabase = await createClient();
@@ -38,16 +112,24 @@ export default async function TcasPage({ searchParams }: PageProps<"/tcas">) {
     countByUniversity(),
     loadGroupFields(),
     isStudent ? loadMyTargets(supabase) : Promise.resolve([]),
-    searching ? searchPrograms(supabase, { q, university: u, group: g, sort }) : Promise.resolve([]),
+    searchPrograms({ q, university: u, group: g, sort }),
   ]);
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
 
-  const href = (next: { u?: string }) => {
+  // Pages of about 100 programs. Sorted by faculty, a faculty is never split across two pages.
+  const pages = paginateGroups(results, (p) => (sort === "faculty" ? `${p.universityId}|${p.faculty}` : p.programId));
+  const page = Math.min(Math.max(1, Number.parseInt(param(params.p), 10) || 1), Math.max(1, pages.length));
+  const shown = pages[page - 1] ?? [];
+  const from = pages.slice(0, page - 1).reduce((n, x) => n + x.length, 0) + 1;
+
+  const href = (next: { u?: string; p?: number }) => {
     const sp = new URLSearchParams();
     if (q) sp.set("q", q);
-    if (next.u) sp.set("u", next.u);
+    const uni = "u" in next ? next.u : u;
+    if (uni) sp.set("u", uni);
     if (g) sp.set("g", g);
     if (sort !== "faculty") sp.set("s", sort);
+    if (next.p && next.p > 1) sp.set("p", String(next.p));
     const s = sp.toString();
     return `${s ? `/tcas?${s}` : "/tcas"}#search`;
   };
@@ -165,12 +247,7 @@ export default async function TcasPage({ searchParams }: PageProps<"/tcas">) {
                 </nav>
               </div>
 
-              {!searching ? (
-                <Notice tone="info">
-                  มีข้อมูล {total.toLocaleString("th-TH")} หลักสูตรจาก 5 มหาวิทยาลัย พิมพ์คำค้นหา เลือกกลุ่มสาขา
-                  หรือเลือกมหาวิทยาลัยเพื่อเริ่ม
-                </Notice>
-              ) : results.length === 0 ? (
+              {results.length === 0 ? (
                 <EmptyState
                   icon={<Search aria-hidden className="h-6 w-6" />}
                   title="ไม่พบหลักสูตรที่ค้นหา"
@@ -180,12 +257,17 @@ export default async function TcasPage({ searchParams }: PageProps<"/tcas">) {
                 <>
                   <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                     <p className="text-sm text-muted">
-                      พบ {results.length.toLocaleString("th-TH")} หลักสูตร
-                      {results.length === 120 && " (แสดง 120 รายการแรก ค้นหาให้เจาะจงขึ้นเพื่อดูเพิ่ม)"}
+                      {q || u || g ? "พบ" : "ทั้งหมด"} {fmtNum(results.length)} หลักสูตร
+                      {pages.length > 1 && (
+                        <>
+                          {" · "}แสดงหลักสูตรที่ {fmtNum(from)}–{fmtNum(from + shown.length - 1)} (หน้า {page}/{pages.length})
+                        </>
+                      )}
                       {" · "}ติ๊ก “เปรียบเทียบ” ได้สูงสุด 3 หลักสูตร
                     </p>
                   </div>
-                  <ProgramList programs={results} sort={sort} />
+                  <ProgramList programs={shown} sort={sort} />
+                  <Pager pages={pages} page={page} href={(p) => href({ p })} grouped={sort === "faculty"} />
                 </>
               )}
             </>

@@ -169,6 +169,8 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
   - `Brand`, `Card` (`bold` adds a bigger soft shadow), `Field`, `Notice`, `Eyebrow` (`light` for use on red), `PageHeader`, `EmptyState` and `Container`.
   - Calendar colors: `exam` / `exam-soft` / `exam-tint`, and `event` / `event-strong` / `event-ink`. For deadline dots, use the `BLINK` class from `DayDrawer.tsx`: a blink, or a red ring when reduced motion is on.
 - Navigation items per role are defined in `itemsFor()` in `src/components/NavBar.tsx`.
+- **Home page fidget toy** (`src/components/home/LavaPlay.tsx`, section "พักสมองสักนิด", "ลาวาแก้ว"): canvas drops drawn as red liquid glass by one SVG filter (goo + see-through tint + rim + specular shine). Tap bursts, hold pulls, "รวมเป็นโลโก้" flows into the arrow-"t" logo; untouched for 3 s the glass sets and cracks, and the next touch shatters it. It animates only while on screen and the tab is visible, and sleeps once cracked; under reduced motion it moves only when touched.
+- **Home feature cards** (ปฏิทินอัจฉริยะ, TCAS) share `.bg-feature-gradient` (red → purple, in `globals.css`).
 - Layouts must work at 375px width with no horizontal page scroll.
 
 ## Status
@@ -235,6 +237,7 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
 **List and compare:**
 - **Faculty colours:** `src/lib/facultyColors.ts`, from Thai Wikipedia faculty infoboxes. Entries with `verify: true` need checking; the review table is `docs/specs/faculty-colors.md`.
 - **List:** `/tcas` has a sticky filter bar with a sort control (`?s=faculty|low|high|competition`).
+- **All programs by default, in pages of about 100** (`?p=`). `searchPrograms` filters and sorts the cached full list in memory (`loadAllCards`, tag `tcas`), and `paginateGroups` in `tcas.ts` never splits a faculty across pages when sorted by faculty.
 - **Compare:** `CompareTray.tsx` keeps up to 3 programs in localStorage. `/tcas/compare?ids=a,b,c` shows them side by side.
 
 **Calculator rule:**

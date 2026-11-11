@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { FeedbackForm } from "@/components/FeedbackForm";
 import { LoginForm } from "@/components/LoginForm";
+import { LavaPlay } from "@/components/home/LavaPlay";
 import { Brand, Container, Eyebrow, Notice, buttonStyles } from "@/components/ui";
 import { getCurrentProfile } from "@/lib/auth";
 import { SUBJECTS } from "@/lib/school";
@@ -141,7 +142,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
           <Eyebrow>ฟังก์ชันหลัก</Eyebrow>
           <h2 className="mt-3 font-display text-3xl font-extrabold tracking-tight text-ink sm:text-4xl">สองเครื่องมือในที่เดียว</h2>
           <div className="mt-10 grid gap-6 lg:grid-cols-[1.25fr_1fr]">
-            <article className="bg-brand-gradient speed-lines group relative overflow-hidden rounded-3xl p-7 text-white shadow-soft-lg transition-transform duration-200 hover:-translate-y-1 sm:p-9">
+            <article className="bg-feature-gradient speed-lines group relative overflow-hidden rounded-3xl p-7 text-white shadow-soft-lg transition-transform duration-200 hover:-translate-y-1 sm:p-9">
               <Image
                 src="/brand/arrow-white.png"
                 alt=""
@@ -176,27 +177,41 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
                 </ul>
               </div>
             </article>
-            <article className="group rounded-3xl border border-line bg-surface p-7 shadow-soft transition-all duration-200 hover:-translate-y-1 hover:shadow-soft-lg sm:p-9">
-              <div className="flex items-center gap-3">
-                <span className="grid h-12 w-12 place-items-center rounded-xl border border-line bg-brand-soft text-brand shadow-soft-sm transition-transform duration-200">
-                  <GraduationCap aria-hidden className="h-6 w-6" strokeWidth={2.4} />
-                </span>
-                <span className="rounded-md border border-line-strong px-2.5 py-1 text-xs font-bold text-muted">เร็วๆ นี้</span>
+            <article className="bg-feature-gradient speed-lines group relative overflow-hidden rounded-3xl p-7 text-white shadow-soft-lg transition-transform duration-200 hover:-translate-y-1 sm:p-9">
+              <Image
+                src="/brand/arrow-white.png"
+                alt=""
+                aria-hidden
+                width={185}
+                height={272}
+                className="pointer-events-none absolute -bottom-10 -right-6 w-40 opacity-15 transition-transform duration-500 group-hover:-translate-y-4"
+              />
+              <div className="relative">
+                <div className="flex items-center gap-3">
+                  <span className="grid h-12 w-12 place-items-center rounded-xl border border-white bg-white text-brand shadow-soft-sm">
+                    <GraduationCap aria-hidden className="h-6 w-6" strokeWidth={2.4} />
+                  </span>
+                  <span className="rounded-md bg-ink px-2.5 py-1 text-xs font-bold text-white">ใช้งานได้แล้ว</span>
+                </div>
+                <h3 className="mt-6 font-display text-3xl font-extrabold">TCAS</h3>
+                <p className="mt-2 max-w-md text-sm leading-relaxed text-white/85">ข้อมูลและเครื่องมือวางแผนเข้ามหาวิทยาลัย</p>
+                <ul className="mt-6 space-y-3 text-sm font-bold">
+                  {[
+                    "เกณฑ์รับสมัคร TCAS รอบ 1 และรอบ 3",
+                    "คำนวณคะแนนเป้าหมายและอัตราการแข่งขัน",
+                    "สร้าง Roadmap เตรียมตัวจากคณะที่อยากเข้า (เร็วๆ นี้)",
+                  ].map((p) => (
+                    <li key={p} className="flex gap-2.5">
+                      <Check aria-hidden className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={3} />
+                      {p}
+                    </li>
+                  ))}
+                </ul>
+                <Link href="/tcas" className={`${buttonStyles.inverse} mt-7`}>
+                  เปิด TCAS
+                  <ArrowRight aria-hidden className="h-4 w-4" />
+                </Link>
               </div>
-              <h3 className="mt-6 font-display text-3xl font-extrabold text-ink">TCAS</h3>
-              <p className="mt-2 text-sm leading-relaxed text-muted">ข้อมูลและเครื่องมือวางแผนเข้ามหาวิทยาลัย</p>
-              <ul className="mt-6 space-y-3 text-sm">
-                {[
-                  "เกณฑ์รับสมัคร TCAS รอบ 1 และรอบ 3",
-                  "คำนวณคะแนนเป้าหมายและอัตราการแข่งขัน",
-                  "สร้าง Roadmap เตรียมตัวจากคณะที่อยากเข้า",
-                ].map((p) => (
-                  <li key={p} className="flex gap-2.5 text-muted">
-                    <Check aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-brand" strokeWidth={3} />
-                    {p}
-                  </li>
-                ))}
-              </ul>
             </article>
           </div>
 
@@ -212,6 +227,13 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
               points={["มอบหมายงานหลายห้องในครั้งเดียว", "กำหนดส่งแต่ละห้องต่างกันได้", "ประกาศวันสอบและแชร์เอกสาร"]}
             />
           </div>
+        </Container>
+      </section>
+
+      {/* ── Fidget toy ───────────────────────────────────── */}
+      <section aria-label="พักสมองสักนิด">
+        <Container className="py-16 sm:py-24">
+          <LavaPlay />
         </Container>
       </section>
 

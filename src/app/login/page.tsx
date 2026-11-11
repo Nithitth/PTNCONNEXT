@@ -39,7 +39,7 @@ export default async function LoginPage() {
             {[
               { Icon: CalendarDays, text: "ปฏิทินงานและวันสอบของห้องคุณ" },
               { Icon: FileDown, text: "สไลด์และเอกสารจากครู" },
-              { Icon: GraduationCap, text: "ข้อมูล TCAS (เร็วๆ นี้)" },
+              { Icon: GraduationCap, text: "ข้อมูล TCAS และเครื่องคิดคะแนน" },
             ].map(({ Icon, text }) => (
               <li key={text} className="flex items-center gap-3">
                 <span className="grid h-9 w-9 place-items-center rounded-lg border border-white bg-white text-brand shadow-soft-sm">
