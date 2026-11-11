@@ -159,6 +159,13 @@ test("parseMinMaxRows finds columns by header text and skips rows without scores
   assert.deepEqual(rows, [{ programId: "10010121300001A", majorId: null, projectId: null, seats: 305, applicants: 857, max: 80.2664, min: 54.6525 }]);
 });
 
+test("parseMinMaxRows skips rows with a 0 score (nobody admitted in that project)", () => {
+  const empty = [...chulaRow];
+  empty[13] = 0;
+  empty[14] = 0;
+  assert.deepEqual(parseMinMaxRows([HEADER, empty]), []);
+});
+
 test("parseMinMaxRows works when the columns are reordered", () => {
   const order = [14, 13, 2, 11, 10, 3, 4];
   const rows = parseMinMaxRows([order.map((i) => HEADER[i]), order.map((i) => chulaRow[i])]);

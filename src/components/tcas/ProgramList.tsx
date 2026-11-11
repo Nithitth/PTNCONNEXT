@@ -150,6 +150,7 @@ export function FacultyJump({ programs }: { programs: ProgramCard[] }) {
   const seen = new Map<string, ProgramCard>();
   for (const p of programs) if (!seen.has(facultyKey(p))) seen.set(facultyKey(p), p);
   if (seen.size < 2) return null;
+  const manyUnis = new Set(programs.map((p) => p.universityId)).size > 1;
   return (
     <nav aria-label="ไปที่คณะ" className="mb-4 flex flex-wrap gap-1.5">
       {[...seen].map(([key, p]) => (
@@ -159,7 +160,7 @@ export function FacultyJump({ programs }: { programs: ProgramCard[] }) {
           className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-xs font-bold text-muted transition-colors hover:border-brand/30 hover:text-brand"
         >
           <FacultyDot hex={facultyColor(p.universityId, p.faculty).hex} />
-          {seen.size > 8 ? `${shortName(p.universityId)} ` : ""}
+          {manyUnis ? `${shortName(p.universityId)} ` : ""}
           {p.faculty.replace(/^คณะ/, "")}
         </a>
       ))}

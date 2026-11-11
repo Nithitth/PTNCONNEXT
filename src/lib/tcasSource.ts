@@ -92,7 +92,8 @@ export function parseMinMaxRows(rows: unknown[][]): LastYearRow[] {
     const programId = cellText(r[c.program]);
     const max = cellNum(r[c.max]);
     const min = cellNum(r[c.min]);
-    if (!programId || max === null || min === null) continue;
+    // A 0 score means nobody was admitted through that project; it isn't a real cut-off.
+    if (!programId || max === null || min === null || min <= 0 || max <= 0) continue;
     out.push({
       programId,
       majorId: c.major >= 0 ? cellText(r[c.major]) || null : null,
