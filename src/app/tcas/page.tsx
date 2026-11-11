@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { BarChart3, GraduationCap, Search, Star } from "lucide-react";
 import { CompareTray } from "@/components/tcas/CompareTray";
-import { FacultyJump, ProgramList } from "@/components/tcas/ProgramList";
+import { FacultyMenu } from "@/components/tcas/FacultyMenu";
+import { ProgramList, facultyMenuItems } from "@/components/tcas/ProgramList";
 import { TcasCredits } from "@/components/tcas/TcasCredits";
 import { UniversityShowcase } from "@/components/tcas/UniversityShowcase";
 import { Container, EmptyState, Notice, PageHeader, buttonStyles, cx, inputStyles, smallButtonStyles } from "@/components/ui";
@@ -193,13 +194,15 @@ export default async function TcasPage({ searchParams }: PageProps<"/tcas">) {
                 />
               ) : (
                 <>
-                  <p className="mb-3 text-sm text-muted">
-                    พบ {results.length.toLocaleString("th-TH")} หลักสูตร
-                    {results.length === 120 && " (แสดง 120 รายการแรก ค้นหาให้เจาะจงขึ้นเพื่อดูเพิ่ม)"}
-                    {" · "}ติ๊ก “เปรียบเทียบ” ได้สูงสุด 3 หลักสูตร
-                  </p>
-                  {sort === "faculty" && <FacultyJump programs={results} />}
-                  <ProgramList programs={results} grouped={sort === "faculty"} />
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-sm text-muted">
+                      พบ {results.length.toLocaleString("th-TH")} หลักสูตร
+                      {results.length === 120 && " (แสดง 120 รายการแรก ค้นหาให้เจาะจงขึ้นเพื่อดูเพิ่ม)"}
+                      {" · "}ติ๊ก “เปรียบเทียบ” ได้สูงสุด 3 หลักสูตร
+                    </p>
+                    {sort === "faculty" && <FacultyMenu items={facultyMenuItems(results)} />}
+                  </div>
+                  <ProgramList programs={results} sort={sort} />
                 </>
               )}
             </>

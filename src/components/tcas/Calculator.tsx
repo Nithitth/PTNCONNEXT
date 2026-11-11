@@ -85,6 +85,42 @@ function ChanceMeter({ total, last, level }: { total: number; last: LastYear; le
   );
 }
 
+/** Colour for applicants per seat: calm green, busy amber, crowded red. */
+const competitionTone = (r: number) => (r <= 3 ? "var(--chance-4)" : r <= 6 ? "var(--chance-3)" : "var(--chance-1)");
+
+/** Big, colour-coded facts for the chosen option: last year's lowest/highest, competition, seats. */
+function StatTiles({ last, seats }: { last: LastYear | null; seats: number | null }) {
+  const ratio = last && last.applicants !== null && last.seats ? last.applicants / last.seats : null;
+  const tiles: { label: string; value: string; sub?: string; tone: string }[] = [
+    { label: `คะแนนต่ำสุด ปี ${LAST_YEAR_LABEL}`, value: last ? fmt(last.min) : "–", sub: "คนสุดท้ายที่ติด", tone: "var(--chance-1)" },
+    { label: `คะแนนสูงสุด ปี ${LAST_YEAR_LABEL}`, value: last ? fmt(last.max) : "–", sub: "คนแรกที่ติด", tone: "var(--chance-5)" },
+    {
+      label: `อัตราการแข่งขัน ปี ${LAST_YEAR_LABEL}`,
+      value: ratio !== null ? `1 : ${fmt(Math.round(ratio * 10) / 10)}` : "–",
+      sub: ratio !== null ? `สมัคร ${fmt(last!.applicants!)} · รับ ${fmt(last!.seats!)}` : undefined,
+      tone: ratio !== null ? competitionTone(ratio) : "var(--color-faint)",
+    },
+    { label: "รับรอบ 3 ปีนี้", value: seats !== null ? `${fmt(seats)} คน` : "–", sub: "TCAS70", tone: "var(--color-brand)" },
+  ];
+  return (
+    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+      {tiles.map((t) => (
+        <div
+          key={t.label}
+          className="relative overflow-hidden rounded-2xl border border-white/80 bg-white/75 p-3.5 shadow-soft-sm"
+          style={{ boxShadow: `inset 0 3px 0 ${t.tone}` }}
+        >
+          <p className="text-[11px] font-bold leading-tight text-muted">{t.label}</p>
+          <p className="mt-1.5 font-display text-2xl font-extrabold tabular-nums leading-none sm:text-[1.65rem]" style={{ color: t.tone }}>
+            {t.value}
+          </p>
+          {t.sub && <p className="mt-1 text-[11px] text-muted">{t.sub}</p>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /** "What if I scored this?" sliders for one program's Round 3 formula. */
 export function Calculator({ programId, options, saved, canSave }: Props) {
   const id = useId();
@@ -119,6 +155,9 @@ export function Calculator({ programId, options, saved, canSave }: Props) {
           </select>
         </div>
       )}
+
+      <StatTiles last={last} seats={option.seats} />
+      {!last && <p className="-mt-3 text-xs text-muted">ยังไม่มีคะแนนปีที่แล้วสำหรับหลักสูตรนี้</p>}
 
       <ul className="space-y-5">
         {codes.map((code) => {
@@ -194,12 +233,6 @@ export function Calculator({ programId, options, saved, canSave }: Props) {
               <p className="mt-3 flex gap-1.5 text-sm font-bold text-danger">
                 <AlertCircle aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
                 ยังไม่ผ่านเกณฑ์ขั้นต่ำของหลักสูตร จึงยังสมัครไม่ได้
-              </p>
-            )}
-            {(last.seats !== null || last.applicants !== null) && (
-              <p className="mt-3 text-xs text-muted">
-                ปี {LAST_YEAR_LABEL}: {last.applicants !== null && `สมัคร ${last.applicants.toLocaleString("th-TH")} คน · `}
-                {last.seats !== null && `รับ ${last.seats.toLocaleString("th-TH")} คน`}
               </p>
             )}
           </>

@@ -3,11 +3,12 @@ import Image from "next/image";
 import Link from "next/link";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { CompareToggle } from "@/components/tcas/CompareTray";
+import type { FacultyMenuItem } from "@/components/tcas/FacultyMenu";
 import { cx } from "@/components/ui";
 import { facultyColor, isLightColor } from "@/lib/facultyColors";
 import { LAST_YEAR_LABEL, TCAS_UNIVERSITIES } from "@/lib/tcas";
 import { UNIVERSITY_ART } from "@/lib/tcasArt";
-import { competition, type ProgramCard } from "@/lib/tcasData";
+import { competition, type ProgramCard, type ProgramSort } from "@/lib/tcasData";
 
 const fmt = (n: number) => n.toLocaleString("th-TH", { maximumFractionDigits: 2 });
 const shortName = (id: string) => TCAS_UNIVERSITIES.find((u) => u.id === id)?.short ?? "";
@@ -23,8 +24,11 @@ export function FacultyDot({ hex, className }: { hex: string; className?: string
   );
 }
 
-/** One program: logo, name, last year's range and competition, compare tick. */
-function ProgramRow({ p, showFaculty }: { p: ProgramCard; showFaculty: boolean }) {
+/**
+ * One program: logo, name, type, compare tick. Scores, competition and seats live on the program page;
+ * a row only shows the value the list is sorted by.
+ */
+function ProgramRow({ p, showFaculty, sort }: { p: ProgramCard; showFaculty: boolean; sort: ProgramSort }) {
   const color = facultyColor(p.universityId, p.faculty);
   const ratio = competition(p);
   return (
@@ -45,19 +49,16 @@ function ProgramRow({ p, showFaculty }: { p: ProgramCard; showFaculty: boolean }
             </span>
           )}
           <span>{p.programType}</span>
-          {p.lastMin !== null && p.lastMax !== null ? (
+          {(sort === "low" || sort === "high") && (
             <span className="rounded-md bg-sunken px-1.5 py-0.5 font-bold tabular-nums text-ink">
-              ปี {LAST_YEAR_LABEL}: {fmt(p.lastMin)}–{fmt(p.lastMax)}
-            </span>
-          ) : (
-            <span className="text-faint">ไม่มีคะแนนปีที่แล้ว</span>
-          )}
-          {ratio !== null && (
-            <span title={`สมัคร ${p.lastApplicants?.toLocaleString("th-TH")} · รับ ${p.lastSeats?.toLocaleString("th-TH")}`}>
-              ≈ {fmt(Math.round(ratio * 10) / 10)} คน/ที่
+              {p.lastMin !== null ? `ต่ำสุดปี ${LAST_YEAR_LABEL}: ${fmt(p.lastMin)}` : "ไม่มีคะแนนปีที่แล้ว"}
             </span>
           )}
-          {p.round3Seats !== null && <span>รอบ 3 รับ {p.round3Seats.toLocaleString("th-TH")}</span>}
+          {sort === "competition" && (
+            <span className="rounded-md bg-sunken px-1.5 py-0.5 font-bold tabular-nums text-ink">
+              {ratio !== null ? `≈ ${fmt(Math.round(ratio * 10) / 10)} คน/ที่` : "ไม่มีข้อมูลการแข่งขัน"}
+            </span>
+          )}
         </span>
       </Link>
       <CompareToggle item={{ id: p.programId, name: p.nameTh, uni: shortName(p.universityId) }} />
@@ -73,12 +74,13 @@ export const facultyAnchor = (key: string) => `fac-${Math.abs([...key].reduce((h
  * Programs grouped university → faculty (colour-coded, collapsible), or a flat list when sorted by score
  * or competition (each row then names its university and faculty).
  */
-export function ProgramList({ programs, grouped }: { programs: ProgramCard[]; grouped: boolean }) {
+export function ProgramList({ programs, sort }: { programs: ProgramCard[]; sort: ProgramSort }) {
+  const grouped = sort === "faculty";
   if (!grouped) {
     return (
       <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line shadow-soft-sm">
         {programs.map((p) => (
-          <ProgramRow key={p.programId} p={p} showFaculty />
+          <ProgramRow key={p.programId} p={p} showFaculty sort={sort} />
         ))}
       </ul>
     );
@@ -123,15 +125,13 @@ export function ProgramList({ programs, grouped }: { programs: ProgramCard[]; gr
                       />
                       <span className="min-w-0 flex-1 text-sm font-bold text-ink">
                         {faculty}
-                        <span className="ml-2 text-xs font-normal text-muted">
-                          สี{color.name} · {list.length} หลักสูตร
-                        </span>
+                        <span className="ml-2 text-xs font-normal text-muted">{list.length} หลักสูตร</span>
                       </span>
                       <ChevronDown aria-hidden className="h-4 w-4 shrink-0 text-faint transition-transform group-open/fac:rotate-180" />
                     </summary>
                     <ul className="divide-y divide-line border-t border-line">
                       {list.map((p) => (
-                        <ProgramRow key={p.programId} p={p} showFaculty={false} />
+                        <ProgramRow key={p.programId} p={p} showFaculty={false} sort={sort} />
                       ))}
                     </ul>
                   </details>
@@ -145,25 +145,18 @@ export function ProgramList({ programs, grouped }: { programs: ProgramCard[]; gr
   );
 }
 
-/** Coloured chips that jump to each faculty section in the grouped list. */
-export function FacultyJump({ programs }: { programs: ProgramCard[] }) {
+/** Items for the colour-coded "ไปที่คณะ" dropdown (one per faculty in the grouped list). */
+export function facultyMenuItems(programs: ProgramCard[]): FacultyMenuItem[] {
   const seen = new Map<string, ProgramCard>();
   for (const p of programs) if (!seen.has(facultyKey(p))) seen.set(facultyKey(p), p);
-  if (seen.size < 2) return null;
   const manyUnis = new Set(programs.map((p) => p.universityId)).size > 1;
-  return (
-    <nav aria-label="ไปที่คณะ" className="mb-4 flex flex-wrap gap-1.5">
-      {[...seen].map(([key, p]) => (
-        <a
-          key={key}
-          href={`#${facultyAnchor(key)}`}
-          className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-xs font-bold text-muted transition-colors hover:border-brand/30 hover:text-brand"
-        >
-          <FacultyDot hex={facultyColor(p.universityId, p.faculty).hex} />
-          {manyUnis ? `${shortName(p.universityId)} ` : ""}
-          {p.faculty.replace(/^คณะ/, "")}
-        </a>
-      ))}
-    </nav>
-  );
+  return [...seen].map(([key, p]) => {
+    const hex = facultyColor(p.universityId, p.faculty).hex;
+    return {
+      anchor: facultyAnchor(key),
+      label: `${manyUnis ? shortName(p.universityId) + " " : ""}${p.faculty}`,
+      hex,
+      light: isLightColor(hex),
+    };
+  });
 }
