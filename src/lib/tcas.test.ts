@@ -31,7 +31,7 @@ test("weighted total and gap", () => {
   const r = calculate(chula, { tgat: 62, tpat3: 30, a_lv_61: 70, a_lv_64: 40, a_lv_65: 50, gpax: 3 });
   assert.equal(r.total, 48.4);
   assert.equal(r.gap, 2.6);
-  assert.equal(r.passesTotal, false);
+  assert.equal(r.status, "short");
   assert.deepEqual(r.hint, { code: "tpat3", points: 9 });
 });
 
@@ -39,7 +39,7 @@ test("passing total has no gap or hint", () => {
   const r = calculate(chula, { tgat: 62, tpat3: 48, a_lv_61: 70, a_lv_64: 40, a_lv_65: 50, gpax: 3 });
   assert.equal(r.total, 53.8);
   assert.equal(r.gap, 0);
-  assert.equal(r.passesTotal, true);
+  assert.equal(r.status, "pass");
   assert.equal(r.hint, null);
 });
 
@@ -77,7 +77,7 @@ test("no published minimum total is its own status, never 'passed'", () => {
 
 test("total reached but a minimum failed is not 'passed'", () => {
   const r = calculate(chula, { tgat: 62, tpat3: 48, a_lv_61: 70, a_lv_64: 40, a_lv_65: 50, gpax: 1.5 });
-  assert.equal(r.passesTotal, true);
+  assert.equal(r.gap, 0);
   assert.deepEqual(r.failedMinimums, ["gpax"]);
   assert.equal(r.status, "minimums");
 });
@@ -207,4 +207,15 @@ test("facultyColor: exact, campus suffix, unknown", async () => {
   assert.equal(facultyColor("009", "คณะที่ไม่มีอยู่จริง").verify, true);
   assert.equal(isLightColor("#FFFFFF"), true);
   assert.equal(isLightColor("#8B2332"), false);
+});
+
+test("shared helpers: program ids, number format, university short names", async () => {
+  const { isProgramId, fmtNum, universityShort } = await import("./tcas");
+  assert.equal(isProgramId("10010121300001A"), true);
+  assert.equal(isProgramId("ZZZ"), false);
+  assert.equal(isProgramId("1001012130000a1"), false);
+  assert.equal(fmtNum(54.6525), "54.65");
+  assert.equal(fmtNum(1234), "1,234");
+  assert.equal(universityShort("006"), "มหิดล");
+  assert.equal(universityShort("999"), "");
 });

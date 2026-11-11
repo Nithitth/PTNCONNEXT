@@ -10,6 +10,7 @@ import {
   LAST_YEAR_LABEL,
   calculate,
   examInfo,
+  fmtNum as fmt,
   pickOption,
   type ChanceLevel,
   type LastYear,
@@ -24,7 +25,6 @@ type Props = {
   canSave: boolean;
 };
 
-const fmt = (n: number) => n.toLocaleString("th-TH", { maximumFractionDigits: 2 });
 
 /** Codes that get a slider: weighted exams first (biggest weight), then minimum-only ones such as GPAX. */
 function sliderCodes(o: Round3Option): string[] {

@@ -4,17 +4,16 @@ import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
 import { logError } from "@/lib/logs";
 import { createClient } from "@/lib/supabase/server";
-import { cleanScores, pickOption, toRound3Option, type Round3Row } from "@/lib/tcas";
+import { cleanScores, isProgramId, pickOption, toRound3Option, type Round3Row } from "@/lib/tcas";
 
 export type TargetResult = { ok?: true; error?: string };
 
 const MAX_TARGETS = 5;
-const PROGRAM_ID = /^[0-9A-Z]{10,20}$/;
 
 /** Saves (or updates) one of the student's target programs with their slider scores. */
 export async function saveTarget(programId: string, position: number, scores: unknown): Promise<TargetResult> {
   const profile = await requireProfile({ roles: ["student"] });
-  if (!PROGRAM_ID.test(programId) || !Number.isInteger(position)) return { error: "ไม่พบหลักสูตรนี้" };
+  if (!isProgramId(programId) || !Number.isInteger(position)) return { error: "ไม่พบหลักสูตรนี้" };
   try {
     const supabase = await createClient();
     const { data: program } = await supabase
@@ -54,7 +53,7 @@ export async function saveTarget(programId: string, position: number, scores: un
 /** Removes one of the student's targets. */
 export async function removeTarget(programId: string): Promise<TargetResult> {
   await requireProfile({ roles: ["student"] });
-  if (!PROGRAM_ID.test(programId)) return { error: "ไม่พบหลักสูตรนี้" };
+  if (!isProgramId(programId)) return { error: "ไม่พบหลักสูตรนี้" };
   try {
     const supabase = await createClient();
     const { error } = await supabase.from("tcas_targets").delete().eq("program_id", programId);

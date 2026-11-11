@@ -1,6 +1,6 @@
 # Image credits (TCAS page)
 
-All files come from Wikimedia Commons and are used unmodified (cropping and dimming are done in CSS only).
+All files come from Wikimedia Commons. Campus photos are resized to 1000px wide for speed; otherwise unmodified (cropping and dimming are done in CSS only).
 The same list is shown on the /tcas page under "เครดิตภาพ". Keep both in sync (`src/lib/tcasArt.ts`).
 
 | File here | Commons file | Author | Licence |

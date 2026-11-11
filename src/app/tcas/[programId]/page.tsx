@@ -8,12 +8,11 @@ import { Card, Container, Notice, PageHeader } from "@/components/ui";
 import { requireProfile } from "@/lib/auth";
 import { formatDateTime } from "@/lib/calendar";
 import { createClient } from "@/lib/supabase/server";
-import { examInfo, type Round3Option } from "@/lib/tcas";
+import { examInfo, isProgramId, type Round3Option } from "@/lib/tcas";
 import { loadMyTargets, loadProgram } from "@/lib/tcasData";
 
 export const metadata: Metadata = { title: "หลักสูตร · TCAS" };
 
-const PROGRAM_ID = /^[0-9A-Z]{10,20}$/;
 const UNSUPPORTED = "โครงการนี้ใช้เกณฑ์พิเศษ ดูรายละเอียดที่ mytcas";
 const mytcasUrl = (id: string) => `https://course.mytcas.com/programs/${id}`;
 const seats = (n: number | null) => (n === null ? "" : `รับ ${n.toLocaleString("th-TH")} คน`);
@@ -69,7 +68,7 @@ function Round3Table({ option, programId }: { option: Round3Option; programId: s
 export default async function ProgramPage({ params }: PageProps<"/tcas/[programId]">) {
   const profile = await requireProfile();
   const { programId } = await params;
-  if (!PROGRAM_ID.test(programId)) notFound();
+  if (!isProgramId(programId)) notFound();
 
   const supabase = await createClient();
   const isStudent = profile.role === "student";

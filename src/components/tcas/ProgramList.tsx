@@ -1,17 +1,12 @@
-import type { CSSProperties } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { CompareToggle } from "@/components/tcas/CompareTray";
-import type { FacultyMenuItem } from "@/components/tcas/FacultyMenu";
 import { cx } from "@/components/ui";
 import { facultyColor, isLightColor } from "@/lib/facultyColors";
-import { LAST_YEAR_LABEL, TCAS_UNIVERSITIES } from "@/lib/tcas";
-import { UNIVERSITY_ART } from "@/lib/tcasArt";
+import { UniversityLogo } from "@/components/tcas/UniversityLogo";
+import { LAST_YEAR_LABEL, fmtNum as fmt, universityShort as shortName } from "@/lib/tcas";
 import { competition, type ProgramCard, type ProgramSort } from "@/lib/tcasData";
 
-const fmt = (n: number) => n.toLocaleString("th-TH", { maximumFractionDigits: 2 });
-const shortName = (id: string) => TCAS_UNIVERSITIES.find((u) => u.id === id)?.short ?? "";
 
 /** Faculty colour dot (outlined when the colour is white/cream). */
 export function FacultyDot({ hex, className }: { hex: string; className?: string }) {
@@ -36,9 +31,7 @@ function ProgramRow({ p, showFaculty, sort }: { p: ProgramCard; showFaculty: boo
       className="flex items-center gap-3 border-l-[3px] bg-surface px-3 py-3 transition-colors hover:bg-brand-soft/40 sm:px-4"
       style={{ borderLeftColor: isLightColor(color.hex) ? "var(--color-line-strong)" : color.hex }}
     >
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-line bg-white shadow-soft-sm">
-        <Image src={UNIVERSITY_ART[p.universityId]?.emblem ?? "/brand/arrow-white.png"} alt={shortName(p.universityId)} width={40} height={40} className="h-[70%] w-[70%] object-contain" />
-      </span>
+      <UniversityLogo id={p.universityId} className="shadow-soft-sm" />
       <Link href={`/tcas/${p.programId}`} className="group min-w-0 flex-1">
         <span className="block text-sm font-bold leading-snug text-ink group-hover:text-brand">{p.nameTh}</span>
         <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
@@ -67,8 +60,6 @@ function ProgramRow({ p, showFaculty, sort }: { p: ProgramCard; showFaculty: boo
   );
 }
 
-const facultyKey = (p: ProgramCard) => `${p.universityId}|${p.faculty}`;
-export const facultyAnchor = (key: string) => `fac-${Math.abs([...key].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 7))}`;
 
 /**
  * Programs grouped university → faculty (colour-coded, collapsible), or a flat list when sorted by score
@@ -100,22 +91,17 @@ export function ProgramList({ programs, sort }: { programs: ProgramCard[]; sort:
         return (
           <section key={university}>
             <h2 className="mb-2 flex items-center gap-2 font-display text-lg font-bold text-ink">
-              <span className="grid h-8 w-8 place-items-center rounded-full border border-line bg-white">
-                <Image src={UNIVERSITY_ART[uniId]?.emblem ?? "/brand/arrow-white.png"} alt="" width={32} height={32} className="h-[70%] w-[70%] object-contain" />
-              </span>
+              <UniversityLogo id={uniId} size={32} />
               {university}
             </h2>
             <div className="space-y-2">
               {[...faculties].map(([faculty, list]) => {
                 const color = facultyColor(uniId, faculty);
-                const key = facultyKey(list[0]);
                 return (
                   <details
                     key={faculty}
-                    id={facultyAnchor(key)}
                     open
-                    className="group/fac scroll-mt-40 overflow-hidden rounded-2xl border border-line bg-surface shadow-soft-sm"
-                    style={{ "--fac": color.hex } as CSSProperties}
+                    className="group/fac overflow-hidden rounded-2xl border border-line bg-surface shadow-soft-sm"
                   >
                     <summary className="flex cursor-pointer list-none items-center gap-2.5 px-4 py-2.5 [&::-webkit-details-marker]:hidden">
                       <span
@@ -143,20 +129,4 @@ export function ProgramList({ programs, sort }: { programs: ProgramCard[]; sort:
       })}
     </div>
   );
-}
-
-/** Items for the colour-coded "ไปที่คณะ" dropdown (one per faculty in the grouped list). */
-export function facultyMenuItems(programs: ProgramCard[]): FacultyMenuItem[] {
-  const seen = new Map<string, ProgramCard>();
-  for (const p of programs) if (!seen.has(facultyKey(p))) seen.set(facultyKey(p), p);
-  const manyUnis = new Set(programs.map((p) => p.universityId)).size > 1;
-  return [...seen].map(([key, p]) => {
-    const hex = facultyColor(p.universityId, p.faculty).hex;
-    return {
-      anchor: facultyAnchor(key),
-      label: `${manyUnis ? shortName(p.universityId) + " " : ""}${p.faculty}`,
-      hex,
-      light: isLightColor(hex),
-    };
-  });
 }

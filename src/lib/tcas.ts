@@ -19,6 +19,15 @@ export const TCAS_UNIVERSITIES = [
   { id: "009", name: "มหาวิทยาลัยศรีนครินทรวิโรฒ", short: "มศว." },
 ] as const;
 
+/** TCAS program ids look like "10010121300001A". */
+export const isProgramId = (id: string) => /^[0-9A-Z]{10,20}$/.test(id);
+
+/** Thai-formatted number with at most 2 decimals ("1,234", "54.65"). */
+export const fmtNum = (n: number) => n.toLocaleString("th-TH", { maximumFractionDigits: 2 });
+
+/** Short university name ("มหิดล") from its TCAS id, or "" when unknown. */
+export const universityShort = (id: string) => TCAS_UNIVERSITIES.find((u) => u.id === id)?.short ?? "";
+
 export type ExamInfo = { code: string; label: string; min: number; max: number; step: number };
 
 // Exams are compared on a 100-point scale (TCAS turns each score into a percentage before weighting).
@@ -166,7 +175,6 @@ export type CalcResult = {
   total: number;
   minTotal: number | null;
   gap: number;
-  passesTotal: boolean;
   /**
    * pass: total and every minimum met · short: total below the minimum ·
    * minimums: total reached but a per-exam/GPAX minimum isn't · noMinimum: the program publishes no minimum total.
@@ -252,7 +260,7 @@ export function calculate(option: Round3Option, scores: Record<string, number>):
   const status: CalcResult["status"] =
     option.minTotal === null ? "noMinimum" : gap > 0 ? "short" : failedMinimums.length > 0 ? "minimums" : "pass";
   const chance = chanceLevel(total, { lastYear: option.lastYear, minTotal: option.minTotal, failedMinimums });
-  return { total, minTotal: option.minTotal, gap, passesTotal: gap === 0, status, failedMinimums, hint, lastGap, chance };
+  return { total, minTotal: option.minTotal, gap, status, failedMinimums, hint, lastGap, chance };
 }
 
 /** Validates scores sent from the browser. Unknown codes are dropped; any bad value rejects the lot. */

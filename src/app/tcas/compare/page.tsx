@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Columns3 } from "lucide-react";
 import { CompareTray } from "@/components/tcas/CompareTray";
@@ -9,21 +8,19 @@ import { Container, EmptyState, PageHeader } from "@/components/ui";
 import { requireProfile } from "@/lib/auth";
 import { facultyColor } from "@/lib/facultyColors";
 import { createClient } from "@/lib/supabase/server";
-import { LAST_YEAR_LABEL, TCAS_UNIVERSITIES, examInfo } from "@/lib/tcas";
-import { UNIVERSITY_ART } from "@/lib/tcasArt";
+import { UniversityLogo } from "@/components/tcas/UniversityLogo";
+import { LAST_YEAR_LABEL, examInfo, fmtNum, isProgramId, universityShort as short } from "@/lib/tcas";
 import { competition, loadPrograms, type ProgramDetail } from "@/lib/tcasData";
 
 export const metadata: Metadata = { title: "เปรียบเทียบหลักสูตร · TCAS" };
 
-const PROGRAM_ID = /^[0-9A-Z]{10,20}$/;
-const fmt = (n: number | null | undefined) => (n === null || n === undefined ? "–" : n.toLocaleString("th-TH", { maximumFractionDigits: 2 }));
-const short = (id: string) => TCAS_UNIVERSITIES.find((u) => u.id === id)?.short ?? "";
+const fmt = (n: number | null | undefined) => (n == null ? "–" : fmtNum(n));
 
 /** Side-by-side comparison of up to 3 programs (ids from the compare tray). */
 export default async function ComparePage({ searchParams }: PageProps<"/tcas/compare">) {
   await requireProfile();
   const raw = (await searchParams).ids;
-  const ids = [...new Set((typeof raw === "string" ? raw : "").split(",").filter((id) => PROGRAM_ID.test(id)))].slice(0, 3);
+  const ids = [...new Set((typeof raw === "string" ? raw : "").split(",").filter(isProgramId))].slice(0, 3);
   const programs = ids.length ? await loadPrograms(await createClient(), ids) : [];
 
   // Round 3 option 0 of each program; the weight rows are the union of their exams (biggest weights first).
@@ -82,20 +79,25 @@ export default async function ComparePage({ searchParams }: PageProps<"/tcas/com
         />
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-line bg-surface shadow-soft-sm">
-          <table className="w-full min-w-[640px] border-collapse text-sm">
+          {/* Fixed layout: equal program columns that fit the box; on phones it scrolls and the label column stays pinned. */}
+          <table className="w-full table-fixed border-collapse text-sm" style={{ minWidth: `${7 + programs.length * 10.5}rem` }}>
+            <colgroup>
+              <col className="w-28 sm:w-40" />
+              {programs.map((p) => (
+                <col key={p.programId} />
+              ))}
+            </colgroup>
             <thead>
               <tr>
-                <th scope="col" className="w-40 bg-sunken p-3 text-left text-xs font-bold text-muted">
+                <th scope="col" className="sticky left-0 z-10 bg-sunken p-3 text-left text-xs font-bold text-muted">
                   หลักสูตร
                 </th>
                 {programs.map((p) => {
                   const c = facultyColor(p.universityId, p.faculty);
                   return (
-                    <th key={p.programId} scope="col" className="border-l border-line p-3 text-left align-top">
+                    <th key={p.programId} scope="col" className="break-words border-l border-line p-3 text-left align-top">
                       <div className="flex items-center gap-2">
-                        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-line bg-white">
-                          <Image src={UNIVERSITY_ART[p.universityId]?.emblem ?? "/brand/arrow-white.png"} alt="" width={36} height={36} className="h-[70%] w-[70%] object-contain" />
-                        </span>
+                        <UniversityLogo id={p.universityId} size={36} />
                         <span className="text-xs font-bold text-muted">{short(p.universityId)}</span>
                       </div>
                       <p className="mt-2 flex items-center gap-1.5 text-xs text-muted">
@@ -112,11 +114,11 @@ export default async function ComparePage({ searchParams }: PageProps<"/tcas/com
             <tbody className="divide-y divide-line">
               {rows.map((r) => (
                 <tr key={r.label}>
-                  <th scope="row" className="bg-sunken p-3 text-left text-xs font-bold text-muted">
+                  <th scope="row" className="sticky left-0 z-10 break-words bg-sunken p-3 text-left text-xs font-bold text-muted">
                     {r.label}
                   </th>
                   {programs.map((p) => (
-                    <td key={p.programId} className="border-l border-line p-3 align-top text-ink">
+                    <td key={p.programId} className="break-words border-l border-line p-3 align-top text-ink">
                       {r.cell(p)}
                     </td>
                   ))}
