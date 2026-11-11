@@ -103,7 +103,7 @@ export function UniversityShowcase({ counts }: { counts: Record<string, number> 
                       alt=""
                       fill
                       sizes="(min-width: 1024px) 220px, (min-width: 640px) 33vw, 50vw"
-                      className="object-cover transition-transform duration-700 ease-out group-hover:scale-105 group-focus-visible:scale-105 motion-reduce:group-hover:scale-100"
+                      className="object-cover grayscale transition-[filter,transform] duration-700 ease-out group-hover:scale-105 group-hover:grayscale-0 group-focus-visible:scale-105 group-focus-visible:grayscale-0 motion-reduce:group-hover:scale-100"
                     />
                     <span
                       aria-hidden

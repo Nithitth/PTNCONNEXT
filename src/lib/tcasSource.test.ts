@@ -1,6 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { diffPrograms, mapLimit, normalizeProgram, parseRounds, roundsFromResponse, uniqueCourses, type RawCourse, type RawRound } from "./tcasSource";
+import {
+  diffPrograms,
+  groupLastYear,
+  matchLastYear,
+  parseMinMaxRows,
+  type LastYearRow,
+  mapLimit, normalizeProgram, parseRounds, roundsFromResponse, uniqueCourses, type RawCourse, type RawRound } from "./tcasSource";
 
 const course: RawCourse = {
   program_id: "10010121300001A",
@@ -142,6 +148,47 @@ test("uniqueCourses keeps the first entry of a program listed twice", () => {
   const out = uniqueCourses(twice);
   assert.deepEqual(out.map((c) => c.program_id), [course.program_id, "X1"]);
   assert.equal(out[0].field_name_th, course.field_name_th);
+});
+
+// The real TCAS69 min/max sheet header (first 15 columns + a DS column).
+const HEADER = ["สถาบัน", "วิทยาเขต", "รหัสหลักสูตร", "รหัสสาขา", "รหัสโครงการ", "คณะ", "หลักสูตร", "รายละเอียด", "สาขา/วิชาเอก", "รหัสรับร่วม", "รับ", "สมัคร", "ผ่าน", "คะแนนสูงสุด", "คะแนนต่ำสุด", "คะแนนต่ำสุด DS"];
+const chulaRow = ["จุฬาฯ", "วิทยาเขตหลัก", "10010121300001A", null, null, "วิศวะ", "หลักสูตร", null, null, null, 305, 857, 305, 80.2664, 54.6525, 54.1697];
+
+test("parseMinMaxRows finds columns by header text and skips rows without scores", () => {
+  const rows = parseMinMaxRows([["รายงาน TCAS69"], HEADER, chulaRow, ["x", "y", "123", null, null, "f", "p", null, null, null, 5, 9, 0, null, null, null]]);
+  assert.deepEqual(rows, [{ programId: "10010121300001A", majorId: null, projectId: null, seats: 305, applicants: 857, max: 80.2664, min: 54.6525 }]);
+});
+
+test("parseMinMaxRows works when the columns are reordered", () => {
+  const order = [14, 13, 2, 11, 10, 3, 4];
+  const rows = parseMinMaxRows([order.map((i) => HEADER[i]), order.map((i) => chulaRow[i])]);
+  assert.equal(rows[0].min, 54.6525);
+  assert.equal(rows[0].applicants, 857);
+});
+
+test("parseMinMaxRows returns [] without the program-code header", () => {
+  assert.deepEqual(parseMinMaxRows([["a", "b"], [1, 2]]), []);
+});
+
+const ly = (over: Partial<LastYearRow>): LastYearRow => ({
+  programId: "P1", majorId: null, projectId: null, seats: 10, applicants: 50, max: 80, min: 60, ...over,
+});
+
+test("matchLastYear: single row, exact project/major, aggregate, none", () => {
+  const map = groupLastYear([ly({}), ly({ programId: "P2", projectId: "A", min: 50, max: 70 }), ly({ programId: "P2", projectId: "B", min: 40, max: 90, seats: 5, applicants: 20 })]);
+  assert.deepEqual(matchLastYear("P1", { project_id: null, major_id: null }, map), { min: 60, max: 80, seats: 10, applicants: 50 });
+  assert.deepEqual(matchLastYear("P2", { project_id: "B", major_id: null }, map), { min: 40, max: 90, seats: 5, applicants: 20 });
+  assert.deepEqual(matchLastYear("P2", { project_id: "Z", major_id: null }, map), { min: 40, max: 90, seats: 15, applicants: 70 });
+  assert.equal(matchLastYear("NOPE", { project_id: null, major_id: null }, map), null);
+});
+
+test("normalizeProgram adds last year's scores to options and the program", () => {
+  const map = groupLastYear([ly({ programId: course.program_id, min: 54.65, max: 80.27, seats: 305, applicants: 857 })]);
+  const n = normalizeProgram(course, rounds, 2570, map);
+  assert.equal(n.round3[0].last_min, 54.65);
+  assert.equal(n.round3[0].last_applicants, 857);
+  assert.equal(n.program.last_max, 80.27);
+  assert.equal(normalizeProgram(course, rounds).program.last_min, null);
 });
 
 test("diffPrograms finds added, changed and removed", () => {

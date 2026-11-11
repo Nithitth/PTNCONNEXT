@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   calculate,
+  chanceLevel,
   checkRound3,
   cleanScores,
   cleanSearch,
@@ -23,6 +24,7 @@ const chula: Round3Option = {
   link: null,
   problem: null,
   extraConditions: false,
+  lastYear: null,
 };
 
 test("weighted total and gap", () => {
@@ -157,4 +159,43 @@ test("exam labels and scales", () => {
   assert.equal(examInfo("gpa28")?.max, 4);
   assert.match(examInfo("a_lv_64")!.label, /ฟิสิกส์/);
   assert.equal(examInfo("tu002"), null);
+});
+
+// ── Chance levels (last year: จุฬาฯ วิศวกรรมศาสตร์ TCAS69, lowest 54.65 / highest 80.27) ──
+const lastChula = { min: 54.65, max: 80.27, seats: 305, applicants: 857 };
+
+test("chanceLevel: the five levels around last year's range", () => {
+  const at = (total: number) => chanceLevel(total, { lastYear: lastChula, minTotal: null, failedMinimums: [] })?.level;
+  assert.equal(at(50), 1); // more than the margin (3.84) below the lowest
+  assert.equal(at(52), 2); // just below the lowest
+  assert.equal(at(55), 3); // lowest third of last year's range
+  assert.equal(at(65), 4); // middle third
+  assert.equal(at(75), 5); // top third
+  assert.equal(at(90), 5);
+});
+
+test("chanceLevel: a failed published minimum is always level 1", () => {
+  assert.deepEqual(chanceLevel(75, { lastYear: lastChula, minTotal: 51, failedMinimums: ["gpax"] }), { level: 1, reason: "minimum" });
+  assert.deepEqual(chanceLevel(50, { lastYear: lastChula, minTotal: 51, failedMinimums: [] }), { level: 1, reason: "minimum" });
+});
+
+test("chanceLevel: no last-year data gives null", () => {
+  assert.equal(chanceLevel(70, { lastYear: null, minTotal: 51, failedMinimums: [] }), null);
+});
+
+test("calculate aims the hint at last year's lowest score when known", () => {
+  const r = calculate({ ...chula, lastYear: lastChula }, { tgat: 62, tpat3: 48, a_lv_61: 70, a_lv_64: 40, a_lv_65: 50, gpax: 3 });
+  assert.equal(r.total, 53.8);
+  assert.equal(r.lastGap, 0.85);
+  assert.deepEqual(r.hint, { code: "tpat3", points: 3 });
+  assert.equal(r.chance?.level, 2);
+});
+
+test("grades start at 1: GPAX slider minimum, missing grade, cleanScores", () => {
+  assert.equal(examInfo("gpax")?.min, 1);
+  assert.equal(examInfo("gpa22")?.min, 1);
+  assert.equal(examInfo("tgat")?.min, 0);
+  assert.equal(calculate({ ...chula, minTotal: null, minGpax: null, minimums: {}, weights: { gpax: 100 } }, {}).total, 25);
+  assert.equal(cleanScores(chula, { gpax: 0.5 }), null);
+  assert.deepEqual(cleanScores(chula, { gpax: 1 }), { gpax: 1 });
 });

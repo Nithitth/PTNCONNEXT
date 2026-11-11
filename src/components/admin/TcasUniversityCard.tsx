@@ -62,7 +62,10 @@ export function TcasUniversityCard({ id, name, liveCount, lastPublish, staging }
       setBusy(null);
       if (res.error) setMessage({ tone: "error", text: res.error });
       else if (kind === "pull")
-        setMessage({ tone: "success", text: `ดึงข้อมูลแล้ว ${res.pulled?.toLocaleString("th-TH")} หลักสูตร ตรวจรายการด้านล่างก่อนเผยแพร่` });
+        setMessage({
+          tone: "success",
+          text: `ดึงข้อมูลแล้ว ${res.pulled?.toLocaleString("th-TH")} หลักสูตร · มีคะแนนปีที่แล้ว ${res.withLastYear?.toLocaleString("th-TH") ?? 0} หลักสูตร${res.withLastYear ? "" : " (ไม่มีคะแนนปีที่แล้ว)"} ตรวจรายการด้านล่างก่อนเผยแพร่`,
+        });
       else
         setMessage({
           tone: "success",

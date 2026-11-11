@@ -6,7 +6,7 @@ import { logError } from "@/lib/logs";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { TCAS_UNIVERSITIES } from "@/lib/tcas";
-import { fetchCourses, fetchRounds } from "@/lib/tcasFetch";
+import { fetchCourses, fetchLastYearMinMax, fetchRounds } from "@/lib/tcasFetch";
 import { mapLimit, normalizeProgram, uniqueCourses } from "@/lib/tcasSource";
 
 export type TcasActionResult = {
@@ -14,6 +14,8 @@ export type TcasActionResult = {
   error?: string;
   pulled?: number;
   problems?: number;
+  /** Programs that got last year's scores (0 when the min/max sheet couldn't be read). */
+  withLastYear?: number;
   added?: number;
   changed?: number;
   removed?: number;
@@ -29,9 +31,12 @@ export async function pullUniversity(universityId: string): Promise<TcasActionRe
   await requireProfile({ roles: ["admin"] });
   if (!known(universityId)) return { error: "ไม่รู้จักมหาวิทยาลัยนี้" };
   try {
-    const courses = uniqueCourses(await fetchCourses(universityId));
+    const [all, lastYear] = await Promise.all([fetchCourses(universityId), fetchLastYearMinMax()]);
+    const courses = uniqueCourses(all);
     if (courses.length === 0) return { error: "ไม่พบหลักสูตรของมหาวิทยาลัยนี้ในข้อมูล TCAS" };
-    const programs = await mapLimit(courses, 5, async (c) => normalizeProgram(c, await fetchRounds(c.program_id)));
+    const programs = await mapLimit(courses, 5, async (c) =>
+      normalizeProgram(c, await fetchRounds(c.program_id), undefined, lastYear ?? undefined),
+    );
 
     const admin = createAdminClient();
     const { error: delErr } = await admin.from("tcas_staging").delete().eq("university_id", universityId);
@@ -50,6 +55,7 @@ export async function pullUniversity(universityId: string): Promise<TcasActionRe
       ok: true,
       pulled: programs.length,
       problems: programs.filter((p) => p.round3.some((r) => r.problem)).length,
+      withLastYear: programs.filter((p) => p.program.last_min !== null).length,
     };
   } catch (e) {
     await logError("tcas/pull", e);

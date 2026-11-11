@@ -21,17 +21,17 @@ export const UNIVERSITY_ART: Record<string, UniversityArt> = {
     campus: "/tcas/campus-001.jpg",
     campusName: "หอประชุมจุฬาลงกรณ์มหาวิทยาลัย",
     credits: [
-      credit("Chulalongkorn University emblem.svg", "Chulalongkorn University", "Public domain"),
+      credit("Logo of Chulalongkorn University (2021).svg", "Chulalongkorn University", "Public domain"),
       credit("Chulalongkorn University Auditorium.jpg", "Supanut Arunoprayote", "CC BY-SA 4.0"),
     ],
   },
   "002": {
     emblem: "/tcas/emblem-002.svg",
     campus: "/tcas/campus-002.jpg",
-    campusName: "หอประชุมมหาวิทยาลัยเกษตรศาสตร์ บางเขน",
+    campusName: "หอประชุมใหญ่ มหาวิทยาลัยเกษตรศาสตร์",
     credits: [
       credit("Kasetsart Sublogo-TH.svg", "Kasetsart University", "Public domain"),
-      credit("Main auditorium of Kasetsart University (Bangkok).jpg", "abhichartt", "Public domain"),
+      credit("Kasetsart University Auditorium.jpg", "David Supervid", "CC BY-SA 4.0"),
     ],
   },
   "005": {
@@ -40,16 +40,16 @@ export const UNIVERSITY_ART: Record<string, UniversityArt> = {
     campusName: "ตึกโดม ท่าพระจันทร์",
     credits: [
       credit("Emblem of Thammasat University.svg", "Royal Thai Cabinet Press", "Public domain"),
-      credit("Dome Building, Thammasat University at night.jpg", "Supanut Arunoprayote", "CC BY 4.0"),
+      credit("Monument of Pridi Phanomyong & Dome of Thammasat University.jpg", "Xiengyod", "CC BY-SA 3.0"),
     ],
   },
   "006": {
     emblem: "/tcas/emblem-006.svg",
     campus: "/tcas/campus-006.jpg",
-    campusName: "วิทยาเขตศาลายา",
+    campusName: "หอประชุมมหิดลสิทธาคาร ศาลายา",
     credits: [
       credit("Mahidol U.svg", "Mahidol University", "Public domain"),
-      credit("Mahidol University Salaya campus's courtyard 4.jpg", "B20180", "CC BY-SA 4.0"),
+      credit("Prince Mahidol Hall 5.jpg", "B20180", "CC BY-SA 4.0"),
     ],
   },
   "009": {

@@ -1,6 +1,6 @@
 // Turns the official TCAS JSON (course.mytcas.com) into our rows. Pure, unit-tested in tcasSource.test.ts.
 // The NormalizedProgram shape is also what tcas_publish() reads from tcas_staging.payload (migration 0007).
-import { TCAS_YEAR, checkRound3, type Round3Row } from "./tcas";
+import { TCAS_YEAR, checkRound3, type LastYear, type Round3Row } from "./tcas";
 
 /** One entry of courses.json (only the fields we use). */
 export type RawCourse = {
@@ -38,11 +38,107 @@ export type NormalizedProgram = {
     round3_seats: number | null;
     tcas_year: number;
     source_updated_at: string | null;
+    /** Last year's admitted range over all of the program's rows (null when unknown). */
+    last_min: number | null;
+    last_max: number | null;
+    last_seats: number | null;
+    last_applicants: number | null;
   };
   round1: { project_name: string | null; seats: number | null; portfolio: string; criteria: string; link: string | null }[];
   round3: Round3Row[];
   fingerprint: string;
 };
+
+/** One row of the official TCAS Round 3 min/max sheet (e.g. TCAS69-R3-MinMax.xlsx). */
+export type LastYearRow = {
+  programId: string;
+  majorId: string | null;
+  projectId: string | null;
+  seats: number | null;
+  applicants: number | null;
+  max: number;
+  min: number;
+};
+
+const cellText = (v: unknown) => (v === null || v === undefined ? "" : String(v).trim());
+const cellNum = (v: unknown): number | null => {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
+
+/**
+ * Reads the min/max sheet. Columns are found by their header text, so a reordered file still works;
+ * rows without both scores are skipped.
+ */
+export function parseMinMaxRows(rows: unknown[][]): LastYearRow[] {
+  const headerAt = rows.findIndex((r) => Array.isArray(r) && r.some((c) => cellText(c) === "รหัสหลักสูตร"));
+  if (headerAt < 0) return [];
+  const header = rows[headerAt].map(cellText);
+  const col = (name: string) => header.indexOf(name);
+  const c = {
+    program: col("รหัสหลักสูตร"),
+    major: col("รหัสสาขา"),
+    project: col("รหัสโครงการ"),
+    seats: col("รับ"),
+    applicants: col("สมัคร"),
+    max: col("คะแนนสูงสุด"),
+    min: col("คะแนนต่ำสุด"),
+  };
+  if (c.max < 0 || c.min < 0) return [];
+  const out: LastYearRow[] = [];
+  for (const r of rows.slice(headerAt + 1)) {
+    if (!Array.isArray(r)) continue;
+    const programId = cellText(r[c.program]);
+    const max = cellNum(r[c.max]);
+    const min = cellNum(r[c.min]);
+    if (!programId || max === null || min === null) continue;
+    out.push({
+      programId,
+      majorId: c.major >= 0 ? cellText(r[c.major]) || null : null,
+      projectId: c.project >= 0 ? cellText(r[c.project]) || null : null,
+      seats: c.seats >= 0 ? cellNum(r[c.seats]) : null,
+      applicants: c.applicants >= 0 ? cellNum(r[c.applicants]) : null,
+      max,
+      min,
+    });
+  }
+  return out;
+}
+
+export function groupLastYear(rows: LastYearRow[]): Map<string, LastYearRow[]> {
+  const m = new Map<string, LastYearRow[]>();
+  for (const r of rows) m.set(r.programId, [...(m.get(r.programId) ?? []), r]);
+  return m;
+}
+
+const sumOrNull = (xs: (number | null)[]) => (xs.every((x) => x === null) ? null : xs.reduce<number>((a, x) => a + (x ?? 0), 0));
+const aggregate = (rows: LastYearRow[]): LastYear => ({
+  min: Math.min(...rows.map((r) => r.min)),
+  max: Math.max(...rows.map((r) => r.max)),
+  seats: sumOrNull(rows.map((r) => r.seats)),
+  applicants: sumOrNull(rows.map((r) => r.applicants)),
+});
+
+/**
+ * Last year's scores for one Round 3 option: the row with the same project/major codes, else the
+ * program's only row, else the whole program's range (lowest min, highest max, totals summed).
+ */
+export function matchLastYear(
+  programId: string,
+  option: { project_id?: string | null; major_id?: string | null },
+  byProgram: Map<string, LastYearRow[]>,
+): LastYear | null {
+  const rows = byProgram.get(programId) ?? [];
+  if (rows.length === 0) return null;
+  if (option.project_id || option.major_id) {
+    const exact = rows.filter(
+      (r) => (!option.project_id || r.projectId === option.project_id) && (!option.major_id || r.majorId === option.major_id),
+    );
+    if (exact.length > 0) return aggregate(exact);
+  }
+  return aggregate(rows);
+}
 
 /** The rounds file, or [] when TCAS answers with an error page, XML, or anything that isn't a list. */
 export function parseRounds(body: string): RawRound[] {
@@ -109,7 +205,14 @@ function stable(v: unknown): unknown {
   return v;
 }
 
-export function normalizeProgram(course: RawCourse, rounds: RawRound[], year: number = TCAS_YEAR): NormalizedProgram {
+export function normalizeProgram(
+  course: RawCourse,
+  rounds: RawRound[],
+  year: number = TCAS_YEAR,
+  lastYear: Map<string, LastYearRow[]> = new Map(),
+): NormalizedProgram {
+  const programRows = lastYear.get(course.program_id) ?? [];
+  const programLast = programRows.length ? aggregate(programRows) : null;
   const r1 = rounds.filter((r) => r.type === `1_${year}`);
   const r3 = rounds.filter((r) => r.type === `3_${year}`);
 
@@ -129,6 +232,10 @@ export function normalizeProgram(course: RawCourse, rounds: RawRound[], year: nu
     round3_seats: seatSum(r3),
     tcas_year: year,
     source_updated_at: textOrNull(course.updated_at),
+    last_min: programLast?.min ?? null,
+    last_max: programLast?.max ?? null,
+    last_seats: programLast?.seats ?? null,
+    last_applicants: programLast?.applicants ?? null,
   };
 
   const round1 = r1.map((r) => ({
@@ -143,6 +250,9 @@ export function normalizeProgram(course: RawCourse, rounds: RawRound[], year: nu
   const round3: Round3Row[] = r3.map((r, position) => {
     const weights = numbersOnly(r.scores);
     const conditions = numbersOnly(r.score_conditions);
+    const project_id = cellText(r.project_id) || null;
+    const major_id = cellText(r.major_id) || null;
+    const last = matchLastYear(course.program_id, { project_id, major_id }, lastYear);
     return {
       position,
       project_name: textOrNull(r.project_name_th),
@@ -154,6 +264,12 @@ export function normalizeProgram(course: RawCourse, rounds: RawRound[], year: nu
       link: textOrNull(r.link),
       // Check the raw object so non-numeric weights are flagged too.
       problem: checkRound3(obj(r.scores)),
+      project_id,
+      major_id,
+      last_min: last?.min ?? null,
+      last_max: last?.max ?? null,
+      last_seats: last?.seats ?? null,
+      last_applicants: last?.applicants ?? null,
     };
   });
 

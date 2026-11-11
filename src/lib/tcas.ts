@@ -3,6 +3,13 @@
 
 export const TCAS_YEAR = 2570;
 
+/**
+ * Last year's official Round 3 lowest/highest admitted scores (TCAS69). Each year, copy the new
+ * "คะแนนสูงสุด-ต่ำสุด" .xlsx link from https://www.mytcas.com/stat and update LAST_YEAR_LABEL.
+ */
+export const TCAS_LAST_YEAR_MINMAX_URL = "https://assets.mytcas.com/69/TCAS69-R3-MinMax-10June26.xlsx";
+export const LAST_YEAR_LABEL = "69";
+
 /** The 5 universities in release 1, with their TCAS ids. */
 export const TCAS_UNIVERSITIES = [
   { id: "001", name: "จุฬาลงกรณ์มหาวิทยาลัย", short: "จุฬาฯ" },
@@ -12,7 +19,7 @@ export const TCAS_UNIVERSITIES = [
   { id: "009", name: "มหาวิทยาลัยศรีนครินทรวิโรฒ", short: "มศว." },
 ] as const;
 
-export type ExamInfo = { code: string; label: string; max: number; step: number };
+export type ExamInfo = { code: string; label: string; min: number; max: number; step: number };
 
 // Exams are compared on a 100-point scale (TCAS turns each score into a percentage before weighting).
 // Grades (GPAX and subject-group GPA) use 0–4 and count ×25.
@@ -59,8 +66,9 @@ const GRADES: Record<string, string> = {
 };
 
 export function examInfo(code: string): ExamInfo | null {
-  if (code in EXAMS) return { code, label: EXAMS[code], max: 100, step: 1 };
-  if (code in GRADES) return { code, label: GRADES[code], max: 4, step: 0.01 };
+  if (code in EXAMS) return { code, label: EXAMS[code], min: 0, max: 100, step: 1 };
+  // Grades start at 1.00: a GPA below 1 means failing, which no applicant has.
+  if (code in GRADES) return { code, label: GRADES[code], min: 1, max: 4, step: 0.01 };
   return null;
 }
 
@@ -81,7 +89,12 @@ export type Round3Option = {
   problem: string | null;
   /** The program has extra conditions the calculator can't check (e.g. combined-score rules, IELTS). */
   extraConditions: boolean;
+  /** Last year's (TCAS69) admitted scores for this option, or null when unknown. */
+  lastYear: LastYear | null;
 };
+
+/** Last year's Round 3 result for a program or option (official TCAS min/max sheet). */
+export type LastYear = { min: number; max: number; seats: number | null; applicants: number | null };
 
 /** One Round 3 option as stored in the database (tcas_round3) and in the staging payload. */
 export type Round3Row = {
@@ -94,6 +107,13 @@ export type Round3Row = {
   conditions: Record<string, number>;
   link: string | null;
   problem: string | null;
+  /** TCAS project/major codes, used to match last year's scores. */
+  project_id?: string | null;
+  major_id?: string | null;
+  last_min?: number | null;
+  last_max?: number | null;
+  last_seats?: number | null;
+  last_applicants?: number | null;
 };
 
 /** A condition the calculator understands: min_gpax or min_<known exam/grade code>. */
@@ -130,6 +150,15 @@ export function toRound3Option(row: Round3Row): Round3Option {
     link: row.link,
     problem: row.problem,
     extraConditions,
+    lastYear:
+      row.last_min != null && row.last_max != null
+        ? {
+            min: Number(row.last_min),
+            max: Number(row.last_max),
+            seats: row.last_seats ?? null,
+            applicants: row.last_applicants ?? null,
+          }
+        : null,
   };
 }
 
@@ -144,14 +173,53 @@ export type CalcResult = {
    */
   status: "pass" | "short" | "minimums" | "noMinimum";
   failedMinimums: string[];
+  /** Points from the hint target: last year's lowest (or the published minimum, if higher). */
   hint: { code: string; points: number } | null;
+  /** How far the total is below last year's lowest admitted score (0 when above), or null without data. */
+  lastGap: number | null;
+  /** The 5-level chance, or null when there are no last-year scores. */
+  chance: Chance | null;
 };
+
+export type ChanceLevel = 1 | 2 | 3 | 4 | 5;
+export type Chance = { level: ChanceLevel; reason?: "minimum" };
+
+/** Thai labels for the 5 chance levels (UI colours are --chance-1 … --chance-5 in globals.css). */
+export const CHANCE_LABEL: Record<ChanceLevel, string> = {
+  1: "โอกาสติดน้อยมาก",
+  2: "โอกาสติดน้อย",
+  3: "มีโอกาสติด",
+  4: "มีโอกาสติดสูง",
+  5: "มีโอกาสติดสูงมาก",
+};
+
+/**
+ * Chance of admission from last year's lowest/highest admitted scores.
+ * A failed published minimum (total, per-exam or GPAX) is always level 1. Below last year's lowest:
+ * level 1 when more than a margin below (margin = max(3, 15% of the range)), else 2. At or above it,
+ * the range is split in thirds: 3, 4, 5.
+ */
+export function chanceLevel(
+  total: number,
+  o: { lastYear: LastYear | null; minTotal: number | null; failedMinimums: string[] },
+): Chance | null {
+  if (!o.lastYear) return null;
+  if (o.failedMinimums.length > 0 || (o.minTotal !== null && total < o.minTotal)) return { level: 1, reason: "minimum" };
+  const { min, max } = o.lastYear;
+  const span = Math.max(max - min, 1);
+  const margin = Math.max(3, 0.15 * span);
+  if (total < min - margin) return { level: 1 };
+  if (total < min) return { level: 2 };
+  if (total < min + span / 3) return { level: 3 };
+  if (total < min + (2 * span) / 3) return { level: 4 };
+  return { level: 5 };
+}
 
 /** On the 100-point scale used for weighting. */
 const toHundred = (code: string, score: number) => (isGrade(code) ? score * 25 : score);
 
 export function calculate(option: Round3Option, scores: Record<string, number>): CalcResult {
-  const score = (code: string) => scores[code] ?? 0;
+  const score = (code: string) => scores[code] ?? examInfo(code)?.min ?? 0;
   const weights = Object.entries(option.weights);
   const total = round2(weights.reduce((s, [code, w]) => s + (toHundred(code, score(code)) * w) / 100, 0));
   const gap = option.minTotal === null ? 0 : Math.max(0, round2(option.minTotal - total));
@@ -163,13 +231,17 @@ export function calculate(option: Round3Option, scores: Record<string, number>):
     .filter(([code, min]) => score(code) < min)
     .map(([code]) => code);
 
+  // The hint aims at last year's lowest admitted score when known (or the published minimum, if higher).
+  const target = Math.max(option.minTotal ?? 0, option.lastYear?.min ?? 0);
+  const hintGap = Math.max(0, round2(target - total));
+  const lastGap = option.lastYear ? Math.max(0, round2(option.lastYear.min - total)) : null;
   let hint: CalcResult["hint"] = null;
-  if (gap > 0) {
+  if (hintGap > 0) {
     // Biggest weight first; on a tie, keep the order the program lists them.
     const byWeight = weights.map((e, i) => [e, i] as const).sort((a, b) => b[0][1] - a[0][1] || a[1] - b[1]);
     for (const [[code, w]] of byWeight) {
       const info = examInfo(code)!;
-      const needHundred = Math.ceil(round2((gap * 100) / w));
+      const needHundred = Math.ceil(round2((hintGap * 100) / w));
       const need = isGrade(code) ? Math.ceil(round2(needHundred / 25) * 100) / 100 : needHundred;
       if (need <= info.max - score(code)) {
         hint = { code, points: need };
@@ -179,7 +251,8 @@ export function calculate(option: Round3Option, scores: Record<string, number>):
   }
   const status: CalcResult["status"] =
     option.minTotal === null ? "noMinimum" : gap > 0 ? "short" : failedMinimums.length > 0 ? "minimums" : "pass";
-  return { total, minTotal: option.minTotal, gap, passesTotal: gap === 0, status, failedMinimums, hint };
+  const chance = chanceLevel(total, { lastYear: option.lastYear, minTotal: option.minTotal, failedMinimums });
+  return { total, minTotal: option.minTotal, gap, passesTotal: gap === 0, status, failedMinimums, hint, lastGap, chance };
 }
 
 /** Validates scores sent from the browser. Unknown codes are dropped; any bad value rejects the lot. */
@@ -190,7 +263,7 @@ export function cleanScores(option: Round3Option, raw: unknown): Record<string, 
   for (const [code, v] of Object.entries(raw as Record<string, unknown>)) {
     if (!allowed.has(code)) continue;
     const info = examInfo(code);
-    if (!info || !isNum(v) || v < 0 || v > info.max) return null;
+    if (!info || !isNum(v) || v < info.min || v > info.max) return null;
     out[code] = v;
   }
   return out;
