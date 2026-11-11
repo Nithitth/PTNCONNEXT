@@ -118,15 +118,19 @@ export default async function ProgramPage({ params }: PageProps<"/tcas/[programI
       <div className="grid items-start gap-5 lg:grid-cols-[1.4fr_1fr]">
         <div className="space-y-5">
           {usable.length > 0 ? (
-            <Card bold className="animate-rise">
-              <h2 className="mb-4 font-display text-xl font-bold text-ink">ลองคำนวณคะแนนรอบ 3</h2>
-              <Calculator
-                programId={program.programId}
-                options={usable}
-                saved={saved ? { position: saved.position, scores: saved.sliderScores } : null}
-                canSave={isStudent && program.active}
-              />
-            </Card>
+            <section className="mesh-tcas animate-rise relative overflow-hidden rounded-3xl p-2 sm:p-3">
+              <div aria-hidden className="tcas-blob -right-16 -top-16 h-56 w-56 bg-[#8a4fd8]/20" />
+              <div aria-hidden className="tcas-blob -bottom-20 -left-10 h-56 w-56 bg-brand/15 [animation-delay:-9s]" />
+              <div className="glass rounded-[22px] p-5 sm:p-6">
+                <h2 className="mb-5 font-display text-xl font-bold text-ink">ลองคำนวณคะแนนรอบ 3</h2>
+                <Calculator
+                  programId={program.programId}
+                  options={usable}
+                  saved={saved ? { position: saved.position, scores: saved.sliderScores } : null}
+                  canSave={isStudent && program.active}
+                />
+              </div>
+            </section>
           ) : (
             isStudent &&
             program.active && (

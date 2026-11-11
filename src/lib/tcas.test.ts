@@ -199,3 +199,12 @@ test("grades start at 1: GPAX slider minimum, missing grade, cleanScores", () =>
   assert.equal(cleanScores(chula, { gpax: 0.5 }), null);
   assert.deepEqual(cleanScores(chula, { gpax: 1 }), { gpax: 1 });
 });
+
+test("facultyColor: exact, campus suffix, unknown", async () => {
+  const { facultyColor, isLightColor } = await import("./facultyColors");
+  assert.equal(facultyColor("001", "คณะวิศวกรรมศาสตร์").hex, "#8B2332");
+  assert.equal(facultyColor("002", "คณะวิศวกรรมศาสตร์ กำแพงแสน").hex, "#72242B");
+  assert.equal(facultyColor("009", "คณะที่ไม่มีอยู่จริง").verify, true);
+  assert.equal(isLightColor("#FFFFFF"), true);
+  assert.equal(isLightColor("#8B2332"), false);
+});

@@ -285,6 +285,65 @@ body {
   background-image: var(--tcas-gradient);
 }
 
+/* ── TCAS calculator: liquid glass (only here), sliders, chance colours ── */
+:root {
+  --chance-1: #b3261e; /* โอกาสติดน้อยมาก — deep red */
+  --chance-2: #f4a4a0; /* โอกาสติดน้อย — light red (dark-red text on it) */
+  --chance-3: #f59e0b; /* มีโอกาสติด — amber (dark text on it) */
+  --chance-4: #2fa36b; /* มีโอกาสติดสูง — green */
+  --chance-5: #0e6b3d; /* มีโอกาสติดสูงมาก — deep green */
+}
+
+.glass {
+  position: relative;
+  background: rgb(255 255 255 / 0.58);
+  border: 1px solid rgb(255 255 255 / 0.75);
+  -webkit-backdrop-filter: blur(22px) saturate(1.5);
+  backdrop-filter: blur(22px) saturate(1.5);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.9),
+    0 18px 40px -18px rgb(110 14 20 / 0.28),
+    0 2px 6px rgb(20 14 14 / 0.05);
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass {
+    background: #fff;
+    border-color: var(--color-line);
+  }
+}
+
+/* Range sliders: thin track, red→violet fill up to the thumb (--fill set inline), white thumb. */
+.tcas-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, var(--color-brand), var(--tcas-violet)) 0 / var(--fill, 0%) 100% no-repeat, rgb(20 14 14 / 0.1);
+  cursor: pointer;
+}
+.tcas-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 1px solid rgb(20 14 14 / 0.08);
+  box-shadow: 0 2px 8px rgb(110 14 20 / 0.25);
+  transition: transform 0.15s;
+}
+.tcas-range::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 1px solid rgb(20 14 14 / 0.08);
+  box-shadow: 0 2px 8px rgb(110 14 20 / 0.25);
+}
+.tcas-range:hover::-webkit-slider-thumb,
+.tcas-range:focus-visible::-webkit-slider-thumb {
+  transform: scale(1.12);
+}
+
 @keyframes gradient-pan {
   from { background-position: 0% 50%; }
   to { background-position: 100% 50%; }

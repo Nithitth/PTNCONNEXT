@@ -6,6 +6,7 @@ import { cleanSearch, toRound3Option, type Round3Option, type Round3Row } from "
 
 export type ProgramCard = {
   programId: string;
+  universityId: string;
   universityName: string;
   faculty: string;
   nameTh: string;
@@ -13,6 +14,11 @@ export type ProgramCard = {
   round3Seats: number | null;
   groupField: string;
   active: boolean;
+  /** Last year's Round 3 result (TCAS69), null when unknown. */
+  lastMin: number | null;
+  lastMax: number | null;
+  lastSeats: number | null;
+  lastApplicants: number | null;
 };
 
 export type TargetCard = ProgramCard & { position: number; sliderScores: Record<string, number> };
@@ -37,9 +43,16 @@ type ProgramRow = {
   round3_seats: number | null;
   group_field: string;
   active: boolean;
+  university_id: string;
+  last_min: number | string | null;
+  last_max: number | string | null;
+  last_seats: number | null;
+  last_applicants: number | null;
 };
 
-const CARD_FIELDS = "program_id, university_name, faculty, name_th, program_type, round3_seats, group_field, active";
+const CARD_FIELDS =
+  "program_id, university_id, university_name, faculty, name_th, program_type, round3_seats, group_field, active, last_min, last_max, last_seats, last_applicants";
+const numOrNull = (v: number | string | null) => (v === null ? null : Number(v));
 
 const toCard = (p: ProgramRow): ProgramCard => ({
   programId: p.program_id,
@@ -50,28 +63,51 @@ const toCard = (p: ProgramRow): ProgramCard => ({
   round3Seats: p.round3_seats,
   groupField: p.group_field,
   active: p.active,
+  universityId: p.university_id,
+  lastMin: numOrNull(p.last_min),
+  lastMax: numOrNull(p.last_max),
+  lastSeats: p.last_seats,
+  lastApplicants: p.last_applicants,
 });
 
 /** Active programs matching the search, ordered university → faculty → name (at most 80). */
+export type ProgramSort = "faculty" | "low" | "high" | "competition";
+export const PROGRAM_SORTS: ProgramSort[] = ["faculty", "low", "high", "competition"];
+
+/** Applicants per seat last year, or null when unknown. */
+export const competition = (p: Pick<ProgramCard, "lastApplicants" | "lastSeats">) =>
+  p.lastApplicants !== null && p.lastSeats ? p.lastApplicants / p.lastSeats : null;
+
+/**
+ * Active programs matching the search (at most 120). Sort: by university → faculty → name (default),
+ * by last year's lowest score (low/high), or by competition (applicants per seat, lowest first).
+ * Programs without last-year data go last in the score/competition sorts.
+ */
 export async function searchPrograms(
   supabase: SupabaseClient,
-  f: { q?: string; university?: string; group?: string },
+  f: { q?: string; university?: string; group?: string; sort?: ProgramSort },
 ): Promise<ProgramCard[]> {
-  let query = supabase
-    .from("tcas_programs")
-    .select(CARD_FIELDS)
-    .eq("active", true)
-    .order("university_name")
-    .order("faculty")
-    .order("name_th")
-    .limit(80);
+  const sort = f.sort ?? "faculty";
+  let query = supabase.from("tcas_programs").select(CARD_FIELDS).eq("active", true);
+  if (sort === "low" || sort === "high") query = query.order("last_min", { ascending: sort === "low", nullsFirst: false });
+  query = query.order("university_name").order("faculty").order("name_th").limit(120);
   const q = cleanSearch(f.q ?? "");
   if (q) query = query.or(`name_th.ilike.%${q}%,faculty.ilike.%${q}%,field.ilike.%${q}%`);
   if (f.university) query = query.eq("university_id", f.university);
   if (f.group) query = query.eq("group_field", f.group);
   const { data, error } = await query;
   if (error) throw error;
-  return ((data ?? []) as ProgramRow[]).map(toCard);
+  const cards = ((data ?? []) as ProgramRow[]).map(toCard);
+  if (sort === "competition") {
+    cards.sort((a, b) => (competition(a) ?? Infinity) - (competition(b) ?? Infinity));
+  }
+  return cards;
+}
+
+/** Several programs by id, in the given order (for the compare page). Unknown ids are skipped. */
+export async function loadPrograms(supabase: SupabaseClient, ids: string[]): Promise<ProgramDetail[]> {
+  const all = await Promise.all(ids.map((id) => loadProgram(supabase, id)));
+  return all.filter((p): p is ProgramDetail => p !== null);
 }
 
 /** Published programs per TCAS university id (empty = TCAS data not ready yet). */
@@ -111,7 +147,7 @@ export async function loadProgram(supabase: SupabaseClient, programId: string): 
     .select(
       `${CARD_FIELDS}, campus, field, name_en, cost, round1_seats, published_at,
        round1:tcas_round1_projects(id, project_name, seats, portfolio, criteria, link),
-       round3:tcas_round3(position, project_name, seats, min_gpax, min_total, weights, conditions, link, problem)`,
+       round3:tcas_round3(position, project_name, seats, min_gpax, min_total, weights, conditions, link, problem, last_min, last_max, last_seats, last_applicants)`,
     )
     .eq("program_id", programId)
     .order("id", { referencedTable: "tcas_round1_projects" })

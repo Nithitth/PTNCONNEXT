@@ -213,6 +213,23 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
   - Exams use 0–100. GPAX and subject-group GPA (`gpa21`–`gpa28`) use 0–4 and count ×25.
 - `src/lib/tcasSource.ts`: `parseRounds`, `normalizeProgram` (the staging payload shape), `uniqueCourses`, `mapLimit` and `diffPrograms`.
 
+**Last year's scores (migration `0009`):**
+- During each pull, `fetchLastYearMinMax()` downloads the official Round 3 min/max `.xlsx` (`TCAS_LAST_YEAR_MINMAX_URL` in `tcas.ts`; **update it and `LAST_YEAR_LABEL` every year** from mytcas.com/stat) and reads it with `read-excel-file/node`.
+- `parseMinMaxRows` finds columns by header text, and `matchLastYear` matches project/major codes, else the whole program's range.
+- The data is stored as `last_min/last_max/last_seats/last_applicants` on `tcas_round3` and `tcas_programs`. If the sheet fails, the pull still works without it.
+
+**Chance levels:** `chanceLevel()` in `tcas.ts`.
+- **Level 1:** a failed published minimum, or a total more than max(3, 15% of last year's range) below last year's lowest.
+- **Level 2:** below the lowest, but within that margin.
+- **Levels 3–5:** the thirds of last year's lowest–highest range.
+- Colours are `--chance-1…5` in `globals.css`. With no last-year data, the calculator falls back to the minimum-based message.
+- Grades (GPAX, `gpa2x`) range 1–4; `examInfo().min` is 1 for grades.
+
+**List and compare:**
+- **Faculty colours:** `src/lib/facultyColors.ts`, from Thai Wikipedia faculty infoboxes. Entries with `verify: true` need checking; the review table is `docs/specs/faculty-colors.md`.
+- **List:** `/tcas` has a sticky filter bar with a sort control (`?s=faculty|low|high|competition`).
+- **Compare:** `CompareTray.tsx` keeps up to 3 programs in localStorage. `/tcas/compare?ids=a,b,c` shows them side by side.
+
 **Calculator rule:**
 - **Only the weights decide whether a Round 3 option gets a calculator.** Unknown exam codes (`tu002`, `vnet_51`, `cal_*`) or weights not summing to 100 set `problem`, and the page shows "ดูรายละเอียดที่ mytcas".
 - Other conditions the calculator can't check (`score_condition`, IELTS/TOEFL, combined GPA groups) set `extraConditions` and show a note.
