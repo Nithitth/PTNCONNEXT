@@ -80,6 +80,7 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
 - **Migrations aren't run by tooling.** There's no Supabase CLI or Docker here. Each file is pasted into the Supabase SQL Editor once, in number order.
   - Never edit an applied migration. Add the next numbered file instead.
   - Tell the user to run it: `Get-Content <file> -Raw | Set-Clipboard` makes pasting easy.
+- **Styles missing in the dev server** (the gradient "t", blobs, glass, colours) while `npm run build` has them: Turbopack's dev cache kept an old `globals.css`. This happens after a branch switch rewrites files while `npm run dev` runs, and it survives restarts. Fix: stop the dev server, delete `.next/dev`, start again.
 - **Never rewrite source files with Windows PowerShell 5.1** (`Get-Content` / `Set-Content`). It reads UTF-8 without a BOM as the ANSI codepage and scrambles every Thai string. Use the Edit tool, or a Node script with `fs.readFileSync(f, "utf8")`.
 
 **Roster import:**
