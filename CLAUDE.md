@@ -75,11 +75,14 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
 - `feedback`, `login_events`, `error_logs`: admin-read only, and written via the admin client in `src/lib/logs.ts`.
 
 **Gotchas already hit:**
+- **Keep the server next to the database.** Supabase is in Seoul (`ap-northeast-2`), so `vercel.json` pins Vercel functions to `icn1`. Vercel's default (`iad1`, USA) made every query cross the Pacific (about 0.2 s each, several per page). Check the second part of the `x-vercel-id` response header (`sin1::icn1::…` = built in Seoul).
+- **Every route has a `loading.tsx`** that renders `LoadingPopup` (flashing logo, Thai text, progress bar), so a click gives instant feedback. Add one with its own Thai text for new sections.
 - **`INSERT … .select()` also checks the table's SELECT policy on the new row.** `STABLE` helper functions can't see a row inserted in the same statement. SELECT policies therefore need a direct column check, such as `author_id = auth.uid() or can_see_post(id)`; see `0002_authors_see_own_posts.sql`.
 - **`profiles` reaches `classrooms` two ways** (directly, and via `teaching_assignments`), so a plain embed fails with "more than one relationship". Use the `PROFILE_CLASSROOM` constant from `src/lib/auth.ts` (`classrooms!profiles_classroom_id_fkey`).
 - **Migrations aren't run by tooling.** There's no Supabase CLI or Docker here. Each file is pasted into the Supabase SQL Editor once, in number order.
   - Never edit an applied migration. Add the next numbered file instead.
   - Tell the user to run it: `Get-Content <file> -Raw | Set-Clipboard` makes pasting easy.
+- **RLS speed (migration `0010`):** in policies and helper functions, current-user calls are wrapped as `(select auth.uid())`, `(select public.is_admin())` etc. so Postgres runs them once per query, not once per row. Keep that wrapping in any new policy; row-dependent calls like `can_see_post(id)` stay unwrapped. `0010` also adds indexes on `posts`, `teaching_assignments`, `attachments`, `feedback` and `error_logs`.
 - **Styles missing in the dev server** (the gradient "t", blobs, glass, colours) while `npm run build` has them: Turbopack's dev cache kept an old `globals.css`. This happens after a branch switch rewrites files while `npm run dev` runs, and it survives restarts. Fix: stop the dev server, delete `.next/dev`, start again.
 - **Never rewrite source files with Windows PowerShell 5.1** (`Get-Content` / `Set-Content`). It reads UTF-8 without a BOM as the ANSI codepage and scrambles every Thai string. Use the Edit tool, or a Node script with `fs.readFileSync(f, "utf8")`.
 
@@ -208,6 +211,9 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
   - `courses.json` lists some programs more than once (`uniqueCourses`).
   - Round 1 `criteria` sits inside `folio`.
   - One program can have many Round 3 options.
+- **Cache:** `countByUniversity`, `loadGroupFields` and `loadProgram` (per program id) in `src/lib/tcasData.ts` are wrapped in `unstable_cache`, tagged `"tcas"` (`TCAS_CACHE_TAG`), with `revalidate: 3600` as a safety net. They read with the admin client (cached code can't use cookies), so callers must run `requireProfile()` first.
+  - `publishUniversity` calls `updateTag("tcas")`, so a publish shows up on the next request.
+  - Searches (`searchPrograms`) and personal data (`loadMyTargets`) are never cached; they use the user's own client.
 
 **Pure, tested logic:**
 - `src/lib/tcas.ts`: the exam-code table (`examInfo`), `checkRound3`, `toRound3Option`, `calculate`, `cleanScores`, `pickOption` and `cleanSearch`.

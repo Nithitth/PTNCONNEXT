@@ -1,8 +1,17 @@
 import "server-only";
+import { unstable_cache } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { cleanSearch, toRound3Option, type Round3Option, type Round3Row } from "@/lib/tcas";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { TCAS_UNIVERSITIES, cleanSearch, toRound3Option, type Round3Option, type Round3Row } from "@/lib/tcas";
 
-// Reads published TCAS data for the /tcas pages. Always called with the user's own client (RLS).
+// Reads published TCAS data for the /tcas pages.
+// - Searches and personal data (targets) use the user's own client (RLS).
+// - Reference data that is the same for every signed-in user (counts, field groups, one program's detail)
+//   is cached across requests with unstable_cache. Cached code can't read cookies, so it uses the admin
+//   client; callers must run requireProfile() first. Publishing a university clears the "tcas" tag.
+
+export const TCAS_CACHE_TAG = "tcas";
+const CACHE = { tags: [TCAS_CACHE_TAG], revalidate: 3600 };
 
 export type ProgramCard = {
   programId: string;
@@ -105,27 +114,52 @@ export async function searchPrograms(
 }
 
 /** Several programs by id, in the given order (for the compare page). Unknown ids are skipped. */
-export async function loadPrograms(supabase: SupabaseClient, ids: string[]): Promise<ProgramDetail[]> {
-  const all = await Promise.all(ids.map((id) => loadProgram(supabase, id)));
+export async function loadPrograms(ids: string[]): Promise<ProgramDetail[]> {
+  const all = await Promise.all(ids.map((id) => loadProgram(id)));
   return all.filter((p): p is ProgramDetail => p !== null);
 }
 
-/** Published programs per TCAS university id (empty = TCAS data not ready yet). */
-export async function countByUniversity(supabase: SupabaseClient): Promise<Record<string, number>> {
-  const { data, error } = await supabase.from("tcas_programs").select("university_id").eq("active", true).range(0, 4999);
-  if (error) throw error;
-  const counts: Record<string, number> = {};
-  for (const r of (data ?? []) as { university_id: string }[]) counts[r.university_id] = (counts[r.university_id] ?? 0) + 1;
-  return counts;
-}
+/** Published programs per TCAS university id (empty = TCAS data not ready yet). Cached. */
+export const countByUniversity = unstable_cache(
+  async (): Promise<Record<string, number>> => {
+    const supabase = createAdminClient();
+    // One count-only request per university: no rows are downloaded.
+    const results = await Promise.all(
+      TCAS_UNIVERSITIES.map((u) =>
+        supabase
+          .from("tcas_programs")
+          .select("program_id", { count: "exact", head: true })
+          .eq("active", true)
+          .eq("university_id", u.id),
+      ),
+    );
+    const counts: Record<string, number> = {};
+    TCAS_UNIVERSITIES.forEach((u, i) => {
+      const { count, error } = results[i];
+      if (error) throw error;
+      if (count) counts[u.id] = count;
+    });
+    return counts;
+  },
+  ["tcas-count-by-university"],
+  CACHE,
+);
 
-/** Field groups (e.g. "วิศวกรรมศาสตร์"), sorted ก–ฮ. */
-export async function loadGroupFields(supabase: SupabaseClient): Promise<string[]> {
-  const { data, error } = await supabase.from("tcas_programs").select("group_field").eq("active", true).limit(5000);
-  if (error) throw error;
-  const groups = new Set(((data ?? []) as { group_field: string }[]).map((r) => r.group_field).filter(Boolean));
-  return [...groups].sort((a, b) => a.localeCompare(b, "th"));
-}
+/** Field groups (e.g. "วิศวกรรมศาสตร์"), sorted ก–ฮ. Cached. */
+export const loadGroupFields = unstable_cache(
+  async (): Promise<string[]> => {
+    const { data, error } = await createAdminClient()
+      .from("tcas_programs")
+      .select("group_field")
+      .eq("active", true)
+      .limit(5000);
+    if (error) throw error;
+    const groups = new Set(((data ?? []) as { group_field: string }[]).map((r) => r.group_field).filter(Boolean));
+    return [...groups].sort((a, b) => a.localeCompare(b, "th"));
+  },
+  ["tcas-group-fields"],
+  CACHE,
+);
 
 /** The student's saved targets, newest change first. Includes programs no longer in the TCAS data. */
 export async function loadMyTargets(supabase: SupabaseClient): Promise<TargetCard[]> {
@@ -140,9 +174,14 @@ export async function loadMyTargets(supabase: SupabaseClient): Promise<TargetCar
     .map((r) => ({ ...toCard(r.program!), position: r.position, sliderScores: r.slider_scores ?? {} }));
 }
 
-/** One program with its Round 1 projects and Round 3 options, or null. */
-export async function loadProgram(supabase: SupabaseClient, programId: string): Promise<ProgramDetail | null> {
-  const { data, error } = await supabase
+/**
+ * One program with its Round 1 projects and Round 3 options, or null. Cached per program id.
+ * Inactive programs are returned too (as before), so a saved target can show it is no longer offered.
+ */
+export const loadProgram = unstable_cache(readProgram, ["tcas-program"], CACHE);
+
+async function readProgram(programId: string): Promise<ProgramDetail | null> {
+  const { data, error } = await createAdminClient()
     .from("tcas_programs")
     .select(
       `${CARD_FIELDS}, campus, field, name_en, cost, round1_seats, published_at,

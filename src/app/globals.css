@@ -78,6 +78,58 @@
   --animate-blink: blink 1.1s ease-in-out infinite;
   --animate-sheet-right: sheet-right 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
   --animate-sheet-up: sheet-up 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  /* Loading pop-up (src/components/LoadingPopup.tsx). The pop-in waits 150 ms so fast pages don't flash it. */
+  --animate-pop: pop-in 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) 0.15s both;
+  --animate-logo-flash: logo-flash 1.2s ease-in-out infinite;
+  --animate-loading-bar: loading-bar 8s cubic-bezier(0.1, 0.7, 0.2, 1) 0.15s both;
+  --animate-loading-shine: loading-shine 1.3s ease-in-out infinite;
+
+  @keyframes pop-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px) scale(0.96);
+    }
+  }
+  @keyframes logo-flash {
+    0%,
+    100% {
+      transform: scale(1);
+      box-shadow: 0 0 0 0 rgb(219 41 49 / 0.45), 0 8px 24px -8px rgb(219 41 49 / 0.6);
+      filter: brightness(1);
+    }
+    50% {
+      transform: scale(1.06);
+      box-shadow: 0 0 0 12px rgb(219 41 49 / 0), 0 10px 32px -6px rgb(219 41 49 / 0.75);
+      filter: brightness(1.15);
+    }
+  }
+  /* Creeps toward the end and never quite finishes: the page replaces it when ready. */
+  @keyframes loading-bar {
+    from {
+      width: 4%;
+    }
+    to {
+      width: 92%;
+    }
+  }
+  @keyframes loading-shine {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(250%);
+    }
+  }
+
+  /* TCAS filter dropdown panel */
+  --animate-dropdown: dropdown-in 0.18s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+
+  @keyframes dropdown-in {
+    from {
+      opacity: 0;
+      transform: translateY(-6px) scale(0.98);
+    }
+  }
 
   @keyframes blink {
     0%,

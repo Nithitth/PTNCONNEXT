@@ -1,11 +1,12 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { requireProfile } from "@/lib/auth";
 import { logError } from "@/lib/logs";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { TCAS_UNIVERSITIES } from "@/lib/tcas";
+import { TCAS_CACHE_TAG } from "@/lib/tcasData";
 import { fetchCourses, fetchLastYearMinMax, fetchRounds } from "@/lib/tcasFetch";
 import { mapLimit, normalizeProgram, uniqueCourses } from "@/lib/tcasSource";
 
@@ -72,6 +73,8 @@ export async function publishUniversity(universityId: string): Promise<TcasActio
     const { data, error } = await supabase.rpc("tcas_publish", { p_university: universityId });
     if (error) throw error;
     const counts = data as { added: number; changed: number; removed: number };
+    // Expire the cached TCAS reference data (counts, field groups, program pages) right away.
+    updateTag(TCAS_CACHE_TAG);
     revalidatePath("/admin/tcas");
     revalidatePath("/tcas");
     return { ok: true, ...counts };

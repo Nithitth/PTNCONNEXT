@@ -26,9 +26,14 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
       email: loginIdToEmail(loginId),
       password,
     });
+    // Supabase's per-IP sign-in limit: every login comes from our server's IP, so a whole class signing in
+    // at once can hit it. Not the student's fault, so not a failed login; logged for the Developer Console.
+    if (error?.status === 429) {
+      await logError("login/rate-limit", error);
+      return { error: "มีผู้เข้าสู่ระบบพร้อมกันจำนวนมาก กรุณารอประมาณ 1 นาทีแล้วลองใหม่", ...keep };
+    }
     if (error || !data.user) {
       await logLogin(loginId, false, null);
-      if (error?.status === 429) return { error: "ลองเข้าสู่ระบบบ่อยเกินไป รอสักครู่แล้วลองใหม่", ...keep };
       return {
         error: kind === "student" ? "เลขประจำตัวหรือรหัสผ่านไม่ถูกต้อง" : "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง",
         ...keep,

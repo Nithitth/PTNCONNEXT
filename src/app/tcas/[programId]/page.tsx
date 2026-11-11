@@ -73,7 +73,7 @@ export default async function ProgramPage({ params }: PageProps<"/tcas/[programI
   const supabase = await createClient();
   const isStudent = profile.role === "student";
   const [program, targets] = await Promise.all([
-    loadProgram(supabase, programId),
+    loadProgram(programId),
     isStudent ? loadMyTargets(supabase) : Promise.resolve([]),
   ]);
   if (!program) notFound();

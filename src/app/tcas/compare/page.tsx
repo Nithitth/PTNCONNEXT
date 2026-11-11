@@ -7,7 +7,6 @@ import { FacultyDot } from "@/components/tcas/ProgramList";
 import { Container, EmptyState, PageHeader } from "@/components/ui";
 import { requireProfile } from "@/lib/auth";
 import { facultyColor } from "@/lib/facultyColors";
-import { createClient } from "@/lib/supabase/server";
 import { UniversityLogo } from "@/components/tcas/UniversityLogo";
 import { LAST_YEAR_LABEL, examInfo, fmtNum, isProgramId, universityShort as short } from "@/lib/tcas";
 import { competition, loadPrograms, type ProgramDetail } from "@/lib/tcasData";
@@ -21,7 +20,7 @@ export default async function ComparePage({ searchParams }: PageProps<"/tcas/com
   await requireProfile();
   const raw = (await searchParams).ids;
   const ids = [...new Set((typeof raw === "string" ? raw : "").split(",").filter(isProgramId))].slice(0, 3);
-  const programs = ids.length ? await loadPrograms(await createClient(), ids) : [];
+  const programs = ids.length ? await loadPrograms(ids) : [];
 
   // Round 3 option 0 of each program; the weight rows are the union of their exams (biggest weights first).
   const first = (p: ProgramDetail) => p.round3.find((o) => !o.problem) ?? null;

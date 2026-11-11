@@ -19,7 +19,7 @@ git --version
 ## 2. Create the Supabase project (database + login)
 
 1. Sign up at <https://supabase.com> with the team's shared email, then **New project**.
-   - Name: `ptn-connext`. Region: **Southeast Asia (Singapore)**.
+   - Name: `ptn-connext`. Region: **Northeast Asia (Seoul), `ap-northeast-2`** (the live project). The Vercel functions run next to it: `vercel.json` sets `"regions": ["icn1"]` (Seoul). If the database ever moves, change both together.
    - Save the database password in a password manager.
 2. Open **SQL Editor** → **New query**. Paste the whole of [`supabase/migrations/0001_init.sql`](../supabase/migrations/0001_init.sql) and click **Run**. It should say "Success".
    - Then do the same for every other file in `supabase/migrations/`, in number order (`0002_…`, `0003_…`). Each file runs only once.

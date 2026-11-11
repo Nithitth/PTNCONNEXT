@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { BarChart3, GraduationCap, Search, Star } from "lucide-react";
 import { CompareTray } from "@/components/tcas/CompareTray";
+import { GroupSelect, SortSelect } from "@/components/tcas/FilterSelect";
 import { ProgramList } from "@/components/tcas/ProgramList";
 import { TcasCredits } from "@/components/tcas/TcasCredits";
 import { UniversityShowcase } from "@/components/tcas/UniversityShowcase";
@@ -28,14 +29,14 @@ export default async function TcasPage({ searchParams }: PageProps<"/tcas">) {
   const params = await searchParams;
   const q = param(params.q).slice(0, 100);
   const u = TCAS_UNIVERSITIES.some((x) => x.id === param(params.u)) ? param(params.u) : "";
-  const g = param(params.g).slice(0, 100);
+  const g = param(params.g).slice(0, 200); // some TCAS group names are over 100 characters
   const searching = Boolean(q || u || g);
   const sort: ProgramSort = PROGRAM_SORTS.find((x) => x === param(params.s)) ?? "faculty";
 
   const supabase = await createClient();
   const [counts, groups, targets, results] = await Promise.all([
-    countByUniversity(supabase),
-    loadGroupFields(supabase),
+    countByUniversity(),
+    loadGroupFields(),
     isStudent ? loadMyTargets(supabase) : Promise.resolve([]),
     searching ? searchPrograms(supabase, { q, university: u, group: g, sort }) : Promise.resolve([]),
   ]);
@@ -132,26 +133,10 @@ export default async function TcasPage({ searchParams }: PageProps<"/tcas">) {
                     placeholder="ค้นหา เช่น วิศวกรรม แพทย์ บัญชี"
                     className={cx(inputStyles, "h-11 w-full sm:flex-1")}
                   />
-                  <label className="sr-only" htmlFor="tcas-g">
-                    กลุ่มสาขา
-                  </label>
-                  <select id="tcas-g" name="g" defaultValue={g} className={cx(inputStyles, "h-11 w-full sm:w-56")}>
-                    <option value="">ทุกกลุ่มสาขา</option>
-                    {groups.map((x) => (
-                      <option key={x} value={x}>
-                        {x}
-                      </option>
-                    ))}
-                  </select>
-                  <label className="sr-only" htmlFor="tcas-s">
-                    เรียงตาม
-                  </label>
-                  <select id="tcas-s" name="s" defaultValue={sort} className={cx(inputStyles, "h-11 w-full sm:w-52")}>
-                    <option value="faculty">เรียงตามคณะ</option>
-                    <option value="low">คะแนนต่ำสุดปีที่แล้ว น้อย→มาก</option>
-                    <option value="high">คะแนนต่ำสุดปีที่แล้ว มาก→น้อย</option>
-                    <option value="competition">การแข่งขัน น้อย→มาก</option>
-                  </select>
+                  <div className="relative grid grid-cols-2 gap-2 sm:contents">
+                    <GroupSelect groups={groups} value={g} className="sm:w-60" />
+                    <SortSelect value={sort} className="sm:w-56" />
+                  </div>
                   <button type="submit" className={buttonStyles.primary}>
                     <Search aria-hidden className="h-4 w-4" />
                     ค้นหา
