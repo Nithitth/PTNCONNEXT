@@ -24,7 +24,7 @@ function toInitial(post: MyPost): FormInitial {
     rooms: Object.fromEntries(
       post.targets.map((t) => [
         t.classroomId ?? SCHOOL,
-        t.dueAt ? isoToBangkokInput(t.dueAt, post.type === "assignment") : "",
+        t.dueAt ? isoToBangkokInput(t.dueAt, false) : "", // date only; assignments are due at 23:59
       ]),
     ),
     eventStart: first?.dueAt ? isoToBangkokInput(first.dueAt, false) : "",

@@ -226,7 +226,80 @@ async function main() {
   const sStage = await s1.from("tcas_staging").select("program_id").limit(1);
   const tStage = await t.from("tcas_staging").select("program_id").limit(1);
   check("students and teachers can't read TCAS staging", (sStage.data ?? []).length + (tStage.data ?? []).length === 0);
-  await admin.from("tcas_programs").delete().in("program_id", dummyIds); // cascades to the targets
+  console.log("\nTCAS Roadmap (migration 0011)");
+  // Start with no roadmap for either test student (this test account's roadmap is reset).
+  const tId = (await t.auth.getUser()).data.user!.id;
+  const aId = (await a.auth.getUser()).data.user!.id;
+  await admin.from("tcas_roadmaps").delete().in("student_id", [studentId, s2Id, tId, aId]);
+  const myRoadmap = await s1.from("tcas_roadmaps").insert({ student_id: studentId, program_id: dummyIds[0] });
+  check("student can create a roadmap", !myRoadmap.error, myRoadmap.error?.message);
+  const secondRoadmap = await s1.from("tcas_roadmaps").insert({ student_id: studentId, program_id: dummyIds[1] });
+  check("a second roadmap is refused", Boolean(secondRoadmap.error));
+  const forgedRoadmap = await s1.from("tcas_roadmaps").insert({ student_id: s2Id, program_id: dummyIds[1] });
+  check("student can't create a roadmap for someone else", Boolean(forgedRoadmap.error));
+  // Since 0012 everyone may have their own roadmap; it stays private to its owner.
+  const tRoadmap = await t.from("tcas_roadmaps").insert({ student_id: tId, program_id: dummyIds[1] });
+  check("teachers can create their own roadmap", !tRoadmap.error, tRoadmap.error?.message);
+  const tForged = await t.from("tcas_roadmaps").insert({ student_id: s2Id, program_id: dummyIds[1] });
+  check("teachers can't create a roadmap for a student", Boolean(tForged.error));
+  const tenBoxes = await s1
+    .from("tcas_roadmap_boxes")
+    .insert(Array.from({ length: 10 }, (_, sort) => ({ student_id: studentId, kind: "notes", title: "x", sort, data: { text: "" } })));
+  check("student can add 10 boxes", !tenBoxes.error, tenBoxes.error?.message);
+  const eleventh = await s1.from("tcas_roadmap_boxes").insert({ student_id: studentId, kind: "notes", title: "x", data: { text: "" } });
+  check("an 11th box is refused", Boolean(eleventh.error));
+  await admin.from("tcas_roadmap_boxes").delete().eq("student_id", studentId).eq("sort", 9);
+  const badKind = await s1.from("tcas_roadmap_boxes").insert({ student_id: studentId, kind: "hack", title: "x", data: {} });
+  check("an unknown box kind is refused", Boolean(badKind.error));
+  const peekRoadmap = await s2.from("tcas_roadmaps").select("student_id");
+  const peekBoxes = await s2.from("tcas_roadmap_boxes").select("id");
+  check("another student can't see a roadmap or its boxes", (peekRoadmap.data ?? []).length + (peekBoxes.data ?? []).length === 0);
+  const editOther = await s2.from("tcas_roadmap_boxes").update({ title: "hacked" }).eq("student_id", studentId).select("id");
+  check("another student can't change someone's boxes", (editOther.data ?? []).length === 0);
+  const s2Roadmap = await s2.from("tcas_roadmaps").insert({ student_id: s2Id, program_id: dummyIds[1] });
+  const stealBox = await s1.from("tcas_roadmap_boxes").insert({ student_id: s2Id, kind: "notes", title: "x", data: { text: "" } });
+  check("student can't add a box to someone else's roadmap", !s2Roadmap.error && Boolean(stealBox.error), s2Roadmap.error?.message);
+  const tSees = (await t.from("tcas_roadmaps").select("student_id")).data ?? [];
+  const aSees = (await a.from("tcas_roadmaps").select("student_id")).data ?? [];
+  const staffBoxes =
+    ((await t.from("tcas_roadmap_boxes").select("id").neq("student_id", tId)).data ?? []).length +
+    ((await a.from("tcas_roadmap_boxes").select("id")).data ?? []).length;
+  check(
+    "teachers and admins see only their own roadmap, never a student's",
+    tSees.every((r) => r.student_id === tId) && aSees.every((r) => r.student_id === aId) && staffBoxes === 0,
+  );
+  const studentPeeksTeacher = await s1.from("tcas_roadmaps").select("student_id").eq("student_id", tId);
+  check("students can't see a teacher's roadmap", (studentPeeksTeacher.data ?? []).length === 0);
+  const sTemplate = await s1.from("tcas_roadmap_templates").insert({ group_field: "x", term: "m5t1", title: "[security check]" });
+  const tTemplate = await t.from("tcas_roadmap_templates").insert({ group_field: "x", term: "m5t1", title: "[security check]" });
+  const tDate = await t.from("tcas_key_dates").insert({ label: "[security check]", date: "2027-01-01", tcas_year: 2570 });
+  check("students and teachers can't write templates or key dates", Boolean(sTemplate.error && tTemplate.error && tDate.error));
+  const aTemplate = await a
+    .from("tcas_roadmap_templates")
+    .insert({ group_field: "x", term: "m5t1", title: "[security check]", approved: false })
+    .select("id")
+    .single();
+  check("admin can write a template", !aTemplate.error, aTemplate.error?.message);
+  const hidden = await s1.from("tcas_roadmap_templates").select("id").eq("title", "[security check]");
+  await a.from("tcas_roadmap_templates").update({ approved: true }).eq("id", aTemplate.data?.id ?? 0);
+  const shown = await s1.from("tcas_roadmap_templates").select("id").eq("title", "[security check]");
+  check("students see a template only once it's approved", (hidden.data ?? []).length === 0 && (shown.data ?? []).length === 1);
+  await admin.from("tcas_roadmap_templates").delete().eq("title", "[security check]");
+  const sRoadmapTotals = await s1.rpc("tcas_roadmap_totals");
+  const aRoadmapTotals = await a.rpc("tcas_roadmap_totals");
+  check(
+    "only staff read roadmap totals, and groups under 3 are hidden",
+    // The two test roadmaps point at dummy programs (no field group), so that group must be hidden.
+    Boolean(sRoadmapTotals.error) &&
+      !aRoadmapTotals.error &&
+      !(aRoadmapTotals.data ?? []).some((r: { group_field: string }) => r.group_field === ""),
+    aRoadmapTotals.error?.message,
+  );
+  const deleted = await s1.from("tcas_roadmaps").delete().eq("student_id", studentId).select("student_id");
+  const leftBoxes = await admin.from("tcas_roadmap_boxes").select("id").eq("student_id", studentId);
+  check("deleting a roadmap removes its boxes", deleted.data?.length === 1 && (leftBoxes.data ?? []).length === 0);
+
+  await admin.from("tcas_programs").delete().in("program_id", dummyIds); // cascades to the targets and roadmaps
 
   // Clean up
   await admin.from("posts").delete().in("id", [mathPost, sciencePost]);

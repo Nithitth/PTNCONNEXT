@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowLeft, BarChart3, ShieldCheck } from "lucide-react";
 import { Card, Container, EmptyState, PageHeader } from "@/components/ui";
 import { requireProfile } from "@/lib/auth";
+import { BOX_PRESETS, isBoxKind } from "@/lib/roadmap";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "สถิติเป้าหมาย · TCAS" };
@@ -42,9 +43,21 @@ function BarList({ title, data }: { title: string; data: [string, number][] }) {
 export default async function TcasStatsPage() {
   await requireProfile({ roles: ["teacher", "admin"] });
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("tcas_target_totals");
+  const [{ data, error }, roadmapRes, boxRes] = await Promise.all([
+    supabase.rpc("tcas_target_totals"),
+    supabase.rpc("tcas_roadmap_totals"),
+    supabase.rpc("tcas_roadmap_box_totals"),
+  ]);
   if (error) throw error;
   const rows = (data ?? []) as Row[];
+  // Roadmap totals (migration 0011); groups under 3 students are already hidden by the database.
+  const roadmapRows: Row[] = ((roadmapRes.data ?? []) as { group_field: string; grade: number | null; students: number }[]).map(
+    (r) => ({ ...r, faculty: "", university_name: "" }),
+  );
+  const boxRows = ((boxRes.data ?? []) as { kind: string; students: number }[])
+    .filter((r) => isBoxKind(r.kind))
+    .map((r) => [BOX_PRESETS[r.kind as keyof typeof BOX_PRESETS].name, r.students] as [string, number])
+    .sort((a, b) => b[1] - a[1]);
 
   return (
     <Container className="py-10">
@@ -76,6 +89,17 @@ export default async function TcasStatsPage() {
             <BarList title="ตามระดับชั้น" data={sumBy(rows, (r) => (r.grade ? `ม.${r.grade}` : "ไม่ระบุ"))} />
           </div>
         </div>
+      )}
+      {(roadmapRows.length > 0 || boxRows.length > 0) && (
+        <section className="mt-10">
+          <h2 className="mb-4 font-display text-xl font-bold text-ink">Roadmap ของนักเรียน</h2>
+          <div className="grid items-start gap-5 lg:grid-cols-2">
+            {roadmapRows.length > 0 && (
+              <BarList title="นักเรียนที่มี Roadmap ตามกลุ่มสาขา" data={sumBy(roadmapRows, (r) => r.group_field || "ไม่ระบุ")} />
+            )}
+            {boxRows.length > 0 && <BarList title="กล่องที่นิยม (จำนวนนักเรียนที่ใช้)" data={boxRows} />}
+          </div>
+        </section>
       )}
     </Container>
   );

@@ -2,7 +2,8 @@
 
 import { startTransition, useActionState, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Check, CheckCheck, CopyCheck, FileText, Link2, Paperclip, Upload, X } from "lucide-react";
+import { Check, CheckCheck, CopyCheck, FileText, Link2, ListOrdered, Paperclip, Upload, X, type LucideIcon } from "lucide-react";
+import { DatePicker } from "@/components/DatePicker";
 import { savePost, type SaveResult } from "@/app/teacher/actions";
 import type { Attachment } from "@/lib/calendar";
 import {
@@ -57,9 +58,6 @@ const COPY: Record<PostKind, { submit: string; titlePlaceholder: string; dateLab
   exam: { submit: "ประกาศวันสอบ", titlePlaceholder: "เช่น สอบกลางภาค", dateLabel: "วันสอบ", roomsLabel: "ห้องและวันสอบ" },
   event: { submit: "สร้างกิจกรรม", titlePlaceholder: "เช่น กีฬาสี", roomsLabel: "ใครเข้าร่วม" },
 };
-
-const LINK_BUTTON =
-  "inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-bold text-brand transition-colors hover:bg-brand-soft";
 
 const sizeLabel = (bytes: number) =>
   bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
@@ -119,10 +117,10 @@ export function PostForm({ kind, userId, subjects, rooms: classrooms, allowSchoo
     if (value) setLastDate(value);
   }
 
-  function sameForAll() {
-    const first = roomOptions.map((r) => rooms[r.id]).find(Boolean);
-    if (!first) return;
-    setRooms((prev) => Object.fromEntries(Object.keys(prev).map((k) => [k, first])));
+  /** "ใช้วันเดียวกันทุกห้อง": one date for every room picked so far. */
+  function setAllDates(value: string) {
+    setRooms((prev) => Object.fromEntries(Object.keys(prev).map((k) => [k, value])));
+    if (value) setLastDate(value);
   }
 
   function pickFile(f: File | null) {
@@ -131,6 +129,12 @@ export function PostForm({ kind, userId, subjects, rooms: classrooms, allowSchoo
   }
 
   const checkedIds = roomOptions.map((r) => r.id).filter((id) => id in rooms);
+  // The shared date box shows a date only while every picked room has that same date.
+  const pickedDates = new Set(checkedIds.map((id) => rooms[id]));
+  const allSameDate = pickedDates.size === 1 ? [...pickedDates][0] : "";
+  // Step numbers follow the steps actually shown for this kind of post.
+  let stepCount = 0;
+  const step = () => ++stepCount;
 
   function buildInput(attachment: AttachmentInput): PostInput {
     return {
@@ -203,284 +207,313 @@ export function PostForm({ kind, userId, subjects, rooms: classrooms, allowSchoo
         </Notice>
       )}
 
-      {kind !== "event" && (
-        <Section label="วิชา" htmlFor={`${uid}-subject`}>
-          <select
-            id={`${uid}-subject`}
-            value={subjectId}
-            onChange={(e) => setSubjectId(e.target.value)}
-            className={cx(inputStyles, "h-12 w-full")}
-            disabled={noSubjects}
-            required
-          >
-            <option value="" disabled>
-              เลือกวิชา
-            </option>
-            {subjects.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
+      <p className="flex items-center gap-2 rounded-xl bg-sunken px-3.5 py-2.5 text-sm text-muted">
+        <ListOrdered aria-hidden className="h-4 w-4 shrink-0 text-brand" />
+        ทำตามขั้นตอนจากบนลงล่าง ขั้นที่เขียนว่า “ไม่บังคับ” ข้ามได้
+      </p>
+
+      <ol className="space-y-0">
+        {kind !== "event" && (
+          <Step n={step()} label="เลือกวิชา" htmlFor={`${uid}-subject`}>
+            <select
+              id={`${uid}-subject`}
+              value={subjectId}
+              onChange={(e) => setSubjectId(e.target.value)}
+              className={cx(inputStyles, "h-12 w-full")}
+              disabled={noSubjects}
+              required
+            >
+              <option value="" disabled>
+                เลือกวิชา
               </option>
-            ))}
-          </select>
-        </Section>
-      )}
-
-      {kind === "exam" && (
-        <Section label="ประเภทการสอบ">
-          <div role="radiogroup" aria-label="ประเภทการสอบ" className="grid gap-2 sm:grid-cols-2">
-            {(Object.keys(EXAM_KIND_LABEL) as ExamKind[]).map((k) => {
-              const on = examKind === k;
-              return (
-                <button
-                  key={k}
-                  type="button"
-                  role="radio"
-                  aria-checked={on}
-                  onClick={() => setExamKind(k)}
-                  className={cx(
-                    "flex items-center gap-3 rounded-xl border px-3.5 py-3 text-left text-sm font-bold transition-all duration-150",
-                    on ? "border-brand bg-brand-soft text-ink shadow-soft-sm" : "border-line bg-surface text-muted hover:border-brand/30",
-                  )}
-                >
-                  {/* light = days before, dark = exam day */}
-                  <span aria-hidden className="flex shrink-0 overflow-hidden rounded-md border border-line">
-                    <span className={cx("h-6 w-4", k === "major" ? "bg-major-tint" : "bg-exam-tint")} />
-                    <span className={cx("h-6 w-4", k === "major" ? "bg-major-soft" : "bg-exam-soft")} />
-                  </span>
-                  <span>
-                    {EXAM_KIND_LABEL[k]}
-                    <span className="block text-xs font-normal text-muted">
-                      ไฮไลต์ล่วงหน้า {EXAM_LEAD_DAYS[k]} วันก่อนสอบ
-                    </span>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </Section>
-      )}
-
-      <Section label="ชื่อเรื่อง" htmlFor={`${uid}-title`}>
-        <input
-          id={`${uid}-title`}
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder={copy.titlePlaceholder}
-          maxLength={200}
-          className={cx(inputStyles, "h-12 w-full")}
-          required
-        />
-      </Section>
-
-      <Section label="รายละเอียด" optional htmlFor={`${uid}-desc`}>
-        <textarea
-          id={`${uid}-desc`}
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          rows={3}
-          maxLength={MAX_DESCRIPTION}
-          placeholder={kind === "assignment" ? "เช่น ทำข้อ 1–10 ส่งในสมุด" : "รายละเอียดเพิ่มเติม"}
-          className={cx(inputStyles, "min-h-24 w-full resize-y py-3 leading-relaxed")}
-        />
-      </Section>
-
-      {kind === "event" && (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Section label="วันเริ่ม" htmlFor={`${uid}-start`}>
-            <input id={`${uid}-start`} type="date" value={eventStart} onChange={(e) => setEventStart(e.target.value)} className={cx(inputStyles, "h-12 w-full")} />
-          </Section>
-          <Section label="วันสิ้นสุด" optional htmlFor={`${uid}-end`}>
-            <input
-              id={`${uid}-end`}
-              type="date"
-              value={eventEnd}
-              min={eventStart || undefined}
-              onChange={(e) => setEventEnd(e.target.value)}
-              className={cx(inputStyles, "h-12 w-full")}
-            />
-          </Section>
-        </div>
-      )}
-
-      <Section
-        label={copy.roomsLabel}
-        aside={
-          <span className="flex flex-wrap justify-end gap-1">
-            {datedPerRoom && checkedIds.length > 1 && (
-              <button type="button" onClick={sameForAll} className={LINK_BUTTON}>
-                <CopyCheck aria-hidden className="h-3.5 w-3.5" />
-                ใช้วันเดียวกันทุกห้อง
-              </button>
-            )}
-            {classrooms.length > 1 && (
-              <button type="button" onClick={toggleAllRooms} aria-pressed={allPicked} className={LINK_BUTTON}>
-                <CheckCheck aria-hidden className="h-3.5 w-3.5" />
-                {allPicked ? "ไม่เลือกทั้งหมด" : `เลือกทั้ง ${classrooms.length} ห้อง`}
-              </button>
-            )}
-          </span>
-        }
-      >
-        {roomOptions.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-line-strong px-4 py-3 text-sm text-muted">
-            ยังไม่มีห้องเรียนในปีการศึกษานี้ ผู้ดูแลระบบต้องสร้างห้องก่อน
-          </p>
-        ) : datedPerRoom ? (
-          <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line">
-            {roomOptions.map((r) => {
-              const on = r.id in rooms;
-              return (
-                <li key={r.id} className={cx("flex flex-wrap items-center gap-3 px-3 py-2.5 transition-colors", on && "bg-brand-soft/50")}>
-                  <RoomToggle label={r.label} on={on} onToggle={() => toggleRoom(r.id)} />
-                  {on ? (
-                    <input
-                      type={kind === "assignment" ? "datetime-local" : "date"}
-                      aria-label={`${copy.dateLabel} ${r.label}`}
-                      value={rooms[r.id]}
-                      onChange={(e) => setRoomDate(r.id, e.target.value)}
-                      className={cx(inputStyles, "h-10 min-w-0 flex-1 basis-48 text-sm")}
-                    />
-                  ) : (
-                    <span className="text-xs text-faint">แตะเพื่อเลือกห้องนี้</span>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {roomOptions.map((r) => (
-              <RoomToggle key={r.id} label={r.label} on={r.id in rooms} onToggle={() => toggleRoom(r.id)} />
-            ))}
-          </div>
+              {subjects.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </Step>
         )}
-      </Section>
 
-      {kind === "material" && (
-        <Section label="ลำดับเนื้อหา" optional htmlFor={`${uid}-order`}>
-          <div className="flex items-center gap-3">
-            <input
-              id={`${uid}-order`}
-              type="number"
-              min={0}
-              max={9999}
-              inputMode="numeric"
-              value={contentOrder}
-              onChange={(e) => setContentOrder(e.target.value)}
-              placeholder="เช่น 2"
-              className={cx(inputStyles, "h-12 w-24 text-center tabular-nums")}
-            />
-            <span className="text-sm text-muted">เช่น บทที่ ใช้เรียงเอกสารให้นักเรียน</span>
-          </div>
-        </Section>
-      )}
-
-      {kind !== "event" && (
-        <Section label="ไฟล์หรือลิงก์" optional={kind !== "material"}>
-          <div role="radiogroup" aria-label="แนบไฟล์หรือลิงก์" className="mb-3 flex flex-wrap gap-1.5 rounded-xl border border-line bg-sunken p-1 sm:inline-flex">
-            {(
-              [
-                editing?.current && { value: "keep", label: "ใช้ของเดิม", Icon: Check },
-                kind !== "material" && { value: "none", label: "ไม่แนบ", Icon: X },
-                { value: "file", label: "ไฟล์ PDF", Icon: Paperclip },
-                { value: "link", label: "ลิงก์", Icon: Link2 },
-              ].filter(Boolean) as { value: typeof mode; label: string; Icon: typeof Check }[]
-            ).map(({ value, label, Icon }) => (
-              <button
-                key={value}
-                type="button"
-                role="radio"
-                aria-checked={mode === value}
-                onClick={() => setMode(value)}
-                className={cx(
-                  "inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-bold transition-all duration-150 sm:flex-none",
-                  mode === value ? "bg-surface text-brand shadow-soft-sm" : "text-muted hover:text-brand",
-                )}
-              >
-                <Icon aria-hidden className="h-4 w-4" />
-                {label}
-              </button>
-            ))}
-          </div>
-
-          {mode === "keep" && editing?.current && (
-            <p className="flex items-center gap-2 rounded-xl border border-line bg-surface px-3.5 py-3 text-sm text-ink">
-              {editing.current.kind === "file" ? (
-                <FileText aria-hidden className="h-4 w-4 shrink-0 text-brand" />
-              ) : (
-                <Link2 aria-hidden className="h-4 w-4 shrink-0 text-brand" />
-              )}
-              <span className="truncate">{editing.current.name}</span>
-            </p>
-          )}
-
-          {mode === "link" && (
-            <input
-              aria-label="ลิงก์"
-              type="url"
-              inputMode="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://docs.google.com/…"
-              className={cx(inputStyles, "h-12 w-full")}
-            />
-          )}
-
-          {mode === "file" && (
-            <div>
-              <input
-                ref={fileInput}
-                type="file"
-                accept="application/pdf,.pdf"
-                className="sr-only"
-                id="post-file"
-                onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
-              />
-              {file ? (
-                <div className="flex items-center gap-3 rounded-xl border border-line bg-surface px-3.5 py-3">
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand-soft text-brand">
-                    <FileText aria-hidden className="h-5 w-5" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-bold text-ink">{file.name}</span>
-                    <span className="text-xs text-muted">{sizeLabel(file.size)}</span>
-                  </span>
+        {kind === "exam" && (
+          <Step n={step()} label="เลือกประเภทการสอบ">
+            <div role="radiogroup" aria-label="ประเภทการสอบ" className="grid gap-2 sm:grid-cols-2">
+              {(Object.keys(EXAM_KIND_LABEL) as ExamKind[]).map((k) => {
+                const on = examKind === k;
+                return (
                   <button
+                    key={k}
                     type="button"
-                    onClick={() => {
-                      pickFile(null);
-                      if (fileInput.current) fileInput.current.value = "";
-                    }}
-                    className="rounded-lg p-2 text-muted transition-colors hover:bg-sunken hover:text-brand"
-                    aria-label="เอาไฟล์ออก"
+                    role="radio"
+                    aria-checked={on}
+                    onClick={() => setExamKind(k)}
+                    className={cx(
+                      "flex items-center gap-3 rounded-xl border px-3.5 py-3 text-left text-sm font-bold transition-all duration-150",
+                      on ? "border-brand bg-brand-soft text-ink shadow-soft-sm" : "border-line bg-surface text-muted hover:border-brand/30",
+                    )}
                   >
-                    <X aria-hidden className="h-4 w-4" />
+                    {/* light = days before, dark = exam day */}
+                    <span aria-hidden className="flex shrink-0 overflow-hidden rounded-md border border-line">
+                      <span className={cx("h-6 w-4", k === "major" ? "bg-major-tint" : "bg-exam-tint")} />
+                      <span className={cx("h-6 w-4", k === "major" ? "bg-major-soft" : "bg-exam-soft")} />
+                    </span>
+                    <span>
+                      {EXAM_KIND_LABEL[k]}
+                      <span className="block text-xs font-normal text-muted">ไฮไลต์ล่วงหน้า {EXAM_LEAD_DAYS[k]} วันก่อนสอบ</span>
+                    </span>
                   </button>
-                </div>
-              ) : (
-                <label
-                  htmlFor="post-file"
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    pickFile(e.dataTransfer.files?.[0] ?? null);
-                  }}
-                  className="flex cursor-pointer flex-col items-center gap-1 rounded-xl border border-dashed border-line-strong bg-surface px-4 py-6 text-center transition-colors hover:border-brand/40 hover:bg-brand-soft/40"
-                >
-                  <Upload aria-hidden className="h-5 w-5 text-brand" />
-                  <span className="text-sm font-bold text-ink">เลือกไฟล์ PDF หรือลากมาวางที่นี่</span>
-                  <span className="text-xs text-muted">ไม่เกิน 10 MB · ไฟล์อื่น ๆ ให้แชร์เป็นลิงก์</span>
-                </label>
+                );
+              })}
+            </div>
+          </Step>
+        )}
+
+        <Step n={step()} label="ตั้งชื่อเรื่อง" htmlFor={`${uid}-title`}>
+          <input
+            id={`${uid}-title`}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder={copy.titlePlaceholder}
+            maxLength={200}
+            className={cx(inputStyles, "h-12 w-full")}
+            required
+          />
+        </Step>
+
+        <Step n={step()} label="เขียนรายละเอียด" optional htmlFor={`${uid}-desc`}>
+          <textarea
+            id={`${uid}-desc`}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={3}
+            maxLength={MAX_DESCRIPTION}
+            placeholder={kind === "assignment" ? "เช่น ทำข้อ 1–10 ส่งในสมุด" : "รายละเอียดเพิ่มเติม"}
+            className={cx(inputStyles, "min-h-24 w-full resize-y py-3 leading-relaxed")}
+          />
+        </Step>
+
+        {kind === "event" && (
+          <Step n={step()} label="เลือกวันจัดกิจกรรม">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <p className="mb-1.5 text-xs font-bold text-muted">วันเริ่ม</p>
+                <DatePicker label="วันเริ่มกิจกรรม" value={eventStart} onChange={setEventStart} />
+              </div>
+              <div>
+                <p className="mb-1.5 text-xs font-bold text-muted">
+                  วันสิ้นสุด <span className="font-normal text-faint">(ไม่บังคับ)</span>
+                </p>
+                <DatePicker
+                  label="วันสิ้นสุดกิจกรรม"
+                  value={eventEnd}
+                  onChange={setEventEnd}
+                  min={eventStart || undefined}
+                  placeholder="วันเดียวจบ"
+                  clearable
+                />
+              </div>
+            </div>
+          </Step>
+        )}
+
+        <Step n={step()} label={kind === "event" ? "เลือกผู้เข้าร่วม" : "เลือกห้อง"} hint="แตะห้องเพื่อเลือก เลือกได้หลายห้อง">
+          {roomOptions.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-line-strong px-4 py-3 text-sm text-muted">
+              ยังไม่มีห้องเรียนในปีการศึกษานี้ ผู้ดูแลระบบต้องสร้างห้องก่อน
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {classrooms.length > 1 && (
+                <BigOptionButton
+                  on={allPicked}
+                  onClick={toggleAllRooms}
+                  Icon={CheckCheck}
+                  title={allPicked ? `เลือกครบทั้ง ${classrooms.length} ห้องแล้ว (แตะเพื่อยกเลิก)` : `เลือกทั้ง ${classrooms.length} ห้อง`}
+                  note="ไม่บังคับ · ทางลัดแทนการแตะทีละห้อง"
+                />
               )}
-              {fileError && (
-                <div className="mt-2">
-                  <Notice tone="error">{fileError}</Notice>
-                </div>
-              )}
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {roomOptions.map((r) => (
+                  <RoomToggle key={r.id} label={r.label} on={r.id in rooms} onToggle={() => toggleRoom(r.id)} />
+                ))}
+              </div>
+              <p className="text-xs text-muted" aria-live="polite">
+                {checkedIds.length === 0 ? "ยังไม่ได้เลือกห้อง" : `เลือกแล้ว ${checkedIds.length} ห้อง`}
+              </p>
             </div>
           )}
-        </Section>
-      )}
+        </Step>
+
+        {datedPerRoom && (
+          <Step n={step()} label={kind === "assignment" ? "เลือกวันกำหนดส่ง" : "เลือกวันสอบ"} hint={kind === "assignment" ? "ส่งได้ถึง 23:59 น. ของวันที่เลือก" : undefined}>
+            {checkedIds.length === 0 ? (
+              <p className="rounded-xl border border-dashed border-line-strong px-4 py-3 text-sm text-muted">
+                เลือกห้องในขั้นก่อนหน้า แล้วกำหนดวันของแต่ละห้องที่นี่
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {checkedIds.length > 1 && (
+                  <div className="rounded-2xl border-2 border-dashed border-brand/30 bg-brand-soft/40 p-3.5">
+                    <p className="mb-2 flex flex-wrap items-center gap-x-2 text-sm font-bold text-ink">
+                      <CopyCheck aria-hidden className="h-4 w-4 text-brand" />
+                      ใช้วันเดียวกันทุกห้อง
+                      <span className="text-xs font-normal text-muted">(ไม่บังคับ · เลือกครั้งเดียว ใช้กับ {checkedIds.length} ห้องที่เลือก)</span>
+                    </p>
+                    <DatePicker label={`${copy.dateLabel}ทุกห้อง`} value={allSameDate} onChange={setAllDates} placeholder="เลือกวันเดียวให้ทุกห้อง" />
+                  </div>
+                )}
+                <ul className="divide-y divide-line rounded-xl border border-line">
+                  {checkedIds.map((id) => {
+                    const r = roomOptions.find((x) => x.id === id)!;
+                    return (
+                      <li key={id} className="flex flex-wrap items-center gap-3 px-3 py-2.5">
+                        <span className="w-20 shrink-0 text-sm font-bold text-ink">{r.label}</span>
+                        <DatePicker
+                          size="sm"
+                          label={`${copy.dateLabel} ${r.label}`}
+                          value={rooms[id]}
+                          onChange={(v) => setRoomDate(id, v)}
+                          className="min-w-0 flex-1 basis-48"
+                        />
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
+          </Step>
+        )}
+
+        {kind === "material" && (
+          <Step n={step()} label="ใส่ลำดับเนื้อหา" optional htmlFor={`${uid}-order`}>
+            <div className="flex items-center gap-3">
+              <input
+                id={`${uid}-order`}
+                type="number"
+                min={0}
+                max={9999}
+                inputMode="numeric"
+                value={contentOrder}
+                onChange={(e) => setContentOrder(e.target.value)}
+                placeholder="เช่น 2"
+                className={cx(inputStyles, "h-12 w-24 text-center tabular-nums")}
+              />
+              <span className="text-sm text-muted">เช่น บทที่ ใช้เรียงเอกสารให้นักเรียน</span>
+            </div>
+          </Step>
+        )}
+
+        {kind !== "event" && (
+          <Step n={step()} label="แนบไฟล์หรือลิงก์" optional={kind !== "material"}>
+            <div role="radiogroup" aria-label="แนบไฟล์หรือลิงก์" className="mb-3 flex flex-wrap gap-1.5 rounded-xl border border-line bg-sunken p-1 sm:inline-flex">
+              {(
+                [
+                  editing?.current && { value: "keep", label: "ใช้ของเดิม", Icon: Check },
+                  kind !== "material" && { value: "none", label: "ไม่แนบ", Icon: X },
+                  { value: "file", label: "ไฟล์ PDF", Icon: Paperclip },
+                  { value: "link", label: "ลิงก์", Icon: Link2 },
+                ].filter(Boolean) as { value: typeof mode; label: string; Icon: typeof Check }[]
+              ).map(({ value, label, Icon }) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={mode === value}
+                  onClick={() => setMode(value)}
+                  className={cx(
+                    "inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-bold transition-all duration-150 sm:flex-none",
+                    mode === value ? "bg-surface text-brand shadow-soft-sm" : "text-muted hover:text-brand",
+                  )}
+                >
+                  <Icon aria-hidden className="h-4 w-4" />
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {mode === "keep" && editing?.current && (
+              <p className="flex items-center gap-2 rounded-xl border border-line bg-surface px-3.5 py-3 text-sm text-ink">
+                {editing.current.kind === "file" ? (
+                  <FileText aria-hidden className="h-4 w-4 shrink-0 text-brand" />
+                ) : (
+                  <Link2 aria-hidden className="h-4 w-4 shrink-0 text-brand" />
+                )}
+                <span className="truncate">{editing.current.name}</span>
+              </p>
+            )}
+
+            {mode === "link" && (
+              <input
+                aria-label="ลิงก์"
+                type="url"
+                inputMode="url"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                placeholder="https://docs.google.com/…"
+                className={cx(inputStyles, "h-12 w-full")}
+              />
+            )}
+
+            {mode === "file" && (
+              <div>
+                <input
+                  ref={fileInput}
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  className="sr-only"
+                  id="post-file"
+                  onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
+                />
+                {file ? (
+                  <div className="flex items-center gap-3 rounded-xl border border-line bg-surface px-3.5 py-3">
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand-soft text-brand">
+                      <FileText aria-hidden className="h-5 w-5" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-bold text-ink">{file.name}</span>
+                      <span className="text-xs text-muted">{sizeLabel(file.size)}</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        pickFile(null);
+                        if (fileInput.current) fileInput.current.value = "";
+                      }}
+                      className="rounded-lg p-2 text-muted transition-colors hover:bg-sunken hover:text-brand"
+                      aria-label="เอาไฟล์ออก"
+                    >
+                      <X aria-hidden className="h-4 w-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <label
+                    htmlFor="post-file"
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      pickFile(e.dataTransfer.files?.[0] ?? null);
+                    }}
+                    className="flex cursor-pointer flex-col items-center gap-1 rounded-xl border border-dashed border-line-strong bg-surface px-4 py-6 text-center transition-colors hover:border-brand/40 hover:bg-brand-soft/40"
+                  >
+                    <Upload aria-hidden className="h-5 w-5 text-brand" />
+                    <span className="text-sm font-bold text-ink">เลือกไฟล์ PDF หรือลากมาวางที่นี่</span>
+                    <span className="text-xs text-muted">ไม่เกิน 10 MB · ไฟล์อื่น ๆ ให้แชร์เป็นลิงก์</span>
+                  </label>
+                )}
+                {fileError && (
+                  <div className="mt-2">
+                    <Notice tone="error">{fileError}</Notice>
+                  </div>
+                )}
+              </div>
+            )}
+          </Step>
+        )}
+
+        <Step n={step()} label={editing ? "ตรวจแล้วกดบันทึก" : `ตรวจแล้วกด “${copy.submit}”`} last>
+          <p className="text-sm text-muted">ตรวจชื่อเรื่อง ห้อง และวันอีกครั้ง แล้วกดปุ่มสีแดงด้านล่าง</p>
+        </Step>
+      </ol>
 
       {state.error && <Notice tone="error">{state.error}</Notice>}
 
@@ -498,30 +531,46 @@ export function PostForm({ kind, userId, subjects, rooms: classrooms, allowSchoo
   );
 }
 
-function Section({
+/** One numbered step of the form, joined to the next by a thin line. */
+function Step({
+  n,
   label,
   htmlFor,
   optional,
-  aside,
+  hint,
+  last,
   children,
 }: {
+  n: number;
   label: string;
   htmlFor?: string;
   optional?: boolean;
-  aside?: ReactNode;
+  hint?: string;
+  last?: boolean;
   children: ReactNode;
 }) {
   return (
-    <div>
-      <div className="mb-1.5 flex items-center justify-between gap-3">
-        <Label htmlFor={htmlFor} className="text-sm font-bold text-ink">
+    <li className="relative pb-7 pl-12 last:pb-0">
+      {!last && <span aria-hidden className="absolute bottom-0 left-[17px] top-10 w-0.5 rounded-full bg-line" />}
+      <span
+        aria-hidden
+        className={cx(
+          "absolute left-0 top-0 grid h-9 w-9 place-items-center rounded-full font-display text-sm font-extrabold",
+          optional ? "border-2 border-dashed border-brand/40 bg-surface text-brand" : "bg-brand-gradient text-white shadow-brand-glow",
+        )}
+      >
+        {n}
+      </span>
+      <div className="mb-2 min-h-9 pt-1.5">
+        <Label htmlFor={htmlFor} className="block font-display text-base font-bold text-ink">
+          <span className="sr-only">ขั้นที่ {n}: </span>
           {label}
-          {optional && <span className="ml-1.5 font-normal text-faint">(ไม่บังคับ)</span>}
+          {optional && <span className="ml-2 rounded-md bg-sunken px-1.5 py-0.5 align-middle text-xs font-bold text-muted">ไม่บังคับ</span>}
         </Label>
-        {aside}
+        {hint && <p className="mt-0.5 text-xs text-muted">{hint}</p>}
       </div>
       {children}
-    </div>
+    </li>
   );
 }
 
@@ -536,6 +585,43 @@ function Label({ htmlFor, className, children }: { htmlFor?: string; className: 
   );
 }
 
+/** A large shortcut button ("เลือกทั้ง 8 ห้อง"), clearly marked as optional. */
+function BigOptionButton({
+  on,
+  onClick,
+  Icon,
+  title,
+  note,
+}: {
+  on: boolean;
+  onClick: () => void;
+  Icon: LucideIcon;
+  title: string;
+  note: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={on}
+      className={cx(
+        "flex w-full items-center gap-3 rounded-2xl border-2 px-4 py-3 text-left transition-all duration-150 active:scale-[0.99]",
+        on
+          ? "border-brand bg-brand text-white shadow-brand-glow"
+          : "border-dashed border-brand/40 bg-brand-soft/40 text-ink hover:border-brand hover:bg-brand-soft",
+      )}
+    >
+      <span className={cx("grid h-10 w-10 shrink-0 place-items-center rounded-xl", on ? "bg-white text-brand" : "bg-brand-gradient text-white")}>
+        <Icon aria-hidden className="h-5 w-5" />
+      </span>
+      <span className="min-w-0">
+        <span className="block font-display text-base font-bold">{title}</span>
+        <span className={cx("block text-xs", on ? "text-white/85" : "text-muted")}>{note}</span>
+      </span>
+    </button>
+  );
+}
+
 function RoomToggle({ label, on, onToggle }: { label: string; on: boolean; onToggle: () => void }) {
   return (
     <button
@@ -544,7 +630,7 @@ function RoomToggle({ label, on, onToggle }: { label: string; on: boolean; onTog
       aria-checked={on}
       onClick={onToggle}
       className={cx(
-        "inline-flex h-10 min-w-24 items-center justify-center gap-1.5 rounded-xl border px-3.5 text-sm font-bold transition-all duration-150 active:scale-[0.97]",
+        "inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-xl border px-3.5 text-sm font-bold transition-all duration-150 active:scale-[0.97]",
         on
           ? "border-brand bg-brand text-white shadow-brand-glow"
           : "border-line bg-surface text-ink hover:border-brand/30 hover:bg-brand-soft hover:text-brand",

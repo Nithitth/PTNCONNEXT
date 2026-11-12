@@ -151,8 +151,11 @@ export function validatePost(input: PostInput): Checked {
     let due_at: string | null = null;
     let ends_at: string | null = null;
     if (kind === "assignment") {
-      if (!/T\d{2}:\d{2}$/.test(t.due)) return fail("ใส่วันและเวลากำหนดส่งให้ครบทุกห้อง");
-      due_at = bangkokInputToIso(t.due);
+      // The form picks a date only; the work is then due at the end of that day (23:59 Thai time).
+      // A date and time ("…T16:30") is still accepted.
+      const due = /^\d{4}-\d{2}-\d{2}$/.test(t.due.trim()) ? `${t.due.trim()}T23:59` : t.due;
+      if (!/T\d{2}:\d{2}$/.test(due)) return fail("เลือกวันกำหนดส่งให้ครบทุกห้อง");
+      due_at = bangkokInputToIso(due);
       if (!due_at) return fail("วันกำหนดส่งไม่ถูกต้อง");
     } else if (kind === "exam" || kind === "event") {
       due_at = bangkokInputToIso(t.due.slice(0, 10));

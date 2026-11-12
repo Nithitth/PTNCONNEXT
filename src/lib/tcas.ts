@@ -22,6 +22,9 @@ export const TCAS_UNIVERSITIES = [
 /** TCAS program ids look like "10010121300001A". */
 export const isProgramId = (id: string) => /^[0-9A-Z]{10,20}$/.test(id);
 
+/** A program's page on course.mytcas.com (credited on every program page). */
+export const mytcasUrl = (programId: string) => `https://course.mytcas.com/programs/${programId}`;
+
 /** Thai-formatted number with at most 2 decimals ("1,234", "54.65"). */
 export const fmtNum = (n: number) => n.toLocaleString("th-TH", { maximumFractionDigits: 2 });
 

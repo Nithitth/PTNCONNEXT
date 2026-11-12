@@ -12,6 +12,8 @@ import {
   parseMonth,
   placeItems,
   shiftMonth,
+  mergeRooms,
+  roomsSummary,
   sortMaterials,
   upcoming,
   type CalendarItem,
@@ -20,6 +22,8 @@ import { cleanUrl, fileProblem, validatePost, type PostInput } from "./postForm"
 
 const item = (over: Partial<CalendarItem>): CalendarItem => ({
   key: over.key ?? Math.random().toString(36),
+  postId: over.postId ?? Math.random().toString(36),
+  rooms: over.rooms ?? (over.room ? [over.room] : []),
   type: "assignment",
   examKind: "quiz",
   title: "งาน",
@@ -146,8 +150,14 @@ test("assignment: one deadline per classroom", () => {
   );
 });
 
-test("assignment: refuses missing times, no rooms, duplicate rooms", () => {
-  assert.equal(validatePost({ ...base, targets: [{ classroomId: "r1", due: "2026-11-12" }] }).ok, false);
+test("assignment: a date alone means due at 23:59 that day", () => {
+  const r = validatePost({ ...base, targets: [{ classroomId: "r1", due: "2026-11-12" }] });
+  assert.ok(r.ok);
+  assert.equal(r.value.targets[0].due_at, "2026-11-12T16:59:00.000Z");
+});
+
+test("assignment: refuses missing dates, no rooms, duplicate rooms", () => {
+  assert.equal(validatePost({ ...base, targets: [{ classroomId: "r1", due: "" }] }).ok, false);
   assert.equal(validatePost({ ...base, targets: [] }).ok, false);
   assert.equal(
     validatePost({ ...base, targets: [base.targets[0], base.targets[0]] }).ok,
@@ -196,4 +206,27 @@ test("links and files: only http(s), only PDFs up to 10 MB", () => {
   assert.equal(fileProblem({ name: "slides.pdf", size: 1000, type: "application/pdf" }), null);
   assert.ok(fileProblem({ name: "slides.pptx", size: 1000 }));
   assert.ok(fileProblem({ name: "big.pdf", size: 10 * 1024 * 1024 + 1 }));
+});
+
+test("mergeRooms: one item per post and day, rooms listed in order", () => {
+  const due = (d: string) => bangkokInputToIso(d);
+  const rows = [
+    item({ key: "a1", postId: "p", room: "ม.5/2", dueAt: due("2026-11-12T16:30") }),
+    item({ key: "a2", postId: "p", room: "ม.5/10", dueAt: due("2026-11-12T08:00") }),
+    item({ key: "a3", postId: "p", room: "ม.4/1", dueAt: due("2026-11-12T16:30") }),
+    item({ key: "a4", postId: "p", room: "ม.4/2", dueAt: due("2026-11-14T16:30") }), // another day: own box
+    item({ key: "b1", postId: "q", room: "ม.5/1", dueAt: due("2026-11-12T16:30") }),
+  ];
+  const merged = mergeRooms(rows);
+  assert.equal(merged.length, 3);
+  const p12 = merged.find((m) => m.postId === "p" && m.rooms.length === 3)!;
+  assert.deepEqual(p12.rooms, ["ม.4/1", "ม.5/2", "ม.5/10"]);
+  assert.equal(p12.room, "ม.4/1, ม.5/2, ม.5/10");
+  assert.equal(p12.dueAt, due("2026-11-12T08:00")); // earliest time that day
+  assert.deepEqual(merged.find((m) => m.key === "a4")!.rooms, ["ม.4/2"]);
+});
+
+test("roomsSummary shortens long room lists", () => {
+  assert.equal(roomsSummary(["ม.5/1", "ม.5/2"]), "ม.5/1, ม.5/2");
+  assert.equal(roomsSummary(["ม.4/1", "ม.4/2", "ม.4/3", "ม.4/4", "ม.5/1"]), "ม.4/1, ม.4/2 +3 ห้อง");
 });

@@ -98,7 +98,12 @@ function SubjectLine({ item }: { item: CalendarItem }) {
           {item.subject.name}
         </span>
       )}
-      {item.room && <span className="rounded-md bg-sunken px-1.5 py-0.5 font-bold text-ink">{item.room}</span>}
+      {item.rooms.length > 1 && <span className="font-bold text-ink">{item.rooms.length} ห้อง:</span>}
+      {item.rooms.map((r) => (
+        <span key={r} className="rounded-md bg-sunken px-1.5 py-0.5 font-bold text-ink">
+          {r}
+        </span>
+      ))}
     </p>
   );
 }

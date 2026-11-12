@@ -11,6 +11,7 @@ import {
   formatMonth,
   formatMonthShort,
   formatTime,
+  roomsSummary,
   isDueSoon,
   isInMonth,
   monthParam,
@@ -56,7 +57,7 @@ export function CalendarView({ month, days, items, materials, nowIso }: Props) {
   };
 
   return (
-    <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
+    <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
       <section
         aria-label={`ปฏิทินเดือน${monthLabel}`}
         className="animate-rise overflow-hidden rounded-3xl border border-line bg-surface shadow-soft-lg"
@@ -105,7 +106,7 @@ export function CalendarView({ month, days, items, materials, nowIso }: Props) {
         <Legend />
       </section>
 
-      <aside className="space-y-5">
+      <aside className="min-w-0 space-y-5">
         <UpcomingCard items={soon} today={today} now={now} onOpenDay={openDrawer} />
         <MaterialsCard items={materials} />
       </aside>
@@ -354,7 +355,9 @@ function UpcomingCard({
                         <span aria-hidden className="h-2 w-2 shrink-0 rounded-full" style={{ background: item.subject.color }} />
                       )}
                       <span className="truncate">
-                        {[item.subject?.name, !isExam && `ส่ง ${formatTime(item.dueAt!)}`, item.room].filter(Boolean).join(" · ")}
+                        {[item.subject?.name, !isExam && `ส่ง ${formatTime(item.dueAt!)}`, item.rooms.length > 0 && roomsSummary(item.rooms)]
+                          .filter(Boolean)
+                          .join(" · ")}
                       </span>
                     </span>
                   </span>

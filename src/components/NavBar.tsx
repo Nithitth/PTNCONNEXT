@@ -6,11 +6,13 @@ import { NavLinks, type NavItem } from "./NavLinks";
 
 function itemsFor(role: Role | null): NavItem[] {
   const items: NavItem[] = [{ href: "/", label: "หน้าแรก", icon: "home" }];
-  if (!role) return items;
+  // The games room is public, so guests see it too.
+  if (!role) return [...items, { href: "/play", label: "เกม", icon: "play" }];
   items.push(
     { href: "/calendar", label: "ปฏิทิน", icon: "calendar" },
     { href: "/tcas", label: "TCAS", icon: "tcas" },
   );
+  items.push({ href: "/roadmap", label: "Roadmap", icon: "roadmap", badge: "ใหม่" }, { href: "/play", label: "เกม", icon: "play" });
   if (role === "teacher" || role === "admin") items.push({ href: "/teacher", label: "คอนโซลครู", icon: "teacher" });
   if (role === "admin") items.push({ href: "/admin", label: "คอนโซลผู้พัฒนา", icon: "admin" });
   return items;

@@ -19,6 +19,23 @@ export function FacultyDot({ hex, className }: { hex: string; className?: string
   );
 }
 
+/** Which TCAS rounds the program is open in: a filled "รอบ 1" (Portfolio) and an outlined "รอบ 3". */
+export function RoundChips({ p }: { p: Pick<ProgramCard, "round1Projects" | "round3Options"> }) {
+  if (!p.round1Projects && !p.round3Options) return null;
+  return (
+    <span className="inline-flex items-center gap-1">
+      {p.round1Projects > 0 && (
+        <span className="bg-brand-gradient rounded-md px-1.5 py-0.5 text-[11px] font-bold leading-none text-white shadow-brand-glow">
+          รอบ 1
+        </span>
+      )}
+      {p.round3Options > 0 && (
+        <span className="rounded-md border border-brand/40 px-1.5 py-0.5 text-[11px] font-bold leading-none text-brand">รอบ 3</span>
+      )}
+    </span>
+  );
+}
+
 /**
  * One program: logo, name, type, compare tick. Scores, competition and seats live on the program page;
  * a row only shows the value the list is sorted by.
@@ -41,6 +58,7 @@ function ProgramRow({ p, showFaculty, sort }: { p: ProgramCard; showFaculty: boo
               {shortName(p.universityId)} · {p.faculty}
             </span>
           )}
+          <RoundChips p={p} />
           <span>{p.programType}</span>
           {(sort === "low" || sort === "high") && (
             <span className="rounded-md bg-sunken px-1.5 py-0.5 font-bold tabular-nums text-ink">

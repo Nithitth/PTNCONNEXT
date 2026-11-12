@@ -116,9 +116,11 @@ export const WEEKDAYS_SHORT = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "
 
 export type Attachment = { id: string; kind: "file" | "link"; name: string; href: string };
 
-/** One post as it lands in one classroom (a post sent to 2 rooms = 2 items). */
+/** One post as it lands in one classroom (a post sent to 2 rooms = 2 items; staff views merge them with mergeRooms). */
 export type CalendarItem = {
   key: string;
+  /** The post this item belongs to (several items can share one post, one per room). */
+  postId: string;
   type: PostKind;
   /** Exams: quiz (amber) or midterm/final (red). */
   examKind: ExamKind;
@@ -131,6 +133,8 @@ export type CalendarItem = {
   endsAt: string | null;
   /** "ม.5/1", "ทั้งโรงเรียน", or null when it isn't worth showing. */
   room: string | null;
+  /** Every room label this item covers (one, or several after mergeRooms). */
+  rooms: string[];
   contentOrder: number;
   createdAt: string;
   attachments: Attachment[];
@@ -174,6 +178,38 @@ export function placeItems(items: CalendarItem[], days: DayKey[]): Map<DayKey, D
     info.leadUp.sort((a, b) => a.daysLeft - b.daysLeft);
   }
   return map;
+}
+
+/** "ม.5/10" after "ม.5/2" — numbers compared as numbers. */
+export const compareRoomLabels = (a: string, b: string) => a.localeCompare(b, "th", { numeric: true });
+
+/**
+ * For staff: one item per post and day instead of one per room, with every room listed.
+ * A post whose rooms have different dates stays split by date (each copy lists its own rooms).
+ * Assignments due the same day at different times keep the earliest time.
+ */
+export function mergeRooms(items: CalendarItem[]): CalendarItem[] {
+  const groups = new Map<string, CalendarItem>();
+  for (const item of items) {
+    const k = [item.postId, item.dueAt ? dayKey(item.dueAt) : "", item.endsAt ? dayKey(item.endsAt) : ""].join("|");
+    const g = groups.get(k);
+    if (!g) {
+      groups.set(k, { ...item, rooms: [...item.rooms] });
+      continue;
+    }
+    for (const r of item.rooms) if (!g.rooms.includes(r)) g.rooms.push(r);
+    if (item.dueAt && g.dueAt && item.dueAt < g.dueAt) g.dueAt = item.dueAt;
+  }
+  return [...groups.values()].map((g) => {
+    const rooms = [...g.rooms].sort(compareRoomLabels);
+    return { ...g, rooms, room: rooms.length ? rooms.join(", ") : null };
+  });
+}
+
+/** Short room text for one-line rows: "ม.5/1, ม.5/2" or "ม.4/1, ม.4/2 +6 ห้อง". */
+export function roomsSummary(rooms: string[], max = 3): string {
+  if (rooms.length <= max) return rooms.join(", ");
+  return `${rooms.slice(0, max - 1).join(", ")} +${rooms.length - (max - 1)} ห้อง`;
 }
 
 /** Due within the next 24 hours (and not already past) → the dot blinks. */

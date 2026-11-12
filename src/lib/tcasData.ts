@@ -29,6 +29,9 @@ export type ProgramCard = {
   lastMax: number | null;
   lastSeats: number | null;
   lastApplicants: number | null;
+  /** How many Round 1 (Portfolio) projects and Round 3 options the program has (0 = not open in that round). */
+  round1Projects: number;
+  round3Options: number;
 };
 
 export type TargetCard = ProgramCard & { position: number; sliderScores: Record<string, number> };
@@ -58,10 +61,14 @@ type ProgramRow = {
   last_max: number | string | null;
   last_seats: number | null;
   last_applicants: number | null;
+  round1_count?: { count: number }[];
+  round3_count?: { count: number }[];
 };
 
-const CARD_FIELDS =
+const CARD_BASE =
   "program_id, university_id, university_name, faculty, name_th, program_type, round3_seats, group_field, active, last_min, last_max, last_seats, last_applicants";
+/** Card columns plus how many Round 1 projects / Round 3 options each program has. */
+const CARD_FIELDS = `${CARD_BASE}, round1_count:tcas_round1_projects(count), round3_count:tcas_round3(count)`;
 const numOrNull = (v: number | string | null) => (v === null ? null : Number(v));
 
 const toCard = (p: ProgramRow): ProgramCard => ({
@@ -78,6 +85,8 @@ const toCard = (p: ProgramRow): ProgramCard => ({
   lastMax: numOrNull(p.last_max),
   lastSeats: p.last_seats,
   lastApplicants: p.last_applicants,
+  round1Projects: p.round1_count?.[0]?.count ?? 0,
+  round3Options: p.round3_count?.[0]?.count ?? 0,
 });
 
 /** How the program list can be sorted (the `?s=` parameter on /tcas). */
@@ -107,7 +116,7 @@ const loadAllCards = unstable_cache(
     if (error) throw error;
     return ((data ?? []) as (ProgramRow & { field: string | null })[]).map((r) => ({ ...toCard(r), field: r.field ?? "" }));
   },
-  ["tcas-all-cards"],
+  ["tcas-all-cards-v2"], // v2: cards carry round1/round3 counts; a new key skips old cached rows
   CACHE,
 );
 
@@ -202,13 +211,13 @@ export async function loadMyTargets(supabase: SupabaseClient): Promise<TargetCar
  * One program with its Round 1 projects and Round 3 options, or null. Cached per program id.
  * Inactive programs are returned too (as before), so a saved target can show it is no longer offered.
  */
-export const loadProgram = unstable_cache(readProgram, ["tcas-program"], CACHE);
+export const loadProgram = unstable_cache(readProgram, ["tcas-program-v2"], CACHE);
 
 async function readProgram(programId: string): Promise<ProgramDetail | null> {
   const { data, error } = await createAdminClient()
     .from("tcas_programs")
     .select(
-      `${CARD_FIELDS}, campus, field, name_en, cost, round1_seats, published_at,
+      `${CARD_BASE}, campus, field, name_en, cost, round1_seats, published_at,
        round1:tcas_round1_projects(id, project_name, seats, portfolio, criteria, link),
        round3:tcas_round3(position, project_name, seats, min_gpax, min_total, weights, conditions, link, problem, last_min, last_max, last_seats, last_applicants)`,
     )
@@ -230,7 +239,7 @@ async function readProgram(programId: string): Promise<ProgramDetail | null> {
   };
   const p = data as unknown as Row;
   return {
-    ...toCard(p),
+    ...toCard({ ...p, round1_count: [{ count: p.round1.length }], round3_count: [{ count: p.round3.length }] }),
     campus: p.campus,
     field: p.field,
     nameEn: p.name_en,

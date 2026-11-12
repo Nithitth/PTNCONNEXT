@@ -115,7 +115,7 @@ Targets and slider scores are new personal data about minors.
     - non-admins can't pull or publish.
   - Phone (375px) checks, and the CLAUDE.md and SETUP.md updates.
 
-## Release 2 (later, for reference)
+## Release 2 (built 2026-11-12: one game-card Roadmap per student, built from up to 10 boxes; see CLAUDE.md "Roadmap")
 **Roadmap:** the student picks a target, ticks what they've already done, and gets a term-by-term checklist.
 - The templates cover 5–8 field groups. Our team writes them in the Developer Console and the guidance teacher checks them.
 - They're filled out with each program's real Round 1 portfolio requirements.

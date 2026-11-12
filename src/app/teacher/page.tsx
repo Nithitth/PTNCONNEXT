@@ -15,17 +15,18 @@ export const metadata: Metadata = { title: "คอนโซลครู" };
 
 type TabId = "assign" | "material" | "exam" | "event" | "mine";
 
-const TABS: { id: TabId; kind?: PostKind; label: string; Icon: typeof BookOpen; adminOnly?: boolean }[] = [
-  { id: "assign", kind: "assignment", label: "มอบหมายงาน", Icon: KIND_STYLE.assignment.Icon },
-  { id: "material", kind: "material", label: "แชร์เอกสาร", Icon: KIND_STYLE.material.Icon },
-  { id: "exam", kind: "exam", label: "ประกาศวันสอบ", Icon: KIND_STYLE.exam.Icon },
-  { id: "event", kind: "event", label: "กิจกรรมโรงเรียน", Icon: KIND_STYLE.event.Icon, adminOnly: true },
-  { id: "mine", label: "งานของฉัน", Icon: ListChecks },
+const TABS: { id: TabId; kind?: PostKind; label: string; note: string; Icon: typeof BookOpen; adminOnly?: boolean }[] = [
+  { id: "assign", kind: "assignment", label: "มอบหมายงาน", note: "สั่งงานพร้อมวันกำหนดส่ง", Icon: KIND_STYLE.assignment.Icon },
+  { id: "material", kind: "material", label: "แชร์เอกสาร", note: "ไฟล์ PDF หรือลิงก์", Icon: KIND_STYLE.material.Icon },
+  { id: "exam", kind: "exam", label: "ประกาศวันสอบ", note: "สอบย่อย กลางภาค ปลายภาค", Icon: KIND_STYLE.exam.Icon },
+  { id: "event", kind: "event", label: "กิจกรรมโรงเรียน", note: "กิจกรรมทั้งโรงเรียน", Icon: KIND_STYLE.event.Icon, adminOnly: true },
+  { id: "mine", label: "งานของฉัน", note: "ดู แก้ไข หรือลบโพสต์", Icon: ListChecks },
 ];
 
 const TIPS: Record<PostKind, string[]> = {
   assignment: [
-    "เลือกได้ทีละห้อง หรือกด “เลือกทั้ง 8 ห้อง” แล้วกำหนดส่งแต่ละห้องต่างกันได้",
+    "เลือกได้ทีละห้อง หรือกด “เลือกทั้ง 8 ห้อง” (ไม่บังคับ) แล้วกำหนดส่งแต่ละห้องต่างกันได้",
+    "เลือกแค่วัน ไม่ต้องใส่เวลา นักเรียนส่งได้ถึง 23:59 น. ของวันนั้น",
     "จุดของงานในปฏิทินนักเรียนจะกะพริบเมื่อเหลือเวลาไม่ถึง 24 ชั่วโมง",
     "แนบได้ 1 อย่าง: ไฟล์ PDF ไม่เกิน 10 MB หรือลิงก์ Google Drive / Slides / Canva",
   ],
@@ -74,25 +75,35 @@ export default async function TeacherConsolePage({ searchParams }: PageProps<"/t
     <Container className="py-10">
       <PageHeader eyebrow={profile.display_name} title="คอนโซลครู" subtitle="มอบหมายงาน แชร์เอกสาร และประกาศวันสอบ" />
 
-      <nav
-        aria-label="เมนูคอนโซลครู"
-        className="-mx-4 mb-6 overflow-x-auto px-4 sm:mx-0 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      >
-        <ul className="inline-flex min-w-full gap-1 rounded-2xl border border-line bg-surface p-1.5 shadow-soft-sm sm:min-w-0">
-          {tabs.map(({ id, label, Icon }) => {
+      <nav aria-label="เมนูคอนโซลครู" className="mb-8 border-b-2 border-line pb-6">
+        <p className="mb-3 text-sm font-bold text-muted">เลือกสิ่งที่จะทำ</p>
+        <ul className={cx("grid grid-cols-2 gap-2.5 sm:gap-3", tabs.length > 4 ? "md:grid-cols-5" : "md:grid-cols-4")}>
+          {tabs.map(({ id, label, note, Icon }) => {
             const on = id === tab.id;
             return (
-              <li key={id} className="shrink-0">
+              <li key={id} className={cx(id === "mine" && tabs.length % 2 === 1 && "col-span-2 md:col-span-1")}>
                 <Link
                   href={`/teacher?tab=${id}`}
                   aria-current={on ? "page" : undefined}
                   className={cx(
-                    "inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-bold whitespace-nowrap transition-all duration-150",
-                    on ? "bg-brand text-white shadow-brand-glow" : "text-muted hover:bg-brand-soft hover:text-brand",
+                    "group flex h-full items-center gap-3 rounded-2xl border p-3 transition-all duration-150 sm:p-4",
+                    on
+                      ? "bg-feature-gradient border-transparent text-white shadow-brand-glow-lg"
+                      : "border-line bg-surface text-ink shadow-soft-sm hover:-translate-y-0.5 hover:border-brand/30 hover:shadow-soft",
                   )}
                 >
-                  <Icon aria-hidden className="h-4 w-4" />
-                  {label}
+                  <span
+                    className={cx(
+                      "grid h-11 w-11 shrink-0 place-items-center rounded-xl transition-colors",
+                      on ? "bg-white text-brand" : "bg-brand-soft text-brand group-hover:bg-brand group-hover:text-white",
+                    )}
+                  >
+                    <Icon aria-hidden className="h-5 w-5" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block font-display text-base font-bold leading-tight">{label}</span>
+                    <span className={cx("mt-0.5 block text-xs leading-snug", on ? "text-white/85" : "text-muted")}>{note}</span>
+                  </span>
                 </Link>
               </li>
             );

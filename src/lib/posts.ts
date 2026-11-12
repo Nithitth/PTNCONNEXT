@@ -1,7 +1,15 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Profile } from "@/lib/auth";
-import { addDays, bangkokInputToIso, type Attachment, type CalendarItem, type DayKey } from "@/lib/calendar";
+import {
+  addDays,
+  bangkokInputToIso,
+  compareRoomLabels,
+  mergeRooms,
+  type Attachment,
+  type CalendarItem,
+  type DayKey,
+} from "@/lib/calendar";
 import type { ExamKind, PostKind } from "@/lib/postForm";
 import { formatClassroom } from "@/lib/roster";
 
@@ -44,12 +52,10 @@ const toAttachments = (rows: AttachmentRow[] = []): Attachment[] =>
 const roomLabel = (t: { classroom_id: string | null; classroom: ClassroomRow }) =>
   t.classroom_id === null ? "ทั้งโรงเรียน" : t.classroom ? formatClassroom(t.classroom) : null;
 
-/** "ม.5/10" after "ม.5/2" — numbers compared as numbers. */
-const compareRoomLabels = (a: string, b: string) => a.localeCompare(b, "th", { numeric: true });
-
 function toItem(post: PostRow, key: string, target?: TargetRow, room: string | null = null): CalendarItem {
   return {
     key,
+    postId: post.id,
     type: post.type,
     examKind: post.exam_kind,
     title: post.title,
@@ -58,6 +64,7 @@ function toItem(post: PostRow, key: string, target?: TargetRow, room: string | n
     dueAt: target?.due_at ?? null,
     endsAt: target?.ends_at ?? null,
     room,
+    rooms: room ? room.split(", ") : [],
     contentOrder: post.content_order,
     createdAt: post.created_at,
     attachments: toAttachments(post.attachments),
@@ -92,10 +99,12 @@ export async function loadDatedItems(
   const { data, error } = await query;
   if (error) throw error;
   const isStaff = profile.role !== "student";
-  return ((data ?? []) as unknown as (TargetRow & { id: string; post: PostRow })[]).map((t) =>
+  const items = ((data ?? []) as unknown as (TargetRow & { id: string; post: PostRow })[]).map((t) =>
     // Staff see every room, so label each item; students only need "ทั้งโรงเรียน".
     toItem(t.post, t.id, t, isStaff || t.classroom_id === null ? roomLabel(t) : null),
   );
+  // Staff: one box per post (and day) listing its rooms, not one copy per room.
+  return isStaff ? mergeRooms(items) : items;
 }
 
 /** Shared documents (newest 300). For staff, `room` lists where each one went. */

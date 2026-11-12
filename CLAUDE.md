@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 PTN Connext is a school web app for one Thai high school.
 - **Phase 1 (current):** Smart Calendar. Teachers post assignments, exams and materials to classrooms, and students view them.
-- **Phase 2 (in progress):** TCASter, a university-admissions hub. Release 1 (program info + score calculator) is built; design in `docs/specs/2026-11-11-tcaster-design.md`, plan in `docs/plans/2026-11-11-tcaster.md`.
+- **Phase 2 (in progress):** TCASter, a university-admissions hub. Release 1 (program info + score calculator) and release 2 (the Roadmap game card) are built; design in `docs/specs/2026-11-11-tcaster-design.md`, plan in `docs/plans/2026-11-11-tcaster.md`.
 
 The approved design is in `docs/specs/2026-11-10-ptn-connext-design.md`. Setup steps for humans are in `docs/SETUP.md`.
 
@@ -119,13 +119,14 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
 
 **Calendar and Teacher's Console (Week 2):**
 - **Time:** everything is Thai time (Asia/Bangkok, UTC+7). `src/lib/calendar.ts` is pure and shared by server and browser. It holds day keys (`"2026-11-12"`), the 6-week month grid starting on Sunday, `placeItems()` (deadlines, exam + lead-up days, multi-day events), `upcoming()`, `sortMaterials()`, and the Thai labels. Teachers' date boxes are read as Bangkok time by `bangkokInputToIso()`.
-- **Rules:** `src/lib/postForm.ts` (pure) validates a post: assignment = one deadline per room; exam = a date per room plus lead days 0–30; material = needs a PDF or link; event = admin-only, start/end. Links must be http(s). The form runs it before uploading, and `savePost` in `src/app/teacher/actions.ts` runs it again. It's also the one home for `PostKind`, `MATERIALS_BUCKET`, `SCHOOL` (the form's "ทั้งโรงเรียน" id) and `isUuid()`; import these instead of retyping the strings.
+- **Dates are picked with `DatePicker`** (`src/components/DatePicker.tsx`): a themed month calendar in a `<dialog>` (bottom sheet on phones), dates only, value `"YYYY-MM-DD"`. Use it for every date field; there are no native date or time inputs left. Its close button is a plain button, not `<form method="dialog">`, because it often sits inside another form.
+- **Rules:** `src/lib/postForm.ts` (pure) validates a post: assignment = one deadline date per room (due 23:59 Thai time that day; a date and time is still accepted); exam = a date per room plus lead days 0–30; material = needs a PDF or link; event = admin-only, start/end. Links must be http(s). The form runs it before uploading, and `savePost` in `src/app/teacher/actions.ts` runs it again. It's also the one home for `PostKind`, `MATERIALS_BUCKET`, `SCHOOL` (the form's "ทั้งโรงเรียน" id) and `isUuid()`; import these instead of retyping the strings.
 - **Who may post where:**
   - **Subjects:** teachers get the subjects listed for them in `teaching_assignments`; admins get all 6 (`loadTeachingOptions`).
   - **Rooms:** anyone may post to any of the 8 rooms (`loadCurrentRooms`). The form has a "เลือกทั้ง 8 ห้อง" button that ticks all 8; each room still gets its own row and date.
   - **Whole school** (`classroom_id` null) is admin-only and offered only for school events.
   - `savePost` checks all of this. RLS checks it again (migration `0005`; `teaches_classroom()` is no longer used by policies).
-- **Reads:** `src/lib/posts.ts` (`loadDatedItems`, `loadMaterials`, `loadMyPosts`) always uses the user's own client. A post sent to 2 rooms becomes 2 calendar items; students only get their own room's row.
+- **Reads:** `src/lib/posts.ts` (`loadDatedItems`, `loadMaterials`, `loadMyPosts`) always uses the user's own client. A post sent to 2 rooms becomes 2 calendar items; students only get their own room's row. For staff, `mergeRooms()` (calendar.ts) folds them back into one item per post and day, with `rooms` listing every room (shown as chips in the day drawer, `roomsSummary()` in one-line rows).
 - **PDF uploads go browser → Supabase Storage directly** (`src/lib/supabase/browser.ts`), into `materials/<uid>/<uuid>.pdf`, because server actions have a 1 MB body limit. The server then checks that the path is in the user's own folder and that the file exists before saving. If saving fails, the form deletes the upload.
 - **Downloads:** files are opened through `/files/[id]` (route handler). It reads the attachment via RLS, then redirects to a 60-second signed URL (`?download=1` saves the file instead). Never put signed URLs or storage paths in pages.
 - **Editing** replaces the post's targets. The attachment is kept unless the teacher picks a new one.
@@ -135,6 +136,7 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
   - This is `canManage()` in `teacher/actions.ts`, `loadManagedPosts()` in `posts.ts`, and in RLS `teaches_subject()` / `can_manage_post()`.
   - `author_id` and `type` can't be updated by anyone (column grants). Don't put them in an update.
   - Teachers can't read other profiles, so a colleague's post shows "โดยครูท่านอื่น" instead of a name.
+- **Teacher's Console layout:** the tabs are large tiles with a one-line note each. `PostForm` is a numbered list of steps (`Step`); optional steps are marked "ไม่บังคับ". "เลือกทั้ง 8 ห้อง" and "ใช้วันเดียวกันทุกห้อง" are large optional shortcuts (`BigOptionButton` and a shared `DatePicker`).
 - The day drawer is a native `<dialog>`: a bottom sheet on phones, a side sheet from `sm` up.
 
 **Server actions:**
@@ -169,7 +171,8 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
   - `Brand`, `Card` (`bold` adds a bigger soft shadow), `Field`, `Notice`, `Eyebrow` (`light` for use on red), `PageHeader`, `EmptyState` and `Container`.
   - Calendar colors: `exam` / `exam-soft` / `exam-tint`, and `event` / `event-strong` / `event-ink`. For deadline dots, use the `BLINK` class from `DayDrawer.tsx`: a blink, or a red ring when reduced motion is on.
 - Navigation items per role are defined in `itemsFor()` in `src/components/NavBar.tsx`.
-- **Home page fidget toy** (`src/components/home/LavaPlay.tsx`, section "พักสมองสักนิด", "ลาวาแก้ว"): canvas drops drawn as red liquid glass by one SVG filter (goo + see-through tint + rim + specular shine). Tap bursts, hold pulls, "รวมเป็นโลโก้" flows into the arrow-"t" logo; untouched for 3 s the glass sets and cracks, and the next touch shatters it. It animates only while on screen and the tab is visible, and sleeps once cracked; under reduced motion it moves only when touched.
+- **Lava fidget toy** (`src/components/home/LavaPlay.tsx`, "ลาวาแก้ว"; shown on `/play` under ตึกแก้ว — the home page only has a "ห้องเกม" banner linking there): canvas drops drawn as red liquid glass by one SVG filter (goo + see-through tint + rim + specular shine). Tap bursts, hold pulls, "รวมเป็นโลโก้" flows into the arrow-"t" logo; untouched for 3 s the glass sets and cracks, and the next touch shatters it. It animates only while on screen and the tab is visible, and sleeps once cracked; under reduced motion it moves only when touched.
+- **Games room `/play` (ตึกแก้ว / Glass Stack):** public; a crane swings a glass block, tap or Space drops it, stack as high as you can. Physics by `matter-js` (`src/components/play/GlassStack.tsx`); block shapes, sizes and colours in `blocks.ts`. Jelly look (squash/jiggle drawn over rigid physics), auto-drop timer, wind from 12 m, aurora sky and a reflecting lake. A block falling into the lake costs one of 3 hearts; losing the last one ends the round (slow motion, then the tower shatters). Best height is saved in the browser (`ptn-glass-stack-best`). Linked from the menu ("เกม", everyone, guests too) and the home-page banner.
 - **Home feature cards** (ปฏิทินอัจฉริยะ, TCAS) share `.bg-feature-gradient` (red → purple, in `globals.css`).
 - Layouts must work at 375px width with no horizontal page scroll.
 
@@ -198,7 +201,9 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
 
 **Phase 2, TCASter release 1 is built** (branch `tcaster`; migrations `0007` and `0008`). The pilot is on hold.
 
-**Next:** TCASter release 2 (the roadmap), then the pilot (human steps in `docs/PILOT.md`).
+**TCASter release 2, the Roadmap, is built** (migration `0011`; see the Roadmap section).
+
+**Next:** the pilot (human steps in `docs/PILOT.md`).
 
 ## TCASter (Phase 2)
 
@@ -235,10 +240,49 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
 - Grades (GPAX, `gpa2x`) range 1–4; `examInfo().min` is 1 for grades.
 
 **List and compare:**
+- **Rounds at a glance:** cards carry `round1Projects` / `round3Options` (embedded counts; the cache keys end in `-v2` because of this). List rows show "รอบ 1" / "รอบ 3" chips (`RoundChips`). On the program page Round 1 is its own highlighted gradient section (`#round1`) above the calculator. 599 of 632 programs are open in Round 1.
 - **Faculty colours:** `src/lib/facultyColors.ts`, from Thai Wikipedia faculty infoboxes. Entries with `verify: true` need checking; the review table is `docs/specs/faculty-colors.md`.
 - **List:** `/tcas` has a sticky filter bar with a sort control (`?s=faculty|low|high|competition`).
 - **All programs by default, in pages of about 100** (`?p=`). `searchPrograms` filters and sorts the cached full list in memory (`loadAllCards`, tag `tcas`), and `paginateGroups` in `tcas.ts` never splits a faculty across pages when sorted by faculty.
 - **Compare:** `CompareTray.tsx` keeps up to 3 programs in localStorage. `/tcas/compare?ids=a,b,c` shows them side by side.
+
+**Roadmap (release 2, migrations `0011` + `0012`, its own section at `/roadmap`; `/tcas/roadmap` redirects there):**
+- **One roadmap per person**, as a game card aimed at one program. Since `0012` everyone can have one (students, teachers, admins); the column is still called `student_id`. Staff totals count students only.
+  - `tcas_roadmaps.student_id` is the primary key, so a second roadmap is impossible.
+  - The student can switch its program (`changeRoadmapTarget`; boxes are kept) or delete it (cascades to the boxes).
+  - Only the owner can read or write it. Admins can't either; staff see totals via `tcas_roadmap_totals()` and `tcas_roadmap_box_totals()`, which hide groups under 3.
+- **Boxes:** the student builds the roadmap from up to **10 boxes** (`tcas_roadmap_boxes`, enforced by a trigger). The same kind can be used more than once.
+  - Each box has a `kind`, a `title` and `data` jsonb.
+  - There are 13 kinds: `gpa`, `scores`, `quests`, `portfolio`, `goal`, `countdown`, `activities`, `notes`, `motto`, `study`, `skills`, `backup`, `links`.
+- **Pure rules** live in `src/lib/roadmap.ts`, tested in `roadmap.test.ts`:
+  - `BOX_PRESETS`, the menu entries;
+  - `cleanBoxData(kind, raw)`, which validates every save;
+  - `newBoxData`, which fills a new box from the program;
+  - `suggestedQuests` and `portfolioItems`;
+  - `scoreRoadmap`, which works out XP, the level and badges, and is never stored;
+  - `currentTerm`.
+  - List boxes hold at most 20 items, links 10, and backups 3.
+- **XP:**
+  - The level is `1 + floor(xp / 50)`.
+  - XP from things the student types themselves (own quests, activities, study slots, skill steps) is capped at 40% of the total, with a 30 XP floor.
+  - Quest and portfolio items have stable keys (`exam:<code>`, `gpax`, `apply:r1`, `tpl:<id>`, `own:<id>`, `r1:<hash>:read|make`), so ticks survive a target change.
+- **Adding a box kind:**
+  1. Add it to `BOX_KINDS` and `BOX_PRESETS`.
+  2. Give it a `BoxData` shape and a `cleanBoxData` case.
+  3. Add a `newBoxData` case, plus XP in `scoreRoadmap` if it earns any.
+  4. Write a body component in `src/components/tcas/roadmap/` and register it in `BODIES` (`RoadmapBoard.tsx`), plus an icon in `BOX_ICONS` (`boxIcons.ts`).
+  5. Add a new migration that widens the `kind` check constraint.
+- **Saving:** the board (`RoadmapBoard.tsx`) keeps the boxes in client state and saves each box 0.5 s after its last change (`updateBox`). The card's score is worked out in the browser with the same `scoreRoadmap`.
+- **Developer Console → แม่แบบ Roadmap** (`/admin/roadmap`):
+  - **Template quests** per field group and term, worth 10, 20 or 30 XP. Students only see `approved` ones. The admin ticks "ครูแนะแนวตรวจแล้ว" after the guidance teacher checks a quest, and editing a template un-approves it.
+  - **TCAS key dates** (`tcas_key_dates`), offered as suggestions in countdown boxes.
+- **Its own space:** everyone gets a "Roadmap" main-menu item (with a "ใหม่" badge, `itemsFor` in `NavBar.tsx`).
+  - `/roadmap` opens on `RoadmapShowcase`, a full first-screen hero with a sample card (`demoCard.ts`, `RoadmapCard demo`). Below it is `#make` (3 steps, saved targets, and program search via `?q=`, which creates or switches in place) or `#board`.
+  - `RoadmapPromo` is a big gradient band on `/tcas` under the university showcase, for everyone.
+  - The home page has a third feature card, "Roadmap".
+  - On a program page, `RoadmapButton` creates, switches or opens the roadmap.
+- **TCAS tabs:** `src/app/tcas/layout.tsx` renders `TcasTabs` (ค้นหาหลักสูตร | สถิตินักเรียน) for staff only.
+- **PDPA:** `PDPA_VERSION` is 3, because the notice now mentions the roadmap.
 
 **Calculator rule:**
 - **Only the weights decide whether a Round 3 option gets a calculator.** Unknown exam codes (`tu002`, `vnet_51`, `cal_*`) or weights not summing to 100 set `problem`, and the page shows "ดูรายละเอียดที่ mytcas".
@@ -260,7 +304,7 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
 - `tcas_targets` can be read and written only by the student who owns them; admins can't read them either.
 - The limit is 5 per student, enforced by the `tcas_targets_limit` trigger (migration `0008`). `saveTarget` updates an existing target instead of re-inserting it.
 - Programs without a calculator can still be saved, with no scores.
-- `PDPA_VERSION` is 2: the notice mentions TCASter.
+- `PDPA_VERSION` is 3: the notice mentions TCASter targets (2) and the Roadmap (3).
 
 **Terms of use:** mytcas.com's terms forbid copying content beyond the service's purpose; the team chose to use the data anyway.
 - Every program page credits "ข้อมูล TCAS70 จาก mytcas.com (ทปอ.)" and links to the original.

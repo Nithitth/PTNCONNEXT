@@ -7,8 +7,10 @@ import {
   CalendarDays,
   Check,
   FileDown,
+  Gamepad2,
   GraduationCap,
   Layers,
+  Map as MapIcon,
   Presentation,
   ShieldCheck,
   Smartphone,
@@ -16,7 +18,6 @@ import {
 } from "lucide-react";
 import { FeedbackForm } from "@/components/FeedbackForm";
 import { LoginForm } from "@/components/LoginForm";
-import { LavaPlay } from "@/components/home/LavaPlay";
 import { Brand, Container, Eyebrow, Notice, buttonStyles } from "@/components/ui";
 import { getCurrentProfile } from "@/lib/auth";
 import { SUBJECTS } from "@/lib/school";
@@ -25,6 +26,37 @@ const GOALS = [
   { title: "ข้อมูลไม่กระจัดกระจาย", body: "งาน วันสอบ สไลด์ และประกาศ อยู่ในที่เดียว ไม่ต้องไล่หาในหลายกลุ่มแชต" },
   { title: "ครูทำงานน้อยลง", body: "มอบหมายงานครั้งเดียว เลือกได้หลายห้อง กำหนดส่งแต่ละห้องต่างกันได้" },
   { title: "วางแผนเรียนต่อได้เร็วขึ้น", body: "ข้อมูล TCAS เกณฑ์คะแนน และแผนเตรียมตัวเข้ามหาวิทยาลัยในที่เดียว" },
+];
+
+// The three tools, as equal-size cards (same layout, so no card leaves empty space).
+const FEATURES = [
+  {
+    Icon: CalendarDays,
+    title: "ปฏิทินอัจฉริยะ",
+    tag: "ใช้งานได้แล้ว",
+    body: "ทุกงานและวันสอบของห้องคุณ ในปฏิทินเดียว พร้อมสื่อการสอนให้ดาวน์โหลด",
+    points: ["จุดสีบอกกำหนดส่งงานแต่ละวิชา", "งานใกล้ครบกำหนดจะกะพริบเตือน", "แถบสีบอกวันสอบและช่วงเตรียมสอบ"],
+    href: "/calendar",
+    cta: "เปิดปฏิทิน",
+  },
+  {
+    Icon: GraduationCap,
+    title: "TCAS",
+    tag: "ใช้งานได้แล้ว",
+    body: "ข้อมูลและเครื่องมือวางแผนเข้ามหาวิทยาลัย 5 มหาวิทยาลัยชั้นนำ",
+    points: ["เกณฑ์รับสมัคร TCAS รอบ 1 และรอบ 3", "คำนวณคะแนนเป้าหมายและโอกาสติด", "เปรียบเทียบหลักสูตรได้ 3 หลักสูตร"],
+    href: "/tcas",
+    cta: "เปิด TCAS",
+  },
+  {
+    Icon: MapIcon,
+    title: "Roadmap",
+    tag: "ใช้งานได้แล้ว · ใหม่",
+    body: "การ์ดเป้าหมายแบบเกมของคุณเอง 1 ใบต่อคน ทำสำเร็จได้ XP และเลเวลอัป",
+    points: ["เลือกกล่องที่ใช่ได้ถึง 10 กล่อง", "ภารกิจแนะนำจากเกณฑ์จริงของหลักสูตร", "เกรด เป้าหมาย และนับถอยหลังในที่เดียว"],
+    href: "/roadmap",
+    cta: "เปิด Roadmap",
+  },
 ];
 
 // Outline button for red backgrounds: white outline, fills white on hover.
@@ -140,79 +172,43 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
       <section id="features" className="scroll-mt-20 border-y-2 border-line bg-surface">
         <Container className="py-16 sm:py-24">
           <Eyebrow>ฟังก์ชันหลัก</Eyebrow>
-          <h2 className="mt-3 font-display text-3xl font-extrabold tracking-tight text-ink sm:text-4xl">สองเครื่องมือในที่เดียว</h2>
-          <div className="mt-10 grid gap-6 lg:grid-cols-[1.25fr_1fr]">
-            <article className="bg-feature-gradient speed-lines group relative overflow-hidden rounded-3xl p-7 text-white shadow-soft-lg transition-transform duration-200 hover:-translate-y-1 sm:p-9">
-              <Image
-                src="/brand/arrow-white.png"
-                alt=""
-                aria-hidden
-                width={185}
-                height={272}
-                className="pointer-events-none absolute -bottom-10 -right-6 w-40 opacity-15 transition-transform duration-500 group-hover:-translate-y-4"
-              />
-              <div className="relative">
-                <div className="flex items-center gap-3">
+          <h2 className="mt-3 font-display text-3xl font-extrabold tracking-tight text-ink sm:text-4xl">สามเครื่องมือในที่เดียว</h2>
+          <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+            {FEATURES.map(({ Icon, title, tag, body, points, href, cta }) => (
+              <article
+                key={title}
+                className="bg-feature-gradient speed-lines group relative flex flex-col overflow-hidden rounded-3xl p-6 text-white shadow-soft-lg transition-transform duration-200 hover:-translate-y-1 sm:p-7"
+              >
+                <Image
+                  src="/brand/arrow-white.png"
+                  alt=""
+                  aria-hidden
+                  width={185}
+                  height={272}
+                  className="pointer-events-none absolute -bottom-10 -right-6 w-36 opacity-15 transition-transform duration-500 group-hover:-translate-y-4"
+                />
+                <div className="relative flex items-center gap-3">
                   <span className="grid h-12 w-12 place-items-center rounded-xl border border-white bg-white text-brand shadow-soft-sm">
-                    <CalendarDays aria-hidden className="h-6 w-6" strokeWidth={2.4} />
+                    <Icon aria-hidden className="h-6 w-6" strokeWidth={2.4} />
                   </span>
-                  <span className="rounded-md bg-ink px-2.5 py-1 text-xs font-bold text-white">ใช้งานได้แล้ว</span>
+                  <span className="rounded-md bg-ink px-2.5 py-1 text-xs font-bold text-white">{tag}</span>
                 </div>
-                <h3 className="mt-6 font-display text-3xl font-extrabold">ปฏิทินอัจฉริยะ</h3>
-                <p className="mt-2 max-w-md text-sm leading-relaxed text-white/85">
-                  ทุกงานและวันสอบของห้องคุณ ในปฏิทินเดียว พร้อมสื่อการสอนให้ดาวน์โหลด
-                </p>
-                <ul className="mt-6 grid gap-3 text-sm font-bold sm:grid-cols-2">
-                  {[
-                    "จุดสีบอกกำหนดส่งงานแต่ละวิชา",
-                    "งานใกล้ครบกำหนดจะกะพริบเตือน",
-                    "แถบสีบอกวันสอบและช่วงเตรียมสอบ",
-                    "ดาวน์โหลดสไลด์และเอกสารจากครู",
-                  ].map((p) => (
+                <h3 className="relative mt-5 font-display text-2xl font-extrabold sm:text-3xl">{title}</h3>
+                <p className="relative mt-2 text-sm leading-relaxed text-white/85">{body}</p>
+                <ul className="relative mt-5 space-y-2.5 text-sm font-bold">
+                  {points.map((p) => (
                     <li key={p} className="flex gap-2.5">
                       <Check aria-hidden className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={3} />
                       <span>{p}</span>
                     </li>
                   ))}
                 </ul>
-              </div>
-            </article>
-            <article className="bg-feature-gradient speed-lines group relative overflow-hidden rounded-3xl p-7 text-white shadow-soft-lg transition-transform duration-200 hover:-translate-y-1 sm:p-9">
-              <Image
-                src="/brand/arrow-white.png"
-                alt=""
-                aria-hidden
-                width={185}
-                height={272}
-                className="pointer-events-none absolute -bottom-10 -right-6 w-40 opacity-15 transition-transform duration-500 group-hover:-translate-y-4"
-              />
-              <div className="relative">
-                <div className="flex items-center gap-3">
-                  <span className="grid h-12 w-12 place-items-center rounded-xl border border-white bg-white text-brand shadow-soft-sm">
-                    <GraduationCap aria-hidden className="h-6 w-6" strokeWidth={2.4} />
-                  </span>
-                  <span className="rounded-md bg-ink px-2.5 py-1 text-xs font-bold text-white">ใช้งานได้แล้ว</span>
-                </div>
-                <h3 className="mt-6 font-display text-3xl font-extrabold">TCAS</h3>
-                <p className="mt-2 max-w-md text-sm leading-relaxed text-white/85">ข้อมูลและเครื่องมือวางแผนเข้ามหาวิทยาลัย</p>
-                <ul className="mt-6 space-y-3 text-sm font-bold">
-                  {[
-                    "เกณฑ์รับสมัคร TCAS รอบ 1 และรอบ 3",
-                    "คำนวณคะแนนเป้าหมายและอัตราการแข่งขัน",
-                    "สร้าง Roadmap เตรียมตัวจากคณะที่อยากเข้า (เร็วๆ นี้)",
-                  ].map((p) => (
-                    <li key={p} className="flex gap-2.5">
-                      <Check aria-hidden className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={3} />
-                      {p}
-                    </li>
-                  ))}
-                </ul>
-                <Link href="/tcas" className={`${buttonStyles.inverse} mt-7`}>
-                  เปิด TCAS
+                <Link href={href} className={`${buttonStyles.inverse} relative mt-auto self-start`}>
+                  {cta}
                   <ArrowRight aria-hidden className="h-4 w-4" />
                 </Link>
-              </div>
-            </article>
+              </article>
+            ))}
           </div>
 
           <div className="mt-6 grid gap-6 sm:grid-cols-2">
@@ -231,19 +227,54 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
       </section>
 
       {/* ── Fidget toy ───────────────────────────────────── */}
+      {/* The games (ตึกแก้ว and ลาวาแก้ว) live in the games room, /play. */}
       <section aria-label="พักสมองสักนิด">
-        <Container className="py-16 sm:py-24">
-          <LavaPlay />
+        <Container className="py-12 sm:py-16">
+          <Link
+            href="/play"
+            className="bg-feature-gradient speed-lines group flex flex-wrap items-center justify-between gap-4 rounded-3xl p-6 text-white shadow-brand-glow transition-transform duration-200 hover:-translate-y-1 sm:p-8"
+          >
+            <span className="flex items-center gap-4">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-white text-brand shadow-soft-sm">
+                <Gamepad2 aria-hidden className="h-6 w-6" />
+              </span>
+              <span>
+                <span className="block text-sm font-bold text-white/85">พักสมองสักนิด</span>
+                <span className="block font-display text-2xl font-extrabold">ห้องเกม: ตึกแก้ว · ลาวาแก้ว</span>
+              </span>
+            </span>
+            <span className={buttonStyles.inverse}>
+              ไปเล่นเลย
+              <ArrowRight aria-hidden className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+            </span>
+          </Link>
         </Container>
       </section>
 
       {/* ── Login ────────────────────────────────────────── */}
-      <section id="login" className="relative scroll-mt-16 overflow-hidden bg-ink">
-        <div aria-hidden className="bg-brand-gradient absolute -left-1/4 top-0 h-full w-3/4 -skew-x-12 opacity-90 lg:-left-[10%] lg:w-1/2" />
+      <section id="login" className="relative isolate scroll-mt-16 overflow-hidden bg-ink">
+        {/* Backdrop: red→purple sweep, soft glows, dot grid and the school's arrow, all decorative */}
+        <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
+          <div className="bg-feature-gradient speed-lines absolute -left-1/4 top-0 h-full w-[85%] -skew-x-12 lg:-left-[8%] lg:w-[58%]" />
+          <div className="absolute -left-20 -top-24 h-80 w-80 rounded-full bg-brand-hot/40 blur-3xl" />
+          <div className="absolute -bottom-32 right-[10%] h-96 w-96 rounded-full bg-[#8a4fd8]/35 blur-3xl" />
+          <div className="absolute inset-0 bg-[radial-gradient(rgb(255_255_255/0.09)_1px,transparent_1px)] [background-size:22px_22px]" />
+          <Image
+            src="/brand/arrow-white.png"
+            alt=""
+            width={185}
+            height={272}
+            className="animate-float absolute -bottom-16 left-[38%] hidden w-56 opacity-[0.12] lg:block"
+          />
+          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
+        </div>
         <Container className="relative grid items-center gap-10 py-16 sm:py-24 lg:grid-cols-2">
           <div className="text-white">
-            <p className="text-sm font-bold text-white/80">เริ่มใช้งาน</p>
-            <h2 className="mt-3 font-display text-3xl font-extrabold leading-tight sm:text-5xl">
+            <p className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/10 px-3 py-1 text-xs font-bold text-white/90 backdrop-blur">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+              {profile ? "เข้าสู่ระบบแล้ว" : "เริ่มใช้งาน"}
+            </p>
+            <h2 className="mt-4 font-display text-3xl font-extrabold leading-tight sm:text-5xl">
               {profile ? (
                 <>
                   สวัสดี
@@ -256,16 +287,44 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
                 </>
               )}
             </h2>
+            {profile && (
+              <p className="mt-4 flex flex-wrap gap-2 text-xs font-bold">
+                <span className="rounded-lg bg-white px-2.5 py-1 text-brand">
+                  {profile.role === "student" ? "นักเรียน" : profile.role === "teacher" ? "ครู" : "ผู้ดูแลระบบ"}
+                </span>
+                {profile.classroom && (
+                  <span className="rounded-lg border border-white/40 bg-white/10 px-2.5 py-1">
+                    ห้อง ม.{profile.classroom.grade}/{profile.classroom.room}
+                  </span>
+                )}
+              </p>
+            )}
             <p className="mt-4 max-w-md leading-relaxed text-white/85">
               {profile
-                ? "คุณเข้าสู่ระบบอยู่แล้ว ไปดูงานและวันสอบของห้องคุณได้เลย"
+                ? "ไปต่อได้เลย เลือกสิ่งที่อยากทำวันนี้"
                 : "นักเรียนใช้เลขประจำตัว ครูใช้ชื่อผู้ใช้ที่ได้รับจากโรงเรียน เข้าครั้งแรกใช้วันเกิดเป็นรหัสผ่าน"}
             </p>
             {profile && (
-              <Link href="/calendar" className={`${buttonStyles.inverse} mt-8 h-12`}>
-                ไปที่ปฏิทิน
-                <ArrowRight aria-hidden className="h-4 w-4" />
-              </Link>
+              <ul className={`mt-7 grid max-w-md gap-2.5 ${profile.role === "student" ? "sm:grid-cols-3" : "grid-cols-2"}`}>
+                {[
+                  { href: "/calendar", label: "ปฏิทิน", Icon: CalendarDays },
+                  { href: "/tcas", label: "TCAS", Icon: GraduationCap },
+                  { href: "/roadmap", label: "Roadmap", Icon: MapIcon },
+                  ...(profile.role === "student" ? [] : [{ href: "/teacher", label: "คอนโซลครู", Icon: Presentation }]),
+                ].map(({ href, label, Icon }) => (
+                  <li key={href}>
+                    <Link
+                      href={href}
+                      className="group flex items-center gap-2.5 rounded-2xl border border-white/25 bg-white/10 px-3.5 py-3 text-sm font-bold text-white backdrop-blur transition-all duration-150 hover:-translate-y-0.5 hover:bg-white hover:text-brand"
+                    >
+                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white text-brand transition-colors group-hover:bg-brand group-hover:text-white">
+                        <Icon aria-hidden className="h-4 w-4" />
+                      </span>
+                      {label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
             )}
           </div>
           <div

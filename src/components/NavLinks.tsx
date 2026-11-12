@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, GraduationCap, Home, Presentation, Settings2, type LucideIcon } from "lucide-react";
+import { CalendarDays, Gamepad2, GraduationCap, Home, Map as MapIcon, Presentation, Settings2, type LucideIcon } from "lucide-react";
 
 const ICONS: Record<string, LucideIcon> = {
   home: Home,
   calendar: CalendarDays,
   tcas: GraduationCap,
+  roadmap: MapIcon,
+  play: Gamepad2,
   teacher: Presentation,
   admin: Settings2,
 };
@@ -45,7 +47,7 @@ export function NavLinks({ items }: { items: NavItem[] }) {
             {item.badge && (
               <span
                 className={`rounded-md px-1.5 py-0.5 text-[11px] leading-none ${
-                  active ? "bg-white/20 text-white" : "bg-sunken text-faint"
+                  active ? "bg-white/20 text-white" : "bg-brand text-white"
                 }`}
               >
                 {item.badge}

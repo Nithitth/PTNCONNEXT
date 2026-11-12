@@ -2,12 +2,16 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { BarChart3, ChevronLeft, ChevronRight, GraduationCap, Search, Star } from "lucide-react";
 import { CompareTray } from "@/components/tcas/CompareTray";
+import { RoadmapPromo } from "@/components/tcas/roadmap/RoadmapPromo";
 import { GroupSelect, SortSelect } from "@/components/tcas/FilterSelect";
 import { ProgramList } from "@/components/tcas/ProgramList";
 import { TcasCredits } from "@/components/tcas/TcasCredits";
 import { UniversityShowcase } from "@/components/tcas/UniversityShowcase";
 import { Container, EmptyState, PageHeader, buttonStyles, cx, inputStyles, smallButtonStyles } from "@/components/ui";
 import { requireProfile } from "@/lib/auth";
+import { dayKey } from "@/lib/calendar";
+import { scoreRoadmap, targetChance, toRoadmapProgram } from "@/lib/roadmap";
+import { loadMyRoadmap } from "@/lib/roadmapData";
 import { createClient } from "@/lib/supabase/server";
 import { TCAS_UNIVERSITIES, fmtNum, paginateGroups, universityShort } from "@/lib/tcas";
 import {
@@ -17,6 +21,7 @@ import {
   countByUniversity,
   loadGroupFields,
   loadMyTargets,
+  loadProgram,
   searchPrograms,
 } from "@/lib/tcasData";
 
@@ -108,12 +113,22 @@ export default async function TcasPage({ searchParams }: PageProps<"/tcas">) {
   const sort: ProgramSort = PROGRAM_SORTS.find((x) => x === param(params.s)) ?? "faculty";
 
   const supabase = await createClient();
-  const [counts, groups, targets, results] = await Promise.all([
+  const [counts, groups, targets, results, roadmap] = await Promise.all([
     countByUniversity(),
     loadGroupFields(),
     isStudent ? loadMyTargets(supabase) : Promise.resolve([]),
     searchPrograms({ q, university: u, group: g, sort }),
+    loadMyRoadmap(supabase), // everyone can have a roadmap
   ]);
+  const roadmapProgram = roadmap ? await loadProgram(roadmap.programId) : null;
+  const roadmapScore =
+    roadmap && roadmapProgram
+      ? scoreRoadmap(roadmap.boxes, {
+          program: toRoadmapProgram(roadmapProgram, roadmap.position),
+          chance: targetChance(roadmapProgram.round3, targets.find((t) => t.programId === roadmap.programId) ?? null),
+          today: dayKey(new Date()),
+        })
+      : null;
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
 
   // Pages of about 100 programs. Sorted by faculty, a faculty is never split across two pages.
@@ -137,6 +152,19 @@ export default async function TcasPage({ searchParams }: PageProps<"/tcas">) {
   return (
     <>
       {total > 0 && <UniversityShowcase counts={counts} />}
+      {total > 0 && (
+        <RoadmapPromo
+          mine={
+            roadmapScore && roadmapProgram
+              ? {
+                  level: roadmapScore.level,
+                  pct: ((roadmapScore.xp - roadmapScore.levelStart) / (roadmapScore.nextLevelXp - roadmapScore.levelStart)) * 100,
+                  label: `${universityShort(roadmapProgram.universityId)} · ${roadmapProgram.nameTh}`,
+                }
+              : null
+          }
+        />
+      )}
       <section id="search" className="scroll-mt-16">
         <Container className="pb-28 pt-10">
           <div data-reveal>
