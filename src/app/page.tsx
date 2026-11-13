@@ -7,7 +7,6 @@ import {
   CalendarDays,
   Check,
   FileDown,
-  Gamepad2,
   GraduationCap,
   Layers,
   Map as MapIcon,
@@ -223,31 +222,6 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
               points={["มอบหมายงานหลายห้องในครั้งเดียว", "กำหนดส่งแต่ละห้องต่างกันได้", "ประกาศวันสอบและแชร์เอกสาร"]}
             />
           </div>
-        </Container>
-      </section>
-
-      {/* ── Fidget toy ───────────────────────────────────── */}
-      {/* The games (ตึกแก้ว and ลาวาแก้ว) live in the games room, /play. */}
-      <section aria-label="พักสมองสักนิด">
-        <Container className="py-12 sm:py-16">
-          <Link
-            href="/play"
-            className="bg-feature-gradient speed-lines group flex flex-wrap items-center justify-between gap-4 rounded-3xl p-6 text-white shadow-brand-glow transition-transform duration-200 hover:-translate-y-1 sm:p-8"
-          >
-            <span className="flex items-center gap-4">
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-white text-brand shadow-soft-sm">
-                <Gamepad2 aria-hidden className="h-6 w-6" />
-              </span>
-              <span>
-                <span className="block text-sm font-bold text-white/85">พักสมองสักนิด</span>
-                <span className="block font-display text-2xl font-extrabold">ห้องเกม: ตึกแก้ว · ลาวาแก้ว</span>
-              </span>
-            </span>
-            <span className={buttonStyles.inverse}>
-              ไปเล่นเลย
-              <ArrowRight aria-hidden className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-            </span>
-          </Link>
         </Container>
       </section>
 

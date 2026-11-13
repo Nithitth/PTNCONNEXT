@@ -1,5 +1,5 @@
 import type { RoadmapScore } from "@/lib/roadmap";
-import type { CardProgram } from "./RoadmapCard";
+import type { CardProgram, CardStage } from "./RoadmapCard";
 
 // Sample data for the decorative game card on the Roadmap hero and the /tcas promo.
 
@@ -30,6 +30,8 @@ export const DEMO_SCORE: RoadmapScore = {
     badge("portfolio", "พอร์ตพร้อม", false),
     badge("activities", "นักกิจกรรม", true),
     badge("backup", "มีแผนสำรอง", false),
-    badge("lv5", "Lv 5", true),
+    badge("lv5", "200 XP", true),
   ],
 };
+
+export const DEMO_STAGE: CardStage = { stage: 4, name: "สะสมผลงาน", subLevel: 3, xpInStage: 130, stageSize: 250, gateWaiting: false, finished: false };

@@ -484,6 +484,69 @@ body {
   to { box-shadow: 0 0 0 40px rgb(255 255 255 / 0); }
 }
 
+/* Card rewards (roadmapLevels.ts REWARDS). Frames restyle .roadmap-card's ring via data-frame;
+   no attribute = the holographic ring. Themes restyle the face (.roadmap-face) via data-theme. */
+.roadmap-card[data-frame="glass"] {
+  background: linear-gradient(135deg, rgb(255 255 255 / 0.95), var(--fc) 50%, rgb(255 255 255 / 0.95));
+  animation: none;
+}
+.roadmap-card[data-frame="bronze"] {
+  background: conic-gradient(from var(--holo, 0deg), #7a4a24, #e8a96b, #9a5b2c, #f3c693, #7a4a24);
+}
+.roadmap-card[data-frame="silver"] {
+  background: conic-gradient(from var(--holo, 0deg), #8d939c, #f4f6f8, #a9b0b8, #ffffff, #8d939c);
+}
+.roadmap-card[data-frame="gold"] {
+  background: conic-gradient(from var(--holo, 0deg), #9a6b12, #ffe27a, #c8921e, #fff3b8, #9a6b12);
+}
+.roadmap-card[data-frame="rainbow"] {
+  background: conic-gradient(from var(--holo, 0deg), #ff4d4d, #ffb84d, #ffe94d, #4ddb88, #4dc3ff, #9b4dff, #ff4dd2, #ff4d4d);
+}
+.roadmap-card[data-frame="flame4"] {
+  background: conic-gradient(from var(--holo, 0deg), #ff3d00, #ffb300, #ff6d00, #ffd54f, #ff3d00);
+  animation-duration: 3s;
+}
+.roadmap-card[data-frame="flame8"] {
+  background: conic-gradient(from var(--holo, 0deg), #00e5ff, #2979ff, #d500f9, #2979ff, #00e5ff);
+  animation-duration: 2.5s;
+}
+.roadmap-card[data-frame="flame16"] {
+  background: conic-gradient(from var(--holo, 0deg), #1a1033, #ffffff 8%, #6b4bd8 20%, #1a1033 40%, #ffd36b 55%, #1a1033 75%, #ffffff 88%, #1a1033);
+  animation-duration: 4s;
+}
+.roadmap-face[data-theme="midnight"] {
+  background-image: repeating-linear-gradient(120deg, rgb(255 255 255 / 0.06) 0 2px, transparent 2px 22px),
+    linear-gradient(135deg, #1b1f4b 0%, #2c2a6e 45%, #5b2b8a 100%);
+}
+.roadmap-face[data-theme="sakura"] {
+  background-image: repeating-linear-gradient(120deg, rgb(255 255 255 / 0.07) 0 2px, transparent 2px 22px),
+    linear-gradient(135deg, #e0407b 0%, #c2185b 45%, #8e24aa 100%);
+}
+.roadmap-face[data-theme="aurora"] {
+  background-image: repeating-linear-gradient(120deg, rgb(255 255 255 / 0.06) 0 2px, transparent 2px 22px),
+    linear-gradient(135deg, #0f766e 0%, #1d4ed8 55%, #7c3aed 100%);
+}
+.roadmap-face[data-theme="ember"] {
+  background-image: repeating-linear-gradient(120deg, rgb(255 255 255 / 0.06) 0 2px, transparent 2px 22px),
+    linear-gradient(135deg, #3b0a0a 0%, #9f1d1d 45%, #ea580c 100%);
+}
+
+/* The "passed a stage" moment (StageUp in levelParts.tsx). */
+.stage-up {
+  animation: stage-up 0.7s cubic-bezier(0.2, 0.9, 0.25, 1.2) both;
+}
+@keyframes stage-up {
+  0% { opacity: 0; transform: scale(0.6) rotate(-4deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0); }
+}
+.stage-rays {
+  background: repeating-conic-gradient(rgb(255 255 255 / 0.12) 0 10deg, transparent 10deg 24deg);
+  animation: rays-spin 14s linear infinite;
+}
+@keyframes rays-spin {
+  to { transform: rotate(360deg); }
+}
+
 /* Stagger helper for entrance animations. */
 .delay-1 { animation-delay: 80ms; }
 .delay-2 { animation-delay: 160ms; }

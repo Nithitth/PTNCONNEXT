@@ -2,14 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, Gamepad2, GraduationCap, Home, Map as MapIcon, Presentation, Settings2, type LucideIcon } from "lucide-react";
+import { CalendarDays, GraduationCap, Home, Map as MapIcon, Presentation, Settings2, type LucideIcon } from "lucide-react";
 
 const ICONS: Record<string, LucideIcon> = {
   home: Home,
   calendar: CalendarDays,
   tcas: GraduationCap,
   roadmap: MapIcon,
-  play: Gamepad2,
   teacher: Presentation,
   admin: Settings2,
 };

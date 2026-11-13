@@ -10,10 +10,10 @@ import { Container, PageHeader, buttonStyles, cx, inputStyles } from "@/componen
 import { requireProfile } from "@/lib/auth";
 import { dayKey } from "@/lib/calendar";
 import { facultyColor } from "@/lib/facultyColors";
-import { currentTerm, portfolioItems, scoreRoadmap, targetChance, toRoadmapProgram } from "@/lib/roadmap";
-import { loadKeyDates, loadMyRoadmap } from "@/lib/roadmapData";
+import { currentTerm, portfolioItems, targetChance, toRoadmapProgram } from "@/lib/roadmap";
+import { loadClassStats, loadKeyDates, loadMyProofs, loadMyRoadmap } from "@/lib/roadmapData";
 import { createClient } from "@/lib/supabase/server";
-import { universityShort } from "@/lib/tcas";
+import { pickOption, universityShort } from "@/lib/tcas";
 import { loadMyTargets, loadProgram, searchPrograms } from "@/lib/tcasData";
 
 export const metadata: Metadata = { title: "Roadmap · TCAS" };
@@ -102,7 +102,7 @@ export default async function RoadmapPage({ searchParams }: PageProps<"/roadmap"
   if (!roadmap) {
     return (
       <>
-        <RoadmapShowcase level={null} />
+        <RoadmapShowcase stage={null} />
         <section id="make" className="scroll-mt-16">
           <Container className="py-12">
             <PageHeader eyebrow="เริ่มเลย" title="สร้าง Roadmap ของฉัน" subtitle="3 ขั้นตอนง่าย ๆ ใช้เวลาไม่ถึงนาที" as="h2" />
@@ -111,7 +111,7 @@ export default async function RoadmapPage({ searchParams }: PageProps<"/roadmap"
               {[
                 ["1", "เลือกหลักสูตร", "จากเป้าหมายที่บันทึกไว้ หรือค้นหาด้านล่าง"],
                 ["2", "เลือกกล่อง", "เกรด ภารกิจ เป้าหมาย นับถอยหลัง และอีกมาก สูงสุด 10 กล่อง"],
-                ["3", "เก็บ XP", "ติ๊กภารกิจ ทำเป้าให้สำเร็จ แล้วดูการ์ดเลเวลอัป"],
+                ["3", "ผ่านทีละด่าน", "เก็บ XP ทำเช็กลิสต์ แนบหลักฐาน จนถึงด่าน 6: พร้อมสมัคร"],
               ].map(([n, title, body]) => (
                 <li key={n} className="flex gap-3 rounded-2xl border border-line bg-surface p-4 shadow-soft-sm">
                   <span className="bg-brand-gradient grid h-8 w-8 shrink-0 place-items-center rounded-full text-sm font-extrabold text-white shadow-brand-glow">
@@ -146,17 +146,25 @@ export default async function RoadmapPage({ searchParams }: PageProps<"/roadmap"
     );
   }
 
-  const [program, keyDates] = await Promise.all([loadProgram(roadmap.programId), loadKeyDates(supabase)]);
+  const [program, keyDates, proofs, classStats] = await Promise.all([
+    loadProgram(roadmap.programId),
+    loadKeyDates(supabase),
+    loadMyProofs(supabase),
+    profile.role === "student" ? loadClassStats(supabase).catch(() => null) : null,
+  ]);
   if (!program) redirect("/tcas");
   const rp = toRoadmapProgram(program, roadmap.position);
   const target = targets.find((t) => t.programId === roadmap.programId) ?? null;
   const chance = targetChance(program.round3, target);
   const today = dayKey(new Date());
-  const { level } = scoreRoadmap(roadmap.boxes, { program: rp, chance, today });
+  const option = pickOption(
+    program.round3.filter((o) => !o.problem),
+    roadmap.position,
+  );
 
   return (
     <>
-      <RoadmapShowcase level={level} />
+      <RoadmapShowcase stage={roadmap.level.stage} />
       <section id="board" className="scroll-mt-16">
         <Container className="py-12">
           {q && (
@@ -174,6 +182,11 @@ export default async function RoadmapPage({ searchParams }: PageProps<"/roadmap"
           <RoadmapBoard
             key={`${roadmap.programId}-${roadmap.updatedAt}`}
             initialBoxes={roadmap.boxes}
+            initialProofs={proofs}
+            saved={roadmap.level}
+            option={option}
+            userId={profile.id}
+            classStats={classStats}
             program={{
               programId: program.programId,
               universityId: program.universityId,

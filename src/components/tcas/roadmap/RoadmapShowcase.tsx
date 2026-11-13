@@ -4,7 +4,7 @@ import { ArrowDown, Award, LayoutGrid, Search, Sparkles } from "lucide-react";
 import { Container, Eyebrow, buttonStyles, cx } from "@/components/ui";
 import { BOX_PRESETS, ROADMAP_MAX_BOXES, BOX_KINDS, type BoxKind } from "@/lib/roadmap";
 import { BOX_ICONS } from "./boxIcons";
-import { DEMO_PROGRAM, DEMO_SCORE } from "./demoCard";
+import { DEMO_PROGRAM, DEMO_SCORE, DEMO_STAGE } from "./demoCard";
 import { RoadmapCard } from "./RoadmapCard";
 
 // Box chips floating around the sample card (lg screens only, so they never cover the text).
@@ -20,8 +20,8 @@ const CHIPS: { kind: BoxKind; className: string; delay: string }[] = [
  * The Roadmap landing window: a full first screen, like TCAS's "Top University" one.
  * Students without a roadmap are pointed at #make; with one, at their card (#board).
  */
-export function RoadmapShowcase({ level }: { level: number | null }) {
-  const has = level !== null;
+export function RoadmapShowcase({ stage }: { stage: number | null }) {
+  const has = stage !== null;
   return (
     <section className="mesh-tcas relative isolate overflow-hidden" aria-labelledby="roadmap-title">
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
@@ -42,13 +42,13 @@ export function RoadmapShowcase({ level }: { level: number | null }) {
             ให้สนุกเหมือน<span className="text-tcas-gradient whitespace-nowrap font-extrabold">เล่นเกม</span>
           </h1>
           <p className="animate-rise delay-2 mt-5 max-w-xl text-base leading-relaxed text-muted sm:text-lg">
-            การ์ดเป้าหมาย 1 ใบต่อคน เลือกหลักสูตรที่อยากเข้า สร้างแผนจากกล่องที่ชอบ ทำสำเร็จได้ XP และเลเวลอัป
+            การ์ดเป้าหมาย 1 ใบต่อคน เลือกหลักสูตรที่อยากเข้า สร้างแผนจากกล่องที่ชอบ เก็บ XP แนบหลักฐาน แล้วผ่านทีละด่านจนพร้อมสมัคร
           </p>
 
           <div className="animate-rise delay-3 mt-8 flex flex-wrap items-center gap-3">
             <a href={has ? "#board" : "#make"} className={cx(buttonStyles.primary, "h-12 px-6 text-base shadow-brand-glow-lg")}>
               <Sparkles aria-hidden className="h-5 w-5" />
-              {has ? `เปิด Roadmap ของฉัน · Lv ${level}` : "สร้าง Roadmap ของฉัน"}
+              {has ? `เปิด Roadmap ของฉัน · ด่าน ${stage}` : "สร้าง Roadmap ของฉัน"}
             </a>
             <Link href="/tcas#search" className={buttonStyles.ghost}>
               <Search aria-hidden className="h-4 w-4" />
@@ -60,7 +60,7 @@ export function RoadmapShowcase({ level }: { level: number | null }) {
             {[
               { Icon: LayoutGrid, text: `${BOX_KINDS.length} แบบกล่อง` },
               { Icon: Sparkles, text: `สูงสุด ${ROADMAP_MAX_BOXES} กล่อง` },
-              { Icon: Award, text: "10 เหรียญรางวัล" },
+              { Icon: Award, text: "6 ด่าน · กรอบและธีมให้สะสม" },
             ].map(({ Icon, text }) => (
               <li key={text} className="flex items-center gap-1.5 rounded-full border border-line bg-surface/80 px-3.5 py-1.5 shadow-soft-sm backdrop-blur">
                 <Icon aria-hidden className="h-4 w-4 text-brand" />
@@ -73,7 +73,7 @@ export function RoadmapShowcase({ level }: { level: number | null }) {
         <div className="relative mx-auto w-full max-w-md">
           <div className="animate-float" style={{ animationDuration: "7s" } as CSSProperties}>
             <div className="[transform:rotate(-3deg)]">
-              <RoadmapCard program={DEMO_PROGRAM} score={DEMO_SCORE} termLabel="ม.5 เทอม 2" pop={null} levelUp={null} demo />
+              <RoadmapCard program={DEMO_PROGRAM} score={DEMO_SCORE} stage={DEMO_STAGE} streak={5} frame="holo" termLabel="ม.5 เทอม 2" pop={null} levelUp={null} demo />
             </div>
           </div>
           <div aria-hidden className="pointer-events-none absolute inset-0 hidden lg:block">

@@ -171,8 +171,6 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
   - `Brand`, `Card` (`bold` adds a bigger soft shadow), `Field`, `Notice`, `Eyebrow` (`light` for use on red), `PageHeader`, `EmptyState` and `Container`.
   - Calendar colors: `exam` / `exam-soft` / `exam-tint`, and `event` / `event-strong` / `event-ink`. For deadline dots, use the `BLINK` class from `DayDrawer.tsx`: a blink, or a red ring when reduced motion is on.
 - Navigation items per role are defined in `itemsFor()` in `src/components/NavBar.tsx`.
-- **Lava fidget toy** (`src/components/home/LavaPlay.tsx`, "ลาวาแก้ว"; shown on `/play` under ตึกแก้ว — the home page only has a "ห้องเกม" banner linking there): canvas drops drawn as red liquid glass by one SVG filter (goo + see-through tint + rim + specular shine). Tap bursts, hold pulls, "รวมเป็นโลโก้" flows into the arrow-"t" logo; untouched for 3 s the glass sets and cracks, and the next touch shatters it. It animates only while on screen and the tab is visible, and sleeps once cracked; under reduced motion it moves only when touched.
-- **Games room `/play` (ตึกแก้ว / Glass Stack):** public; a crane swings a glass block, tap or Space drops it, stack as high as you can. Physics by `matter-js` (`src/components/play/GlassStack.tsx`); block shapes, sizes and colours in `blocks.ts`. Jelly look (squash/jiggle drawn over rigid physics), auto-drop timer, wind from 12 m, aurora sky and a reflecting lake. A block falling into the lake costs one of 3 hearts; losing the last one ends the round (slow motion, then the tower shatters). Best height is saved in the browser (`ptn-glass-stack-best`). Linked from the menu ("เกม", everyone, guests too) and the home-page banner.
 - **Home feature cards** (ปฏิทินอัจฉริยะ, TCAS) share `.bg-feature-gradient` (red → purple, in `globals.css`).
 - Layouts must work at 375px width with no horizontal page scroll.
 
@@ -201,7 +199,7 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
 
 **Phase 2, TCASter release 1 is built** (branch `tcaster`; migrations `0007` and `0008`). The pilot is on hold.
 
-**TCASter release 2, the Roadmap, is built** (migration `0011`; see the Roadmap section).
+**TCASter release 2, the Roadmap, is built** (migrations `0011`–`0013`; see the Roadmap section). Its level system (stages, proof, streaks, rewards) was added on 2026-11-13.
 
 **Next:** the pilot (human steps in `docs/PILOT.md`).
 
@@ -282,7 +280,16 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
   - The home page has a third feature card, "Roadmap".
   - On a program page, `RoadmapButton` creates, switches or opens the roadmap.
 - **TCAS tabs:** `src/app/tcas/layout.tsx` renders `TcasTabs` (ค้นหาหลักสูตร | สถิตินักเรียน) for staff only.
-- **PDPA:** `PDPA_VERSION` is 3, because the notice now mentions the roadmap.
+- **PDPA:** `PDPA_VERSION` is 4, because the notice now mentions the roadmap (3) and its proof and room comparison (4).
+
+**Roadmap levels (migration `0013`; design in `docs/specs/2026-11-13-roadmap-levels-design.md`):**
+- **6 named stages** (สำรวจ → ตั้งเป้า → ปูพื้น → สะสมผลงาน → พร้อมสอบ → พร้อมสมัคร). Each has a **gate checklist**; the stage is the first one whose gate isn't complete. Inside a stage, XP fills **5 steps** (stage sizes 100/150/200/250/300/350). A full bar with an open gate shows "ประตูด่านรออยู่".
+- **Pure rules** in `src/lib/roadmapLevels.ts` (tested in `roadmapLevels.test.ts`): `gates`, `stageOf`, `weightedExams`, `nextStreak`/`currentStreak` (weekly, Monday start; last week still counts), `REWARDS`, `isUnlocked`, `pickReward`. Steps that don't apply (no Round 1 / no Round 3) count as done and show "ไม่ต้องทำ".
+- **Proof** (`tcas_roadmap_proofs`, one per `(owner_id, step)`): `gpax` = a grade-report file; `act:<activityId>` = a file or link; `score:<examCode>` = a number 0–100; `portfolio-link` = a link. Files go browser → private bucket `roadmap-proofs/<uid>/<uuid>.<ext>` (5 MB; PDF/JPG/PNG/WEBP); `saveProof` checks the folder and that the file exists, then replaces any older file. Files open through `/roadmap/proof/[id]` (60-second signed link). Owner only: admins can't read proof either.
+- **Saved level:** `tcas_roadmaps` holds `stage, max_stage, finished, xp, streak, best_streak, last_active_week, frame, theme`. Users may only update `program_id, position, updated_at, frame, theme` (column grants). Every roadmap action calls `syncLevel()` (`roadmapData.ts`), which recomputes XP and the stage and writes them with the admin client; `progress: true` (adding/saving, proof) also moves the weekly streak. The board shows the browser's own `stageOf` result, so the card updates instantly.
+- **Rewards:** frames and themes unlock by the highest stage ever reached and the best streak, and stay. `setLook` re-checks them. Their looks are CSS in `globals.css` (`.roadmap-card[data-frame=…]`, `.roadmap-face[data-theme=…]`); add a reward in `REWARDS` plus its CSS.
+- **Room comparison:** `roadmap_class_stats()` returns, for a student only, how many classmates have a roadmap, the room's average stage and how many are behind. Nothing under 3. `ClassStrip` shows it.
+- **UI pieces** are in `src/components/tcas/roadmap/levelParts.tsx`: `ProofControl`, `StagePanel`, `StageUp` (the full-screen "passed a stage" moment), `RewardsCabinet` ("ตู้รางวัล"), `ClassStrip`. Box bodies get proof buttons through `ctx.proof(step, kinds, label)`.
 
 **Calculator rule:**
 - **Only the weights decide whether a Round 3 option gets a calculator.** Unknown exam codes (`tu002`, `vnet_51`, `cal_*`) or weights not summing to 100 set `problem`, and the page shows "ดูรายละเอียดที่ mytcas".
@@ -304,7 +311,7 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
 - `tcas_targets` can be read and written only by the student who owns them; admins can't read them either.
 - The limit is 5 per student, enforced by the `tcas_targets_limit` trigger (migration `0008`). `saveTarget` updates an existing target instead of re-inserting it.
 - Programs without a calculator can still be saved, with no scores.
-- `PDPA_VERSION` is 3: the notice mentions TCASter targets (2) and the Roadmap (3).
+- `PDPA_VERSION` is 4: the notice mentions TCASter targets (2), the Roadmap (3), and Roadmap proof and the room comparison (4).
 
 **Terms of use:** mytcas.com's terms forbid copying content beyond the service's purpose; the team chose to use the data anyway.
 - Every program page credits "ข้อมูล TCAS70 จาก mytcas.com (ทปอ.)" and links to the original.

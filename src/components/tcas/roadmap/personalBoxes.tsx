@@ -27,7 +27,7 @@ const RemoveButton = ({ label, onClick }: { label: string; onClick: () => void }
 );
 
 // ─── กิจกรรม/ค่าย/แข่งขัน ───
-export function ActivitiesBox({ data, set }: BodyProps<"activities">) {
+export function ActivitiesBox({ data, set, ctx }: BodyProps<"activities">) {
   const [name, setName] = useState("");
   const [type, setType] = useState<ActivityType>("camp");
   const [date, setDate] = useState("");
@@ -48,10 +48,11 @@ export function ActivitiesBox({ data, set }: BodyProps<"activities">) {
           {data.items.map((a) => (
             <li key={a.id} className="flex items-start gap-2 rounded-xl border border-line px-2.5 py-2 text-sm">
               <span className="shrink-0 rounded-md bg-brand-soft px-1.5 py-0.5 text-[11px] font-bold text-brand">{ACTIVITY_TYPES[a.type]}</span>
-              <span className="min-w-0 flex-1 leading-snug text-ink">
+              <div className="min-w-0 flex-1 leading-snug text-ink">
                 {a.name}
                 {a.date && <span className="block text-xs text-muted">{formatDayShort(a.date)}</span>}
-              </span>
+                {/^[a-z0-9]{1,16}$/.test(a.id) && ctx.proof?.(`act:${a.id}`, ["file", "link"], a.name)}
+              </div>
               <RemoveButton label={`ลบ ${a.name}`} onClick={() => set({ items: data.items.filter((x) => x.id !== a.id) })} />
             </li>
           ))}

@@ -588,8 +588,8 @@ export function scoreRoadmap(boxes: AnyBox[], ctx: ScoreContext): RoadmapScore {
     { key: "activities", label: "นักกิจกรรม", hint: "บันทึกกิจกรรม 5 รายการ", earned: activities >= 5 },
     { key: "backup", label: "มีแผนสำรอง", hint: "เพิ่มหลักสูตรสำรอง", earned: backups > 0 },
     { key: "full", label: "ครบ 10 กล่อง", hint: "ใช้กล่องครบ 10 กล่อง", earned: boxes.length >= ROADMAP_MAX_BOXES },
-    { key: "lv5", label: "Lv 5", hint: "ไปให้ถึงเลเวล 5", earned: level >= 5 },
-    { key: "lv10", label: "Lv 10", hint: "ไปให้ถึงเลเวล 10", earned: level >= 10 },
+    { key: "lv5", label: "200 XP", hint: "เก็บ XP รวมให้ถึง 200", earned: level >= 5 },
+    { key: "lv10", label: "450 XP", hint: "เก็บ XP รวมให้ถึง 450", earned: level >= 10 },
   ];
 
   return {

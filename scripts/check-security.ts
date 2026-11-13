@@ -267,6 +267,7 @@ async function main() {
   check(
     "teachers and admins see only their own roadmap, never a student's",
     tSees.every((r) => r.student_id === tId) && aSees.every((r) => r.student_id === aId) && staffBoxes === 0,
+    `teacher sees ${tSees.length} roadmap(s), admin ${aSees.length}, other boxes ${staffBoxes}`,
   );
   const studentPeeksTeacher = await s1.from("tcas_roadmaps").select("student_id").eq("student_id", tId);
   check("students can't see a teacher's roadmap", (studentPeeksTeacher.data ?? []).length === 0);
@@ -295,9 +296,47 @@ async function main() {
       !(aRoadmapTotals.data ?? []).some((r: { group_field: string }) => r.group_field === ""),
     aRoadmapTotals.error?.message,
   );
+
+  // Roadmap levels (0013): stage/XP/streak are written by the server only; proof is owner-only.
+  const fakeStage = await s1.from("tcas_roadmaps").update({ stage: 6, xp: 9999 }).eq("student_id", studentId).select("stage");
+  check("students can't set their own stage or XP", Boolean(fakeStage.error) || (fakeStage.data ?? []).every((r) => r.stage !== 6));
+  const lookOk = await s1.from("tcas_roadmaps").update({ frame: "glass", theme: "classic" }).eq("student_id", studentId).select("student_id");
+  check("students can change their card's frame and theme", !lookOk.error && lookOk.data?.length === 1, lookOk.error?.message);
+  const myProof = await s1
+    .from("tcas_roadmap_proofs")
+    .insert({ owner_id: studentId, step: "portfolio-link", kind: "link", url: "https://example.com" })
+    .select("id")
+    .single();
+  check("students can add proof to their own roadmap", !myProof.error, myProof.error?.message);
+  const forgedProof = await s1.from("tcas_roadmap_proofs").insert({ owner_id: s2Id, step: "score:tgat", kind: "number", value: 99 });
+  check("students can't add proof to someone else's roadmap", Boolean(forgedProof.error));
+  const badPath = await s1.from("tcas_roadmap_proofs").insert({ owner_id: studentId, step: "gpax", kind: "file", file_path: `${s2Id}/x.pdf` });
+  check("a proof file must sit in the owner's own folder", Boolean(badPath.error));
+  const proofPeeks = await Promise.all([s2, t, a].map((c) => c.from("tcas_roadmap_proofs").select("id").eq("owner_id", studentId)));
+  check("nobody else (not even admins) can read a student's proof", proofPeeks.every((r) => (r.data ?? []).length === 0));
+  const proofPath = `${studentId}/security-check.pdf`;
+  await admin.storage.from("roadmap-proofs").remove([proofPath, `${s2Id}/x.pdf`]);
+  const proofUp = await s1.storage.from("roadmap-proofs").upload(proofPath, pdf, { contentType: "application/pdf" });
+  const proofOther = await s1.storage.from("roadmap-proofs").upload(`${s2Id}/x.pdf`, pdf, { contentType: "application/pdf" });
+  check("proof files go only into the owner's own folder", !proofUp.error && Boolean(proofOther.error), proofUp.error?.message);
+  const proofOpen = await Promise.all([s2, a].map((c) => c.storage.from("roadmap-proofs").createSignedUrl(proofPath, 60)));
+  check("other users (even admins) can't open someone's proof file", proofOpen.every((r) => Boolean(r.error) || !r.data?.signedUrl));
+  await admin.storage.from("roadmap-proofs").remove([proofPath, `${s2Id}/x.pdf`]);
+  const tStats = await t.rpc("roadmap_class_stats");
+  const sStats = await s1.rpc("roadmap_class_stats");
+  check(
+    "the room comparison is for students only, and hidden under 3 classmates",
+    !tStats.error && (tStats.data ?? []).length === 0 && !sStats.error && (sStats.data ?? []).every((r: { students: number }) => r.students >= 3),
+    tStats.error?.message ?? sStats.error?.message,
+  );
+
   const deleted = await s1.from("tcas_roadmaps").delete().eq("student_id", studentId).select("student_id");
   const leftBoxes = await admin.from("tcas_roadmap_boxes").select("id").eq("student_id", studentId);
-  check("deleting a roadmap removes its boxes", deleted.data?.length === 1 && (leftBoxes.data ?? []).length === 0);
+  const leftProofs = await admin.from("tcas_roadmap_proofs").select("id").eq("owner_id", studentId);
+  check(
+    "deleting a roadmap removes its boxes and proof",
+    deleted.data?.length === 1 && (leftBoxes.data ?? []).length === 0 && (leftProofs.data ?? []).length === 0,
+  );
 
   await admin.from("tcas_programs").delete().in("program_id", dummyIds); // cascades to the targets and roadmaps
 

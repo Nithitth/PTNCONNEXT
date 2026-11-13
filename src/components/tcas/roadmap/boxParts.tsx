@@ -5,6 +5,7 @@ import { Check, X } from "lucide-react";
 import { cx } from "@/components/ui";
 import type { AnyBox, BoxData, BoxKind, KeyDate, PortfolioItem, RoadmapProgram, Term } from "@/lib/roadmap";
 import type { DayKey } from "@/lib/calendar";
+import type { Proof } from "@/lib/roadmapLevels";
 
 /** What every box body can read about the roadmap. */
 export type BoxCtx = {
@@ -18,6 +19,8 @@ export type BoxCtx = {
   keyDates: KeyDate[];
   today: DayKey;
   term: Term | null;
+  /** Renders the proof buttons for a gate step (added by the board). */
+  proof?: (step: string, kinds: Proof["kind"][], label: string) => ReactNode;
 };
 
 export type BodyProps<K extends BoxKind> = {

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, CheckCircle2, Map as MapIcon, Sparkles } from "lucide-react";
 import { Container, buttonStyles, cx } from "@/components/ui";
-import { DEMO_PROGRAM, DEMO_SCORE } from "./demoCard";
+import { DEMO_PROGRAM, DEMO_SCORE, DEMO_STAGE } from "./demoCard";
 import { RoadmapCard } from "./RoadmapCard";
 
 /**
@@ -70,7 +70,7 @@ export function RoadmapPromo({ mine }: { mine: { level: number; pct: number; lab
           <div className="relative mx-auto hidden w-full max-w-sm sm:block">
             <div className="animate-float" style={{ animationDuration: "7s" }}>
               <div className="[transform:rotate(3deg)]">
-                <RoadmapCard program={DEMO_PROGRAM} score={DEMO_SCORE} termLabel="ม.5 เทอม 2" pop={null} levelUp={null} demo />
+                <RoadmapCard program={DEMO_PROGRAM} score={DEMO_SCORE} stage={DEMO_STAGE} streak={5} frame="holo" termLabel="ม.5 เทอม 2" pop={null} levelUp={null} demo />
               </div>
             </div>
           </div>

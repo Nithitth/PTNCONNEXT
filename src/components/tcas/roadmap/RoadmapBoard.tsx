@@ -7,6 +7,7 @@ import {
   ArrowDown,
   ArrowUp,
   Check,
+  Gift,
   Pencil,
   Plus,
   RefreshCw,
@@ -14,7 +15,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { addBox, changeRoadmapTarget, createRoadmap, deleteBox, deleteRoadmap, moveBox, updateBox } from "@/app/roadmap/actions";
+import { addBox, changeRoadmapTarget, createRoadmap, deleteBox, deleteRoadmap, moveBox, setLook, updateBox, type RoadmapResult } from "@/app/roadmap/actions";
 import { buttonStyles, cx, iconButtonStyles, inputStyles, smallButtonStyles } from "@/components/ui";
 import {
   BOX_KINDS,
@@ -25,7 +26,11 @@ import {
   type AnyBox,
   type BoxKind,
 } from "@/lib/roadmap";
+import type { LevelSaved } from "@/lib/roadmapData";
+import { STAGES, currentStreak, stageOf, type Proof, type Reward, type StageId } from "@/lib/roadmapLevels";
+import type { Round3Option } from "@/lib/tcas";
 import type { BodyProps, BoxCtx } from "./boxParts";
+import { ClassStrip, ProofControl, RewardsCabinet, StagePanel, StageUp, type ProofApi } from "./levelParts";
 import { ActivitiesBox, BackupBox, LinksBox, MottoBox, NotesBox, SkillsBox, StudyBox } from "./personalBoxes";
 import { CountdownBox, GoalBox, GpaBox, PortfolioBox, QuestsBox, ScoresBox } from "./progressBoxes";
 import { RoadmapCard, type CardProgram } from "./RoadmapCard";
@@ -54,11 +59,22 @@ export type TargetChoice = { programId: string; label: string; position: number;
 /** The whole roadmap: the game card on top, the student's boxes below. Saves each box as it changes. */
 export function RoadmapBoard({
   initialBoxes,
+  initialProofs,
+  saved: initialSaved,
+  option,
+  userId,
+  classStats,
   program,
-  ctx,
+  ctx: baseCtx,
   choices,
 }: {
   initialBoxes: AnyBox[];
+  initialProofs: Proof[];
+  /** Stage, streak and rewards as the server last saved them. */
+  saved: LevelSaved;
+  option: Round3Option | null;
+  userId: string;
+  classStats: { students: number; avgStage: number; behind: number } | null;
   program: CardProgram;
   ctx: BoxCtx;
   /** Saved targets the roadmap can switch to. */
@@ -74,19 +90,40 @@ export function RoadmapBoard({
   const addRef = useRef<HTMLDialogElement>(null);
   const switchRef = useRef<HTMLDialogElement>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const rewardsRef = useRef<HTMLDialogElement>(null);
+  const [proofs, setProofs] = useState(initialProofs);
+  const [saved, setSaved] = useState(initialSaved);
+  const [look, setLookState] = useState({ frame: initialSaved.frame, theme: initialSaved.theme });
+
+  /** Takes in what an action sent back: the saved stage/streak and the proof list. */
+  const onResult = useCallback((res: RoadmapResult) => {
+    if (res.level) setSaved(res.level);
+    if (res.proofs) setProofs(res.proofs);
+  }, []);
+  const api: ProofApi = useMemo(() => ({ proofs, userId, onResult }), [proofs, userId, onResult]);
+  const ctx: BoxCtx = useMemo(
+    () => ({ ...baseCtx, proof: (step, kinds, label) => <ProofControl api={api} step={step} kinds={kinds} label={label} /> }),
+    [baseCtx, api],
+  );
 
   const score = useMemo(() => scoreRoadmap(boxes, { program: ctx.program, chance: ctx.chance, today: ctx.today }), [boxes, ctx]);
+  const level = useMemo(() => stageOf({ boxes, program: ctx.program, option, proofs }, score.xp), [boxes, ctx.program, option, proofs, score.xp]);
+  const streak = currentStreak(saved.lastActiveWeek, saved.streak, ctx.today);
+  const maxStage = Math.max(saved.maxStage, level.stage);
 
-  // "+XP" float and level-up burst when the score goes up (not on first render).
-  const prev = useRef({ xp: score.xp, level: score.level });
+  // "+XP" float, a burst for a new step, and the full stage-up moment (not on first render).
+  const prev = useRef({ xp: score.xp, step: level.stage * 10 + level.subLevel, stage: level.stage });
   const [pop, setPop] = useState<{ id: number; xp: number } | null>(null);
   const [levelUp, setLevelUp] = useState<number | null>(null);
+  const [stageUp, setStageUp] = useState<StageId | null>(null);
   useEffect(() => {
     const p = prev.current;
+    const step = level.stage * 10 + level.subLevel;
     if (score.xp > p.xp) setPop({ id: Date.now(), xp: score.xp - p.xp });
-    if (score.level > p.level) setLevelUp(score.level);
-    prev.current = { xp: score.xp, level: score.level };
-  }, [score.xp, score.level]);
+    if (level.stage > p.stage) setStageUp(level.stage);
+    else if (step > p.step) setLevelUp(level.subLevel);
+    prev.current = { xp: score.xp, step, stage: level.stage };
+  }, [score.xp, level.stage, level.subLevel]);
   useEffect(() => {
     if (levelUp === null) return;
     const t = setTimeout(() => setLevelUp(null), 1500);
@@ -115,10 +152,11 @@ export function RoadmapBoard({
           if (!b) return;
           const res = await updateBox(id, b.title, b.data);
           setSaves((s) => ({ ...s, [id]: res.error ? { error: res.error } : "saved" }));
+          onResult(res);
         }, 500),
       );
     },
-    [apply],
+    [apply, onResult],
   );
 
   // Warn before leaving while a save is still waiting.
@@ -136,6 +174,7 @@ export function RoadmapBoard({
       const res = await addBox(kind);
       if (res.error) return setError(res.error);
       if (res.box) apply((bs) => [...bs, res.box!]);
+      onResult(res);
       addRef.current?.close();
       requestAnimationFrame(() => document.getElementById(`box-${res.box?.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" }));
     });
@@ -163,6 +202,7 @@ export function RoadmapBoard({
       const res = await deleteBox(id);
       if (res.error) return setError(res.error);
       apply((bs) => bs.filter((b) => b.id !== id));
+      onResult(res);
     });
 
   const switchTo = (c: TargetChoice) =>
@@ -184,13 +224,26 @@ export function RoadmapBoard({
     });
   };
 
-  const full =boxes.length >= ROADMAP_MAX_BOXES;
+  const pickLook = (kind: Reward["kind"], id: string) => {
+    const next = { ...look, [kind]: id };
+    setLookState(next);
+    start(async () => {
+      const res = await setLook(next.frame, next.theme);
+      if (res.error) setError(res.error);
+    });
+  };
+
+  const full = boxes.length >= ROADMAP_MAX_BOXES;
 
   return (
     <div className="space-y-8">
       <RoadmapCard
         program={program}
         score={score}
+        stage={{ ...level, name: STAGES[level.stage - 1].name }}
+        streak={streak}
+        frame={look.frame}
+        theme={look.theme}
         termLabel={ctx.term ? termLabel(ctx.term) : null}
         pop={pop}
         levelUp={levelUp}
@@ -199,6 +252,10 @@ export function RoadmapBoard({
             <button type="button" onClick={() => switchRef.current?.showModal()} className={buttonStyles.inverse}>
               <RefreshCw aria-hidden className="h-4 w-4" />
               เปลี่ยนเป้าหมาย
+            </button>
+            <button type="button" onClick={() => rewardsRef.current?.showModal()} className={buttonStyles.inverse}>
+              <Gift aria-hidden className="h-4 w-4" />
+              ตู้รางวัล
             </button>
             <Link href={`/tcas/${program.programId}`} className="inline-flex h-11 items-center rounded-xl px-3 text-sm font-bold text-white/90 hover:bg-white/10">
               ดูหลักสูตร
@@ -212,6 +269,10 @@ export function RoadmapBoard({
           {error}
         </p>
       )}
+
+      <StagePanel level={level} api={api} />
+
+      {classStats && <ClassStrip stats={classStats} />}
 
       <section aria-labelledby="boxes-title">
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
@@ -307,6 +368,12 @@ export function RoadmapBoard({
           })}
         </ul>
       </Sheet>
+
+      <Sheet ref={rewardsRef} title="ตู้รางวัล" subtitle="ผ่านด่านหรือทำต่อเนื่องทุกสัปดาห์ เพื่อปลดล็อกกรอบและธีมการ์ด ได้แล้วไม่หายไป">
+        <RewardsCabinet maxStage={maxStage} bestStreak={Math.max(saved.bestStreak, streak)} frame={look.frame} theme={look.theme} onPick={pickLook} busy={pending} />
+      </Sheet>
+
+      {stageUp !== null && <StageUp stage={stageUp} onClose={() => setStageUp(null)} />}
 
       <Sheet ref={switchRef} title="เปลี่ยนเป้าหมายของ Roadmap" subtitle="กล่องและข้อมูลทั้งหมดยังอยู่ ภารกิจที่ตรงกันยังติ๊กไว้เหมือนเดิม">
         <form action="/roadmap#pick" className="mb-5 flex gap-2">
