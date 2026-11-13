@@ -27,7 +27,7 @@ import {
   type BoxKind,
 } from "@/lib/roadmap";
 import type { LevelSaved } from "@/lib/roadmapData";
-import { STAGES, currentStreak, stageOf, type Proof, type Reward, type StageId } from "@/lib/roadmapLevels";
+import { STAGES, currentStreak, stageOf, type Proof, type StageId } from "@/lib/roadmapLevels";
 import type { Round3Option } from "@/lib/tcas";
 import type { BodyProps, BoxCtx } from "./boxParts";
 import { ClassStrip, ProofControl, RewardsCabinet, StagePanel, StageUp, type ProofApi } from "./levelParts";
@@ -93,7 +93,7 @@ export function RoadmapBoard({
   const rewardsRef = useRef<HTMLDialogElement>(null);
   const [proofs, setProofs] = useState(initialProofs);
   const [saved, setSaved] = useState(initialSaved);
-  const [look, setLookState] = useState({ frame: initialSaved.frame, theme: initialSaved.theme });
+  const [frame, setFrame] = useState(initialSaved.frame);
 
   /** Takes in what an action sent back: the saved stage/streak and the proof list. */
   const onResult = useCallback((res: RoadmapResult) => {
@@ -224,11 +224,10 @@ export function RoadmapBoard({
     });
   };
 
-  const pickLook = (kind: Reward["kind"], id: string) => {
-    const next = { ...look, [kind]: id };
-    setLookState(next);
+  const pickFrame = (id: string) => {
+    setFrame(id);
     start(async () => {
-      const res = await setLook(next.frame, next.theme);
+      const res = await setLook(id);
       if (res.error) setError(res.error);
     });
   };
@@ -242,8 +241,7 @@ export function RoadmapBoard({
         score={score}
         stage={{ ...level, name: STAGES[level.stage - 1].name }}
         streak={streak}
-        frame={look.frame}
-        theme={look.theme}
+        frame={frame}
         termLabel={ctx.term ? termLabel(ctx.term) : null}
         pop={pop}
         levelUp={levelUp}
@@ -369,8 +367,17 @@ export function RoadmapBoard({
         </ul>
       </Sheet>
 
-      <Sheet ref={rewardsRef} title="ตู้รางวัล" subtitle="ผ่านด่านหรือทำต่อเนื่องทุกสัปดาห์ เพื่อปลดล็อกกรอบและธีมการ์ด ได้แล้วไม่หายไป">
-        <RewardsCabinet maxStage={maxStage} bestStreak={Math.max(saved.bestStreak, streak)} frame={look.frame} theme={look.theme} onPick={pickLook} busy={pending} />
+      <Sheet ref={rewardsRef} title="ตู้รางวัล" subtitle="ผ่านด่านหรือทำต่อเนื่องทุกสัปดาห์ เพื่อปลดล็อกกรอบการ์ด ได้แล้วไม่หายไป">
+        <RewardsCabinet
+          universityId={program.universityId}
+          universityName={program.universityShort}
+          color={program.color}
+          maxStage={maxStage}
+          bestStreak={Math.max(saved.bestStreak, streak)}
+          frame={frame}
+          onPick={pickFrame}
+          busy={pending}
+        />
       </Sheet>
 
       {stageUp !== null && <StageUp stage={stageUp} onClose={() => setStageUp(null)} />}

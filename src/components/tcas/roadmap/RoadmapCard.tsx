@@ -5,7 +5,7 @@ import { Award, DoorOpen, Flame, Lock, Sparkles, Star } from "lucide-react";
 import { UniversityLogo } from "@/components/tcas/UniversityLogo";
 import { cx } from "@/components/ui";
 import type { RoadmapScore } from "@/lib/roadmap";
-import { SUBLEVELS } from "@/lib/roadmapLevels";
+import { SUBLEVELS, universityTheme } from "@/lib/roadmapLevels";
 
 export type CardProgram = {
   programId: string;
@@ -29,7 +29,8 @@ export type CardStage = {
 };
 
 /**
- * The game card: a frame and face the student picks (rewards), the stage and its 5 XP steps,
+ * The game card: the target university's colours and emblem, a frame the student picks (faculty
+ * colour by default), the stage and its 5 XP steps,
  * the weekly streak and badges. It tilts gently toward the pointer (not under reduced motion).
  * `pop` shows a "+XP" float, `levelUp` (a new step) a short burst; both replay by key.
  */
@@ -39,7 +40,6 @@ export function RoadmapCard({
   stage,
   streak = 0,
   frame,
-  theme,
   termLabel,
   pop,
   levelUp,
@@ -52,7 +52,6 @@ export function RoadmapCard({
   /** Weeks in a row with progress (0 hides it). */
   streak?: number;
   frame?: string;
-  theme?: string;
   termLabel: string | null;
   pop: { id: number; xp: number } | null;
   levelUp: number | null;
@@ -107,7 +106,7 @@ export function RoadmapCard({
     >
       <article
         aria-label={`การ์ด Roadmap: ${program.nameTh} ด่าน ${stage.stage} ${stage.name} ขั้น ${stage.subLevel}/${SUBLEVELS}`}
-        data-theme={theme}
+        data-theme={universityTheme(program.universityId)}
         className="roadmap-face bg-feature-gradient speed-lines relative overflow-hidden rounded-[27px] p-5 text-white sm:p-6"
       >
         <div aria-hidden className="roadmap-card-shine pointer-events-none absolute inset-0" />

@@ -10,7 +10,7 @@ import {
   type BoxData,
   type RoadmapProgram,
 } from "./roadmap";
-import { calculate, examInfo, type Round3Option } from "./tcas";
+import { TCAS_UNIVERSITIES, calculate, examInfo, type Round3Option } from "./tcas";
 
 // ─── Proof ───────────────────────────────────────────────────
 
@@ -240,25 +240,30 @@ export function currentStreak(lastWeek: DayKey | null, streak: number, today: Da
 
 // ─── Rewards ─────────────────────────────────────────────────
 
-export type Reward = { id: string; kind: "frame" | "theme"; name: string; need: { stage?: StageId; streak?: number } };
+export type Reward = { id: string; name: string; need: { stage?: StageId; streak?: number } };
 
-/** Card frames and themes. Add one here (and its look in RoadmapCard's FRAMES / THEMES). */
+/**
+ * Card frames, the only card reward. Add one here plus its look in globals.css
+ * (.roadmap-card[data-frame=…]). The card's colours are not a reward: see universityTheme().
+ */
 export const REWARDS: Reward[] = [
-  { id: "glass", kind: "frame", name: "กระจกใส", need: {} },
-  { id: "bronze", kind: "frame", name: "ทองแดง", need: { stage: 2 } },
-  { id: "silver", kind: "frame", name: "เงิน", need: { stage: 3 } },
-  { id: "gold", kind: "frame", name: "ทอง", need: { stage: 4 } },
-  { id: "holo", kind: "frame", name: "โฮโลแกรม", need: { stage: 5 } },
-  { id: "rainbow", kind: "frame", name: "สายรุ้ง", need: { stage: 6 } },
-  { id: "flame4", kind: "frame", name: "เปลวไฟ", need: { streak: 4 } },
-  { id: "flame8", kind: "frame", name: "ไฟฟ้า", need: { streak: 8 } },
-  { id: "flame16", kind: "frame", name: "ดาวตก", need: { streak: 16 } },
-  { id: "classic", kind: "theme", name: "แดง-ม่วง", need: {} },
-  { id: "midnight", kind: "theme", name: "เที่ยงคืน", need: { stage: 2 } },
-  { id: "sakura", kind: "theme", name: "ซากุระ", need: { stage: 4 } },
-  { id: "aurora", kind: "theme", name: "ออโรรา", need: { stage: 6 } },
-  { id: "ember", kind: "theme", name: "ถ่านไฟ", need: { streak: 8 } },
+  { id: "glass", name: "กระจกใส", need: {} },
+  { id: "bronze", name: "ทองแดง", need: { stage: 2 } },
+  { id: "silver", name: "เงิน", need: { stage: 3 } },
+  { id: "gold", name: "ทอง", need: { stage: 4 } },
+  { id: "holo", name: "โฮโลแกรม", need: { stage: 5 } },
+  { id: "rainbow", name: "สายรุ้ง", need: { stage: 6 } },
+  { id: "flame4", name: "เปลวไฟ", need: { streak: 4 } },
+  { id: "flame8", name: "ไฟฟ้า", need: { streak: 8 } },
+  { id: "flame16", name: "ดาวตก", need: { streak: 16 } },
 ];
+
+/**
+ * The card face always follows the target university (its colours and emblem, globals.css
+ * .roadmap-face[data-theme="uni-<id>"]); students can't change it. Unknown ids get the red→purple face.
+ */
+export const universityTheme = (universityId: string) =>
+  TCAS_UNIVERSITIES.some((u) => u.id === universityId) ? `uni-${universityId}` : "classic";
 
 /** Rewards stay once earned: they follow the highest stage ever reached and the best streak. */
 export const isUnlocked = (r: Reward, maxStage: number, bestStreak: number) =>
@@ -267,9 +272,8 @@ export const isUnlocked = (r: Reward, maxStage: number, bestStreak: number) =>
 export const needText = (r: Reward) =>
   r.need.stage ? `ถึงด่าน ${r.need.stage}: ${STAGES[r.need.stage - 1].name}` : r.need.streak ? `ทำต่อเนื่อง ${r.need.streak} สัปดาห์` : "มีให้ตั้งแต่เริ่ม";
 
-/** A chosen frame/theme only if it's a known, unlocked one; otherwise the default. */
-export function pickReward(kind: Reward["kind"], id: string | null, maxStage: number, bestStreak: number): string {
-  const r = REWARDS.find((x) => x.kind === kind && x.id === id);
-  if (r && isUnlocked(r, maxStage, bestStreak)) return r.id;
-  return kind === "frame" ? "glass" : "classic";
+/** A chosen frame only if it's a known, unlocked one; otherwise the default glass frame. */
+export function pickFrame(id: string | null, maxStage: number, bestStreak: number): string {
+  const r = REWARDS.find((x) => x.id === id);
+  return r && isUnlocked(r, maxStage, bestStreak) ? r.id : "glass";
 }

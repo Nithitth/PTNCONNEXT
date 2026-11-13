@@ -484,8 +484,8 @@ body {
   to { box-shadow: 0 0 0 40px rgb(255 255 255 / 0); }
 }
 
-/* Card rewards (roadmapLevels.ts REWARDS). Frames restyle .roadmap-card's ring via data-frame;
-   no attribute = the holographic ring. Themes restyle the face (.roadmap-face) via data-theme. */
+/* Card frames (roadmapLevels.ts REWARDS) restyle .roadmap-card's ring via data-frame; no attribute =
+   the holographic ring. The face (.roadmap-face) follows the target university via data-theme. */
 .roadmap-card[data-frame="glass"] {
   background: linear-gradient(135deg, rgb(255 255 255 / 0.95), var(--fc) 50%, rgb(255 255 255 / 0.95));
   animation: none;
@@ -514,21 +514,50 @@ body {
   background: conic-gradient(from var(--holo, 0deg), #1a1033, #ffffff 8%, #6b4bd8 20%, #1a1033 40%, #ffd36b 55%, #1a1033 75%, #ffffff 88%, #1a1033);
   animation-duration: 4s;
 }
-.roadmap-face[data-theme="midnight"] {
-  background-image: repeating-linear-gradient(120deg, rgb(255 255 255 / 0.06) 0 2px, transparent 2px 22px),
-    linear-gradient(135deg, #1b1f4b 0%, #2c2a6e 45%, #5b2b8a 100%);
+
+/* University faces (uni-<TCAS id>, universityTheme()): the university's colours plus its emblem as a faint watermark
+   (public/tcas/emblem-*.svg, the same files as the TCAS showcase). */
+.roadmap-face[data-theme^="uni-"]::before {
+  content: "";
+  position: absolute;
+  right: -12%;
+  bottom: -18%;
+  width: 70%;
+  aspect-ratio: 1;
+  background: var(--uni-emblem) center / contain no-repeat;
+  filter: grayscale(1) brightness(1.8);
+  opacity: 0.13;
+  pointer-events: none;
 }
-.roadmap-face[data-theme="sakura"] {
+.roadmap-face[data-theme="uni-001"] {
+  --uni-emblem: url("/tcas/emblem-001.svg");
   background-image: repeating-linear-gradient(120deg, rgb(255 255 255 / 0.07) 0 2px, transparent 2px 22px),
-    linear-gradient(135deg, #e0407b 0%, #c2185b 45%, #8e24aa 100%);
+    radial-gradient(70% 60% at 100% 0%, rgb(255 205 225 / 0.45), transparent 70%),
+    linear-gradient(135deg, #f06a9b 0%, #de5c8e 40%, #a8325f 100%);
 }
-.roadmap-face[data-theme="aurora"] {
+.roadmap-face[data-theme="uni-002"] {
+  --uni-emblem: url("/tcas/emblem-002.svg");
   background-image: repeating-linear-gradient(120deg, rgb(255 255 255 / 0.06) 0 2px, transparent 2px 22px),
-    linear-gradient(135deg, #0f766e 0%, #1d4ed8 55%, #7c3aed 100%);
+    radial-gradient(70% 60% at 100% 0%, rgb(160 220 140 / 0.35), transparent 70%),
+    linear-gradient(135deg, #1b8a5a 0%, #006664 50%, #0b3d33 100%);
 }
-.roadmap-face[data-theme="ember"] {
+.roadmap-face[data-theme="uni-005"] {
+  --uni-emblem: url("/tcas/emblem-005.svg");
   background-image: repeating-linear-gradient(120deg, rgb(255 255 255 / 0.06) 0 2px, transparent 2px 22px),
-    linear-gradient(135deg, #3b0a0a 0%, #9f1d1d 45%, #ea580c 100%);
+    radial-gradient(75% 65% at 100% 0%, rgb(255 194 14 / 0.6), transparent 70%),
+    linear-gradient(135deg, #e0361f 0%, #b5121b 50%, #7a0c12 100%);
+}
+.roadmap-face[data-theme="uni-006"] {
+  --uni-emblem: url("/tcas/emblem-006.svg");
+  background-image: repeating-linear-gradient(120deg, rgb(255 255 255 / 0.06) 0 2px, transparent 2px 22px),
+    radial-gradient(70% 60% at 100% 0%, rgb(201 162 39 / 0.45), transparent 70%),
+    linear-gradient(135deg, #1e4fa3 0%, #12357a 50%, #0a1f4d 100%);
+}
+.roadmap-face[data-theme="uni-009"] {
+  --uni-emblem: url("/tcas/emblem-009.svg");
+  background-image: repeating-linear-gradient(120deg, rgb(255 255 255 / 0.06) 0 2px, transparent 2px 22px),
+    radial-gradient(70% 60% at 100% 0%, rgb(218 33 41 / 0.55), transparent 70%),
+    linear-gradient(135deg, #8a8d91 0%, #636567 45%, #3a3c3e 100%);
 }
 
 /* The "passed a stage" moment (StageUp in levelParts.tsx). */

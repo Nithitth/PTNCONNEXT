@@ -7,7 +7,8 @@ import {
   currentStreak,
   isUnlocked,
   nextStreak,
-  pickReward,
+  pickFrame,
+  universityTheme,
   stageOf,
   weightedExams,
   type LevelInput,
@@ -134,7 +135,12 @@ test("rewards unlock by highest stage and best streak, and stay", () => {
   const gold = REWARDS.find((r) => r.id === "gold")!;
   assert.ok(!isUnlocked(gold, 3, 0));
   assert.ok(isUnlocked(gold, 4, 0));
-  assert.equal(pickReward("frame", "gold", 3, 0), "glass");
-  assert.equal(pickReward("frame", "flame4", 1, 4), "flame4");
-  assert.equal(pickReward("theme", "nope", 6, 20), "classic");
+  assert.equal(pickFrame("gold", 3, 0), "glass");
+  assert.equal(pickFrame("flame4", 1, 4), "flame4");
+  assert.equal(pickFrame("nope", 6, 20), "glass");
+});
+
+test("the card face always follows the target university", () => {
+  assert.equal(universityTheme("005"), "uni-005");
+  assert.equal(universityTheme("999"), "classic");
 });

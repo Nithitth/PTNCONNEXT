@@ -60,7 +60,7 @@ export function RoadmapShowcase({ stage }: { stage: number | null }) {
             {[
               { Icon: LayoutGrid, text: `${BOX_KINDS.length} แบบกล่อง` },
               { Icon: Sparkles, text: `สูงสุด ${ROADMAP_MAX_BOXES} กล่อง` },
-              { Icon: Award, text: "6 ด่าน · กรอบและธีมให้สะสม" },
+              { Icon: Award, text: "6 ด่าน · กรอบการ์ดให้สะสม" },
             ].map(({ Icon, text }) => (
               <li key={text} className="flex items-center gap-1.5 rounded-full border border-line bg-surface/80 px-3.5 py-1.5 shadow-soft-sm backdrop-blur">
                 <Icon aria-hidden className="h-4 w-4 text-brand" />

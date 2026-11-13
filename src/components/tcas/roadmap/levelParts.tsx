@@ -12,9 +12,9 @@ import {
   STAGES,
   isUnlocked,
   needText,
+  universityTheme,
   type LevelState,
   type Proof,
-  type Reward,
   type StageId,
 } from "@/lib/roadmapLevels";
 import { fieldStyles } from "./boxParts";
@@ -303,7 +303,7 @@ export function StageUp({ stage, onClose }: { stage: StageId; onClose: () => voi
           <p className="font-display text-2xl font-bold">{info.name}</p>
           {unlocked.length > 0 && (
             <p className="mx-auto mt-4 w-fit rounded-full bg-white px-3 py-1 text-xs font-bold text-brand">
-              ปลดล็อก: {unlocked.map((r) => (r.kind === "frame" ? `กรอบ${r.name}` : `ธีม${r.name}`)).join(" · ")}
+              ปลดล็อก: {unlocked.map((r) => `กรอบ${r.name}`).join(" · ")}
             </p>
           )}
           <button type="button" onClick={onClose} className="mt-6 h-11 rounded-xl bg-white px-6 text-sm font-bold text-brand shadow-soft">
@@ -315,68 +315,68 @@ export function StageUp({ stage, onClose }: { stage: StageId; onClose: () => voi
   );
 }
 
-/** Card frames and themes to pick from; locked ones say how to get them. */
+/** Card frames to pick from (locked ones say how to get them). The card's colours follow the target university. */
 export function RewardsCabinet({
+  universityId,
+  universityName,
+  color,
   maxStage,
   bestStreak,
   frame,
-  theme,
   onPick,
   busy,
 }: {
+  universityId: string;
+  universityName: string;
+  /** The target faculty's colour (the glass frame uses it). */
+  color: string;
   maxStage: number;
   bestStreak: number;
   frame: string;
-  theme: string;
-  onPick: (kind: Reward["kind"], id: string) => void;
+  onPick: (id: string) => void;
   busy: boolean;
 }) {
+  const face = universityTheme(universityId);
   return (
-    <div className="space-y-6">
-      {(["frame", "theme"] as const).map((kind) => (
-        <section key={kind}>
-          <h3 className="mb-2 font-display text-base font-bold text-ink">{kind === "frame" ? "กรอบการ์ด" : "ธีมการ์ด"}</h3>
-          <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {REWARDS.filter((r) => r.kind === kind).map((r) => {
-              const open = isUnlocked(r, maxStage, bestStreak);
-              const on = (kind === "frame" ? frame : theme) === r.id;
-              return (
-                <li key={r.id}>
-                  <button
-                    type="button"
-                    disabled={!open || busy}
-                    onClick={() => onPick(kind, r.id)}
-                    aria-pressed={on}
-                    className={cx(
-                      "flex h-full w-full flex-col items-stretch gap-2 rounded-2xl border p-2 text-left transition-[border-color,box-shadow]",
-                      on ? "border-brand shadow-brand-glow" : "border-line hover:border-brand/40",
-                      !open && "cursor-not-allowed",
-                    )}
-                  >
-                    {kind === "frame" ? (
-                      <span data-frame={r.id} className="roadmap-card block rounded-xl p-[3px]" style={{ ["--fc" as string]: "#DB2931" }}>
-                        <span className="bg-feature-gradient block h-10 rounded-[9px]" />
-                      </span>
-                    ) : (
-                      <span data-theme={r.id} className="roadmap-face bg-feature-gradient speed-lines block h-[46px] rounded-xl" />
-                    )}
-                    <span className="px-1 text-sm font-bold text-ink">
-                      {r.name}
-                      {on && <span className="ml-1 text-xs text-brand">ใช้อยู่</span>}
-                    </span>
-                    {!open && (
-                      <span className="flex items-start gap-1 px-1 text-[11px] leading-snug text-muted">
-                        <Lock aria-hidden className="mt-px h-3 w-3 shrink-0" />
-                        {needText(r)}
-                      </span>
-                    )}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      ))}
+    <div className="space-y-4">
+      <p className="rounded-xl bg-sunken px-3 py-2 text-xs leading-relaxed text-muted">
+        สีการ์ดเป็นสีของ{universityName ? ` ${universityName} ` : "มหาวิทยาลัยเป้าหมาย"}เสมอ และเปลี่ยนตามเมื่อเปลี่ยนเป้าหมาย กรอบกระจกใสเป็นสีของคณะ
+      </p>
+      <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {REWARDS.map((r) => {
+          const open = isUnlocked(r, maxStage, bestStreak);
+          const on = frame === r.id;
+          return (
+            <li key={r.id}>
+              <button
+                type="button"
+                disabled={!open || busy}
+                onClick={() => onPick(r.id)}
+                aria-pressed={on}
+                className={cx(
+                  "flex h-full w-full flex-col items-stretch gap-2 rounded-2xl border p-2 text-left transition-[border-color,box-shadow]",
+                  on ? "border-brand shadow-brand-glow" : "border-line hover:border-brand/40",
+                  !open && "cursor-not-allowed",
+                )}
+              >
+                <span data-frame={r.id} className="roadmap-card block rounded-xl p-[3px]" style={{ ["--fc" as string]: color }}>
+                  <span data-theme={face} className="roadmap-face bg-feature-gradient speed-lines relative block h-10 overflow-hidden rounded-[9px]" />
+                </span>
+                <span className="px-1 text-sm font-bold text-ink">
+                  {r.name}
+                  {on && <span className="ml-1 text-xs text-brand">ใช้อยู่</span>}
+                </span>
+                {!open && (
+                  <span className="flex items-start gap-1 px-1 text-[11px] leading-snug text-muted">
+                    <Lock aria-hidden className="mt-px h-3 w-3 shrink-0" />
+                    {needText(r)}
+                  </span>
+                )}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

@@ -20,12 +20,11 @@ export type LevelSaved = {
   bestStreak: number;
   lastActiveWeek: string | null;
   frame: string;
-  theme: string;
 };
 
 export type MyRoadmap = { programId: string; position: number; updatedAt: string; boxes: AnyBox[]; level: LevelSaved };
 
-const LEVEL_COLUMNS = "stage, max_stage, finished, xp, streak, best_streak, last_active_week, frame, theme";
+const LEVEL_COLUMNS = "stage, max_stage, finished, xp, streak, best_streak, last_active_week, frame";
 type LevelRow = {
   stage: number;
   max_stage: number;
@@ -35,7 +34,6 @@ type LevelRow = {
   best_streak: number;
   last_active_week: string | null;
   frame: string;
-  theme: string;
 };
 const toLevel = (r: LevelRow): LevelSaved => ({
   stage: r.stage,
@@ -46,7 +44,6 @@ const toLevel = (r: LevelRow): LevelSaved => ({
   bestStreak: r.best_streak,
   lastActiveWeek: r.last_active_week,
   frame: r.frame,
-  theme: r.theme,
 });
 
 /** The signed-in user's roadmap with its boxes in order, or null when they have none. */

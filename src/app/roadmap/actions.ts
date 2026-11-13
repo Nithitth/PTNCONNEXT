@@ -18,7 +18,7 @@ import {
   type QuestItem,
 } from "@/lib/roadmap";
 import { loadApprovedTemplates, loadKeyDates, loadMyProofs, syncLevel, type LevelSaved } from "@/lib/roadmapData";
-import { PROOF_BUCKET, PROOF_MAX_BYTES, PROOF_STEP, pickReward, type Proof } from "@/lib/roadmapLevels";
+import { PROOF_BUCKET, PROOF_MAX_BYTES, PROOF_STEP, pickFrame, type Proof } from "@/lib/roadmapLevels";
 import { createClient } from "@/lib/supabase/server";
 import { isProgramId, mytcasUrl } from "@/lib/tcas";
 import { loadProgram } from "@/lib/tcasData";
@@ -346,14 +346,14 @@ export async function removeProof(step: string): Promise<RoadmapResult> {
   }
 }
 
-/** Chooses the card's frame and theme (only ones already unlocked). */
-export async function setLook(frame: string, theme: string): Promise<RoadmapResult> {
+/** Chooses the card's frame (only one already unlocked). The colours follow the target university. */
+export async function setLook(frame: string): Promise<RoadmapResult> {
   await requireProfile();
   try {
     const supabase = await createClient();
     const { data: r } = await supabase.from("tcas_roadmaps").select("max_stage, best_streak").maybeSingle();
     if (!r) return { error: "ยังไม่มี Roadmap" };
-    const look = { frame: pickReward("frame", frame, r.max_stage, r.best_streak), theme: pickReward("theme", theme, r.max_stage, r.best_streak) };
+    const look = { frame: pickFrame(frame, r.max_stage, r.best_streak) };
     const { error } = await supabase.from("tcas_roadmaps").update(look).not("student_id", "is", null);
     if (error) throw error;
     return { ok: true };
