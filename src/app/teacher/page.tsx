@@ -4,10 +4,12 @@ import { BookOpen, Lightbulb, ListChecks } from "lucide-react";
 import { KIND_STYLE } from "@/components/teacher/kindStyle";
 import { PostForm } from "@/components/teacher/PostForm";
 import { MyPosts } from "@/components/teacher/MyPosts";
+import { ExpiringFilesWindow } from "@/components/teacher/ExpiringFilesWindow";
+import { GuideButton } from "@/components/teacher/TeacherGuide";
 import { Card, Container, Notice, PageHeader, cx } from "@/components/ui";
 import { requireProfile } from "@/lib/auth";
 import type { PostKind } from "@/lib/postForm";
-import { loadManagedPosts } from "@/lib/posts";
+import { loadExpiringFiles, loadManagedPosts } from "@/lib/posts";
 import { createClient } from "@/lib/supabase/server";
 import { loadCurrentRooms, loadTeachingOptions } from "@/lib/teaching";
 
@@ -28,12 +30,15 @@ const TIPS: Record<PostKind, string[]> = {
     "เลือกได้ทีละห้อง หรือกด “เลือกทั้ง 8 ห้อง” (ไม่บังคับ) แล้วกำหนดส่งแต่ละห้องต่างกันได้",
     "เลือกแค่วัน ไม่ต้องใส่เวลา นักเรียนส่งได้ถึง 23:59 น. ของวันนั้น",
     "จุดของงานในปฏิทินนักเรียนจะกะพริบเมื่อเหลือเวลาไม่ถึง 24 ชั่วโมง",
-    "แนบได้ 1 อย่าง: ไฟล์ PDF ไม่เกิน 10 MB หรือลิงก์ Google Drive / Slides / Canva",
+    "แนบได้ 1 อย่าง: ไฟล์ PDF ไม่เกิน 50 MB (ระบบย่อขนาดให้อัตโนมัติ) หรือลิงก์ Google Drive / Slides / Canva",
+    "ไฟล์ PDF ดาวน์โหลดได้ 180 วัน แล้วระบบจะลบอัตโนมัติ อัปโหลดใหม่เพื่อเริ่มนับใหม่",
   ],
   material: [
     "เอกสารจะอยู่ในรายการ “เอกสารและสื่อการสอน” ข้างปฏิทินของนักเรียน",
     "ใส่ลำดับเนื้อหา (เช่น เลขบท) เพื่อให้นักเรียนเรียงตามลำดับที่สอนได้",
-    "ไฟล์ใหญ่หรือไม่ใช่ PDF ให้แชร์เป็นลิงก์แทน",
+    "ไฟล์ PDF ใหญ่ได้ถึง 50 MB ระบบย่อขนาดให้อัตโนมัติ (ข้อความในไฟล์ที่ย่อจะเลือกไม่ได้ กด “ใช้ไฟล์ต้นฉบับ” ถ้าต้องการ)",
+    "ไฟล์ PDF ดาวน์โหลดได้ 180 วัน แล้วระบบจะลบอัตโนมัติ อัปโหลดใหม่เพื่อเริ่มนับใหม่",
+    "ไฟล์ที่ไม่ใช่ PDF ให้แชร์เป็นลิงก์แทน",
   ],
   exam: [
     "สอบเก็บคะแนน / สอบย่อย: วันสอบสีเหลืองอำพันเข้ม และไฮไลต์สีอ่อน 3 วันก่อนสอบ",
@@ -65,15 +70,19 @@ export default async function TeacherConsolePage({ searchParams }: PageProps<"/t
   const saved = typeof params.saved === "string" ? SAVED[params.saved] : undefined;
 
   const supabase = await createClient();
-  const [subjects, rooms, myPosts] = await Promise.all([
+  const [subjects, rooms, myPosts, expiring] = await Promise.all([
     tab.kind ? loadTeachingOptions(supabase, profile) : Promise.resolve([]),
     tab.kind ? loadCurrentRooms(supabase) : Promise.resolve([]),
     tab.id === "mine" ? loadManagedPosts(supabase, profile) : Promise.resolve([]),
+    loadExpiringFiles(supabase, profile),
   ]);
 
   return (
     <Container className="py-10">
-      <PageHeader eyebrow={profile.display_name} title="คอนโซลครู" subtitle="มอบหมายงาน แชร์เอกสาร และประกาศวันสอบ" />
+      <ExpiringFilesWindow files={expiring} />
+      <PageHeader eyebrow={profile.display_name} title="คอนโซลครู" subtitle="มอบหมายงาน แชร์เอกสาร และประกาศวันสอบ">
+        <GuideButton />
+      </PageHeader>
 
       <nav aria-label="เมนูคอนโซลครู" className="mb-8 border-b-2 border-line pb-6">
         <p className="mb-3 text-sm font-bold text-muted">เลือกสิ่งที่จะทำ</p>

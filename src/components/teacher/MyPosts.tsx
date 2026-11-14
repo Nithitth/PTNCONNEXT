@@ -3,6 +3,7 @@ import { CalendarClock, ExternalLink, FileText, Link2, Pencil, UserRound } from 
 import { dayKey, formatDayShort, formatTime } from "@/lib/calendar";
 import { EXAM_KIND_LABEL, EXAM_LEAD_DAYS, KIND_LABEL } from "@/lib/postForm";
 import type { MyPost } from "@/lib/posts";
+import { ExpiryChip, isExpired } from "@/components/FileExpiry";
 import { EmptyState, cx, smallButtonStyles } from "@/components/ui";
 import { DeletePostButton } from "./DeletePostButton";
 import { KIND_STYLE } from "./kindStyle";
@@ -106,17 +107,26 @@ export function MyPosts({ posts, meId, isAdmin }: { posts: MyPost[]; meId: strin
                 );
               })}
               {post.attachments.map((a) => (
-                <a
-                  key={a.id}
-                  href={a.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 py-1 text-xs font-bold text-brand transition-colors hover:border-brand/30 hover:bg-brand-soft"
-                >
-                  {a.kind === "file" ? <FileText aria-hidden className="h-3.5 w-3.5" /> : <Link2 aria-hidden className="h-3.5 w-3.5" />}
-                  <span className="truncate">{a.name}</span>
-                  <ExternalLink aria-hidden className="h-3 w-3 opacity-60" />
-                </a>
+                <span key={a.id} className="inline-flex max-w-full flex-wrap items-center gap-1.5">
+                  {a.kind === "file" && isExpired(a) ? (
+                    <span className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-line bg-sunken px-2.5 py-1 text-xs text-muted line-through">
+                      <FileText aria-hidden className="h-3.5 w-3.5" />
+                      <span className="truncate">{a.name}</span>
+                    </span>
+                  ) : (
+                    <a
+                      href={a.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 py-1 text-xs font-bold text-brand transition-colors hover:border-brand/30 hover:bg-brand-soft"
+                    >
+                      {a.kind === "file" ? <FileText aria-hidden className="h-3.5 w-3.5" /> : <Link2 aria-hidden className="h-3.5 w-3.5" />}
+                      <span className="truncate">{a.name}</span>
+                      <ExternalLink aria-hidden className="h-3 w-3 opacity-60" />
+                    </a>
+                  )}
+                  <ExpiryChip expiresAt={a.expiresAt} expired={a.expired} />
+                </span>
               ))}
             </div>
           </li>

@@ -110,6 +110,23 @@ async function main() {
   const attachToOthers = await s1.from("attachments").insert({ post_id: postId, kind: "link", url: "https://x.com", file_name: "x" });
   check("student can't add attachments to a teacher's post", Boolean(attachToOthers.error));
 
+  console.log("\nFile expiry (migration 0014)");
+  const forgedExpiry = await t
+    .from("attachments")
+    .insert({ post_id: postId, kind: "file", storage_path: ownPath, file_name: "late.pdf", size_bytes: 20, expires_at: "2100-01-01T00:00:00Z" })
+    .select("id")
+    .single();
+  const stored = forgedExpiry.data
+    ? await admin.from("attachments").select("expires_at").eq("id", forgedExpiry.data.id).single()
+    : null;
+  const days = stored?.data?.expires_at ? (Date.parse(stored.data.expires_at) - Date.now()) / 86400000 : NaN;
+  check("a new PDF expires in 180 days, whatever date the teacher sends", Math.abs(days - 180) < 1, forgedExpiry.error?.message ?? `got ${days.toFixed(1)} days`);
+  if (forgedExpiry.data) {
+    const extend = await t.from("attachments").update({ expires_at: "2100-01-01T00:00:00Z" }).eq("id", forgedExpiry.data.id).select("id");
+    check("teacher can't push a file's expiry date later", (extend.data ?? []).length === 0);
+    await admin.from("attachments").delete().eq("id", forgedExpiry.data.id);
+  }
+
   console.log("\nFeedback and the Developer Console (Week 3)");
   // No .select() here: students may not read feedback, and insert-then-read would be refused.
   const sent = await s1.from("feedback").insert({ user_id: studentId, message: "[security check] ทดสอบ" });
@@ -339,6 +356,12 @@ async function main() {
   );
 
   await admin.from("tcas_programs").delete().in("program_id", dummyIds); // cascades to the targets and roadmaps
+
+  // Developer Console usage numbers (0015): admins only.
+  const sUsage = await s1.rpc("admin_usage");
+  const tUsage = await t.rpc("admin_usage");
+  const aUsage = await a.rpc("admin_usage");
+  check("only admins can read the usage numbers", Boolean(sUsage.error) && Boolean(tUsage.error) && !aUsage.error && typeof aUsage.data?.db_bytes === "number", aUsage.error?.message);
 
   // Clean up
   await admin.from("posts").delete().in("id", [mathPost, sciencePost]);

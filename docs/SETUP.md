@@ -79,7 +79,7 @@ update public.profiles set role = 'admin' where login_id = 'your.username';
 
 1. Create a GitHub repository and push this folder. `.env.local` is **not** uploaded, which is correct.
 2. Sign up at <https://vercel.com> with GitHub, then **Add New → Project** and pick the repository.
-3. Under **Environment Variables**, add the same three values from `.env.local`.
+3. Under **Environment Variables**, add the same values from `.env.local`, including `CRON_SECRET` (any long random text). Vercel uses it to run the daily clean-up that deletes teachers' PDFs after 180 days (`vercel.json` → `crons`, 03:00 Thai time). Without it, expired PDFs still can't be downloaded, but their files are not deleted.
 4. Click **Deploy**. Every later `git push` updates the site automatically.
 5. Before launch, follow [PILOT.md](PILOT.md): school sign-off, cleaning the test data, a 1–2 classroom pilot, then everyone.
 

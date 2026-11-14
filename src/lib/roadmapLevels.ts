@@ -31,6 +31,8 @@ export const PROOF_STEP = /^(gpax|portfolio-link|act:[a-z0-9]{1,16}|score:[a-z0-
 /** Private storage bucket for proof photos/PDFs, under <uid>/… */
 export const PROOF_BUCKET = "roadmap-proofs";
 export const PROOF_MAX_BYTES = 5 * 1024 * 1024;
+/** Largest proof a student may pick: the browser shrinks it to PROOF_MAX_BYTES or less (compressFile.ts). */
+export const PROOF_MAX_PICK_BYTES = 20 * 1024 * 1024;
 export const PROOF_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
 
 // ─── Stages ──────────────────────────────────────────────────

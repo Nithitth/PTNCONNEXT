@@ -17,8 +17,12 @@ import {
 } from "lucide-react";
 import { FeedbackForm } from "@/components/FeedbackForm";
 import { LoginForm } from "@/components/LoginForm";
-import { Brand, Container, Eyebrow, Notice, buttonStyles } from "@/components/ui";
+import { ExpiringFilesWindow } from "@/components/teacher/ExpiringFilesWindow";
+import { GuideButton } from "@/components/teacher/TeacherGuide";
+import { Brand, Container, Eyebrow, Notice, buttonStyles, cx } from "@/components/ui";
 import { getCurrentProfile } from "@/lib/auth";
+import { loadExpiringFiles } from "@/lib/posts";
+import { createClient } from "@/lib/supabase/server";
 import { SUBJECTS } from "@/lib/school";
 
 const GOALS = [
@@ -58,6 +62,17 @@ const FEATURES = [
   },
 ];
 
+// Where each role goes next: the hero buttons and the shortcut list. The first one is the main button.
+const STUDENT_LINKS = [
+  { href: "/tcas", label: "TCAS", hint: "ค้นหาคณะและคำนวณคะแนน", Icon: GraduationCap },
+  { href: "/roadmap", label: "Roadmap", hint: "การ์ดเป้าหมายของฉัน", Icon: MapIcon },
+  { href: "/calendar", label: "ปฏิทิน", hint: "งานและวันสอบของห้องฉัน", Icon: CalendarDays },
+];
+const STAFF_LINKS = [
+  { href: "/teacher", label: "คอนโซลครู", hint: "สั่งงาน แชร์เอกสาร ประกาศวันสอบ", Icon: Presentation },
+  { href: "/calendar", label: "ปฏิทิน", hint: "ดูงานและวันสอบของทุกห้อง", Icon: CalendarDays },
+];
+
 // Outline button for red backgrounds: white outline, fills white on hover.
 const onRedOutline =
   "inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-white px-5 text-sm font-bold text-white transition-all duration-150 hover:-translate-y-0.5 hover:bg-white hover:text-brand hover:shadow-soft active:translate-y-0 active:scale-[0.98] active:shadow-soft-sm";
@@ -65,9 +80,13 @@ const onRedOutline =
 export default async function HomePage({ searchParams }: PageProps<"/">) {
   const profile = await getCurrentProfile();
   const { denied, pdpa } = await searchParams;
+  const isStaff = profile?.role === "teacher" || profile?.role === "admin";
+  const expiring = isStaff && profile ? await loadExpiringFiles(await createClient(), profile) : [];
+  const links = profile?.role === "student" ? STUDENT_LINKS : STAFF_LINKS;
 
   return (
     <>
+      <ExpiringFilesWindow files={expiring} />
       {(denied || pdpa === "declined") && (
         <Container className="pt-6">
           {denied && <Notice tone="warning">บัญชีของคุณไม่มีสิทธิ์เข้าหน้านั้น</Notice>}
@@ -110,22 +129,57 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
             <p className="animate-rise delay-2 mt-7 max-w-xl text-base leading-relaxed text-white/90 sm:text-lg">
               ครูโพสต์ครั้งเดียว นักเรียนทุกห้องที่เกี่ยวข้องเห็นทันที พร้อมข้อมูล TCAS สำหรับวางแผนเข้ามหาวิทยาลัย
             </p>
-            <div className="animate-rise delay-3 mt-8 flex flex-wrap gap-3">
-              {profile ? (
-                <Link href="/calendar" className={buttonStyles.inverse}>
-                  ไปที่ปฏิทินของฉัน
-                  <ArrowRight aria-hidden className="h-4 w-4" />
-                </Link>
-              ) : (
+            {profile ? (
+              <div className="animate-rise delay-3 mt-8">
+                <p className="mb-3 text-base font-bold text-white">
+                  สวัสดี {profile.display_name} เริ่มจากตรงนี้ได้เลย
+                </p>
+                <ul className={cx("grid max-w-2xl gap-3", links.length === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
+                  {links.map(({ href, label, hint, Icon }, i) => (
+                    <li key={href}>
+                      <Link
+                        href={href}
+                        className={cx(
+                          "group flex h-full min-h-[4.5rem] items-center gap-3.5 rounded-2xl border p-3.5 transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]",
+                          i === 0
+                            ? "border-white bg-white text-brand shadow-soft-lg hover:shadow-brand-glow-lg"
+                            : "border-white/30 bg-white/10 text-white backdrop-blur hover:bg-white hover:text-brand",
+                        )}
+                      >
+                        <span
+                          className={cx(
+                            "grid h-12 w-12 shrink-0 place-items-center rounded-xl transition-colors",
+                            i === 0 ? "bg-brand-gradient text-white shadow-brand-glow" : "bg-white text-brand group-hover:bg-brand group-hover:text-white",
+                          )}
+                        >
+                          <Icon aria-hidden className="h-6 w-6" />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block font-display text-lg font-extrabold leading-tight">{label}</span>
+                          <span className={cx("mt-0.5 block text-sm leading-snug", i === 0 ? "text-muted" : "text-white/85 group-hover:text-muted")}>
+                            {hint}
+                          </span>
+                        </span>
+                        <ArrowRight aria-hidden className="h-5 w-5 shrink-0 transition-transform group-hover:translate-x-0.5" />
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+                {profile.role !== "student" && (
+                  <GuideButton onRed className="mt-4" />
+                )}
+              </div>
+            ) : (
+              <div className="animate-rise delay-3 mt-8 flex flex-wrap gap-3">
                 <a href="#login" className={buttonStyles.inverse}>
                   เข้าสู่ระบบ
                   <ArrowRight aria-hidden className="h-4 w-4" />
                 </a>
-              )}
-              <a href="#features" className={onRedOutline}>
-                ดูว่าทำอะไรได้บ้าง
-              </a>
-            </div>
+                <a href="#features" className={onRedOutline}>
+                  ดูว่าทำอะไรได้บ้าง
+                </a>
+              </div>
+            )}
             <ul className="animate-rise delay-4 mt-9 flex flex-wrap gap-x-6 gap-y-2 text-sm font-bold text-white/90">
               {[
                 { Icon: Layers, text: "โพสต์ครั้งเดียว ทุกห้องเห็น" },
@@ -280,12 +334,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
             </p>
             {profile && (
               <ul className={`mt-7 grid max-w-md gap-2.5 ${profile.role === "student" ? "sm:grid-cols-3" : "grid-cols-2"}`}>
-                {[
-                  { href: "/calendar", label: "ปฏิทิน", Icon: CalendarDays },
-                  { href: "/tcas", label: "TCAS", Icon: GraduationCap },
-                  { href: "/roadmap", label: "Roadmap", Icon: MapIcon },
-                  ...(profile.role === "student" ? [] : [{ href: "/teacher", label: "คอนโซลครู", Icon: Presentation }]),
-                ].map(({ href, label, Icon }) => (
+                {links.map(({ href, label, Icon }) => (
                   <li key={href}>
                     <Link
                       href={href}

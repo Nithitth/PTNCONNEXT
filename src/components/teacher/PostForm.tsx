@@ -6,13 +6,17 @@ import { Check, CheckCheck, CopyCheck, FileText, Link2, ListOrdered, Paperclip, 
 import { DatePicker } from "@/components/DatePicker";
 import { savePost, type SaveResult } from "@/app/teacher/actions";
 import type { Attachment } from "@/lib/calendar";
+import { CompressError, compressPdf, type CompressProgress } from "@/lib/compressFile";
 import {
   EXAM_KIND_LABEL,
   EXAM_LEAD_DAYS,
+  FILE_LIFETIME_DAYS,
   MATERIALS_BUCKET,
   MAX_DESCRIPTION,
+  MAX_FILE_BYTES,
   SCHOOL,
   fileProblem,
+  pickProblem,
   validatePost,
   type AttachmentInput,
   type ExamKind,
@@ -22,6 +26,7 @@ import {
   type SubjectOption,
 } from "@/lib/postForm";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
+import { ExpiryChip } from "@/components/FileExpiry";
 import { Button, Notice, cx, inputStyles } from "@/components/ui";
 
 export type FormInitial = {
@@ -83,9 +88,15 @@ export function PostForm({ kind, userId, subjects, rooms: classrooms, allowSchoo
     editing?.current ? "keep" : kind === "material" ? "file" : "none",
   );
   const [url, setUrl] = useState("");
+  // `original` is what the teacher picked; `file` is the compressed copy (or the original when it was small enough).
+  const [original, setOriginal] = useState<File | null>(null);
   const [file, setFile] = useState<File | null>(null);
+  const [useOriginal, setUseOriginal] = useState(false);
+  const [progress, setProgress] = useState<CompressProgress | "start" | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const pickCount = useRef(0); // ignores a slow compression when another file was picked meanwhile
+  const chosen = useOriginal ? original : file;
 
   const roomOptions = useMemo<RoomOption[]>(
     () => (allowSchoolWide ? [{ id: SCHOOL, label: "ทั้งโรงเรียน" }, ...classrooms] : classrooms),
@@ -123,9 +134,30 @@ export function PostForm({ kind, userId, subjects, rooms: classrooms, allowSchoo
     if (value) setLastDate(value);
   }
 
-  function pickFile(f: File | null) {
-    setFile(f);
-    setFileError(f ? fileProblem(f) : null);
+  /** A PDF was picked or dropped: check it, then compress it in the browser (compressFile.ts). */
+  async function pickFile(f: File | null) {
+    const mine = ++pickCount.current;
+    const current = () => pickCount.current === mine;
+    setOriginal(f);
+    setFile(null);
+    setUseOriginal(false);
+    setProgress(null);
+    setFileError(null);
+    if (!f) return;
+    const problem = pickProblem(f);
+    if (problem) return setFileError(problem);
+
+    setProgress("start");
+    try {
+      const result = await compressPdf(f, { maxBytes: MAX_FILE_BYTES, onProgress: (p) => current() && setProgress(p) });
+      if (!current()) return;
+      setFile(result.file);
+      setFileError(fileProblem(result.file));
+    } catch (e) {
+      if (current()) setFileError(e instanceof CompressError ? e.message : "ย่อขนาดไฟล์ไม่สำเร็จ ลองเลือกไฟล์อีกครั้ง");
+    } finally {
+      if (current()) setProgress(null);
+    }
   }
 
   const checkedIds = roomOptions.map((r) => r.id).filter((id) => id in rooms);
@@ -155,10 +187,12 @@ export function PostForm({ kind, userId, subjects, rooms: classrooms, allowSchoo
 
   const [state, run, pending] = useActionState<SaveResult>(async () => {
     // 1) Check everything before uploading anything.
-    if (mode === "file" && !file) return { error: "เลือกไฟล์ PDF ที่จะแนบ" };
+    if (mode === "file" && progress) return { error: "รอให้ย่อขนาดไฟล์เสร็จก่อน" };
+    if (mode === "file" && !chosen) return { error: "เลือกไฟล์ PDF ที่จะแนบ" };
+    const upload = mode === "file" ? chosen : null;
     let attachment: AttachmentInput =
-      mode === "file" && file
-        ? { mode: "file", storagePath: "pending", fileName: file.name, size: file.size }
+      upload
+        ? { mode: "file", storagePath: "pending", fileName: upload.name, size: upload.size }
         : mode === "link"
           ? { mode: "link", url }
           : { mode: mode === "keep" ? "keep" : "none" };
@@ -168,11 +202,11 @@ export function PostForm({ kind, userId, subjects, rooms: classrooms, allowSchoo
     // 2) Upload the PDF straight to Supabase Storage (into this teacher's own folder).
     const storage = createBrowserSupabase().storage.from(MATERIALS_BUCKET);
     let uploaded: string | null = null;
-    if (mode === "file" && file) {
+    if (upload) {
       uploaded = `${userId}/${crypto.randomUUID()}.pdf`;
-      const { error } = await storage.upload(uploaded, file, { contentType: "application/pdf", upsert: false });
+      const { error } = await storage.upload(uploaded, upload, { contentType: "application/pdf", upsert: false });
       if (error) return { error: "อัปโหลดไฟล์ไม่สำเร็จ ตรวจสอบอินเทอร์เน็ตแล้วลองอีกครั้ง" };
-      attachment = { mode: "file", storagePath: uploaded, fileName: file.name, size: file.size };
+      attachment = { mode: "file", storagePath: uploaded, fileName: upload.name, size: upload.size };
     }
 
     // 3) Save. If saving fails, remove the file we just uploaded.
@@ -438,7 +472,8 @@ export function PostForm({ kind, userId, subjects, rooms: classrooms, allowSchoo
                 ) : (
                   <Link2 aria-hidden className="h-4 w-4 shrink-0 text-brand" />
                 )}
-                <span className="truncate">{editing.current.name}</span>
+                <span className="min-w-0 flex-1 truncate">{editing.current.name}</span>
+                <ExpiryChip expiresAt={editing.current.expiresAt} expired={editing.current.expired} />
               </p>
             )}
 
@@ -462,28 +497,37 @@ export function PostForm({ kind, userId, subjects, rooms: classrooms, allowSchoo
                   accept="application/pdf,.pdf"
                   className="sr-only"
                   id="post-file"
-                  onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
+                  onChange={(e) => void pickFile(e.target.files?.[0] ?? null)}
                 />
-                {file ? (
-                  <div className="flex items-center gap-3 rounded-xl border border-line bg-surface px-3.5 py-3">
-                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand-soft text-brand">
-                      <FileText aria-hidden className="h-5 w-5" />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-bold text-ink">{file.name}</span>
-                      <span className="text-xs text-muted">{sizeLabel(file.size)}</span>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        pickFile(null);
-                        if (fileInput.current) fileInput.current.value = "";
-                      }}
-                      className="rounded-lg p-2 text-muted transition-colors hover:bg-sunken hover:text-brand"
-                      aria-label="เอาไฟล์ออก"
-                    >
-                      <X aria-hidden className="h-4 w-4" />
-                    </button>
+                {original ? (
+                  <div className="rounded-xl border border-line bg-surface px-3.5 py-3">
+                    <div className="flex items-center gap-3">
+                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand-soft text-brand">
+                        <FileText aria-hidden className="h-5 w-5" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-bold text-ink">{original.name}</span>
+                        <span className="text-xs text-muted">{sizeLabel(chosen?.size ?? original.size)}</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void pickFile(null);
+                          if (fileInput.current) fileInput.current.value = "";
+                        }}
+                        className="rounded-lg p-2 text-muted transition-colors hover:bg-sunken hover:text-brand"
+                        aria-label="เอาไฟล์ออก"
+                      >
+                        <X aria-hidden className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <CompressStatus
+                      progress={progress}
+                      original={original}
+                      file={file}
+                      useOriginal={useOriginal}
+                      onUseOriginal={setUseOriginal}
+                    />
                   </div>
                 ) : (
                   <label
@@ -491,13 +535,18 @@ export function PostForm({ kind, userId, subjects, rooms: classrooms, allowSchoo
                     onDragOver={(e) => e.preventDefault()}
                     onDrop={(e) => {
                       e.preventDefault();
-                      pickFile(e.dataTransfer.files?.[0] ?? null);
+                      void pickFile(e.dataTransfer.files?.[0] ?? null);
                     }}
                     className="flex cursor-pointer flex-col items-center gap-1 rounded-xl border border-dashed border-line-strong bg-surface px-4 py-6 text-center transition-colors hover:border-brand/40 hover:bg-brand-soft/40"
                   >
                     <Upload aria-hidden className="h-5 w-5 text-brand" />
                     <span className="text-sm font-bold text-ink">เลือกไฟล์ PDF หรือลากมาวางที่นี่</span>
-                    <span className="text-xs text-muted">ไม่เกิน 10 MB · ไฟล์อื่น ๆ ให้แชร์เป็นลิงก์</span>
+                    <span className="text-xs text-muted">
+                      ไม่เกิน 50 MB · ระบบย่อขนาดให้อัตโนมัติ · ไฟล์อื่น ๆ ให้แชร์เป็นลิงก์
+                    </span>
+                    <span className="text-xs text-muted">
+                      นักเรียนดาวน์โหลดได้ {FILE_LIFETIME_DAYS} วัน แล้วระบบจะลบไฟล์อัตโนมัติ
+                    </span>
                   </label>
                 )}
                 {fileError && (
@@ -523,8 +572,21 @@ export function PostForm({ kind, userId, subjects, rooms: classrooms, allowSchoo
             ยกเลิก
           </Button>
         )}
-        <Button type="submit" variant="primary" className="sm:min-w-44" disabled={pending || noSubjects || Boolean(fileError)}>
-          {pending ? (mode === "file" && file ? "กำลังอัปโหลด…" : "กำลังบันทึก…") : editing ? "บันทึกการแก้ไข" : copy.submit}
+        <Button
+          type="submit"
+          variant="primary"
+          className="sm:min-w-44"
+          disabled={pending || noSubjects || (mode === "file" && (Boolean(fileError) || Boolean(progress)))}
+        >
+          {mode === "file" && progress
+            ? "กำลังย่อขนาดไฟล์…"
+            : pending
+              ? mode === "file" && chosen
+                ? "กำลังอัปโหลด…"
+                : "กำลังบันทึก…"
+              : editing
+                ? "บันทึกการแก้ไข"
+                : copy.submit}
         </Button>
       </div>
     </form>
@@ -647,5 +709,62 @@ function RoomToggle({ label, on, onToggle }: { label: string; on: boolean; onTog
       </span>
       {label}
     </button>
+  );
+}
+
+/** Under the picked file: a progress bar while compressing, then how much was saved and the "use original" choice. */
+function CompressStatus({
+  progress,
+  original,
+  file,
+  useOriginal,
+  onUseOriginal,
+}: {
+  progress: CompressProgress | "start" | null;
+  original: File;
+  file: File | null;
+  useOriginal: boolean;
+  onUseOriginal: (v: boolean) => void;
+}) {
+  if (progress) {
+    const p = progress === "start" ? null : progress;
+    const pct = p && p.pages ? Math.round((p.page / p.pages) * 100) : 0;
+    return (
+      <div className="mt-3" aria-live="polite">
+        <p className="text-sm font-bold text-ink">
+          {!p ? "กำลังเปิดไฟล์…" : p.pass === 1 ? `กำลังย่อขนาดไฟล์… หน้า ${p.page} จาก ${p.pages}` : `ไฟล์ยังใหญ่ ย่อเพิ่มอีกรอบ… หน้า ${p.page} จาก ${p.pages}`}
+        </p>
+        <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-sunken">
+          <div className="bg-brand-gradient h-full rounded-full transition-[width] duration-200" style={{ width: `${pct}%` }} />
+        </div>
+      </div>
+    );
+  }
+  if (!file) return null;
+
+  const compressed = file !== original;
+  const originalFits = original.size <= MAX_FILE_BYTES;
+  return (
+    <div className="mt-3 space-y-1.5 text-sm" aria-live="polite">
+      {compressed && !useOriginal && (
+        <p className="flex items-start gap-2 rounded-lg bg-success-soft px-3 py-2 font-bold text-success">
+          <CheckCheck aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
+          ย่อแล้ว จาก {sizeLabel(original.size)} เหลือ {sizeLabel(file.size)}
+        </p>
+      )}
+      {compressed && useOriginal && (
+        <p className="rounded-lg bg-sunken px-3 py-2 text-muted">ใช้ไฟล์ต้นฉบับ {sizeLabel(original.size)} (ไม่ย่อ ข้อความในไฟล์เลือกและค้นหาได้)</p>
+      )}
+      {!compressed && <p className="text-muted">ไฟล์เล็กพอแล้ว ไม่ต้องย่อ</p>}
+      {compressed && originalFits && (
+        <button
+          type="button"
+          onClick={() => onUseOriginal(!useOriginal)}
+          className="text-sm font-bold text-brand underline underline-offset-2 hover:no-underline"
+        >
+          {useOriginal ? `ใช้ไฟล์ที่ย่อแล้ว (${sizeLabel(file.size)})` : "ใช้ไฟล์ต้นฉบับ (ไม่ย่อ)"}
+        </button>
+      )}
+    </div>
   );
 }

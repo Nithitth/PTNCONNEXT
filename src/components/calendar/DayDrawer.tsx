@@ -15,6 +15,7 @@ import {
   type DayKey,
 } from "@/lib/calendar";
 import { EXAM_KIND_LABEL, type ExamKind } from "@/lib/postForm";
+import { ExpiryChip, isExpired } from "@/components/FileExpiry";
 import { cx, iconButtonStyles } from "@/components/ui";
 
 /** Blinking "due within 24 h" look. With reduced motion it's a red ring instead. */
@@ -49,8 +50,14 @@ export function AttachmentLinks({ attachments, compact }: { attachments: Attachm
   return (
     <div className="mt-2.5 flex flex-wrap gap-1.5">
       {attachments.map((a) =>
-        a.kind === "file" ? (
-          <span key={a.id} className="inline-flex flex-wrap gap-1.5">
+        a.kind === "file" && isExpired(a) ? (
+          // 180 days are over: no open/download buttons any more.
+          <span key={a.id} className="inline-flex max-w-full flex-wrap items-center gap-1.5">
+            {!compact && <span className="max-w-56 truncate text-sm text-muted line-through">{a.name}</span>}
+            <ExpiryChip expiresAt={a.expiresAt} expired compact={compact} />
+          </span>
+        ) : a.kind === "file" ? (
+          <span key={a.id} className="inline-flex flex-wrap items-center gap-1.5">
             <a
               href={a.href}
               target="_blank"
@@ -69,6 +76,7 @@ export function AttachmentLinks({ attachments, compact }: { attachments: Attachm
               <Download aria-hidden className="h-3.5 w-3.5" />
               {!compact && "ดาวน์โหลด"}
             </a>
+            <ExpiryChip expiresAt={a.expiresAt} compact={compact} />
           </span>
         ) : (
           <a

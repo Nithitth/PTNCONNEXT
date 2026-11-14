@@ -3,6 +3,7 @@ import { Prompt } from "next/font/google";
 import { GuestPrivacyBanner } from "@/components/GuestPrivacyBanner";
 import { Logo, NavBar } from "@/components/NavBar";
 import { PasswordReminder } from "@/components/PasswordReminder";
+import { TeacherGuide } from "@/components/teacher/TeacherGuide";
 import { getCurrentProfile } from "@/lib/auth";
 import "./globals.css";
 
@@ -36,6 +37,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           </div>
         </footer>
         {!profile && <GuestPrivacyBanner />}
+        {(profile?.role === "teacher" || profile?.role === "admin") && <TeacherGuide autoOpen={profile.role === "teacher"} />}
       </body>
     </html>
   );

@@ -25,7 +25,7 @@ npm run dev               # localhost:3000 (needs .env.local, see .env.example)
 npm run build             # production build — run before pushing
 npm run lint              # eslint
 npm run typecheck         # tsc --noEmit (run `npx next typegen` first if PageProps/LayoutProps are missing)
-npm test                  # node:test via tsx on src/lib/{roster,calendar,tcas,tcasSource}.test.ts
+npm test                  # node:test via tsx on src/lib/*.test.ts (the list is in package.json)
 npx tsx --test --test-name-pattern "birthdate" src/lib/roster.test.ts   # single test
 npm run seed              # create test classrooms/subjects + one account per role (idempotent)
 npm run check:security    # logs in as test student/teacher against the real Supabase project and verifies RLS
@@ -129,6 +129,19 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
 - **Reads:** `src/lib/posts.ts` (`loadDatedItems`, `loadMaterials`, `loadMyPosts`) always uses the user's own client. A post sent to 2 rooms becomes 2 calendar items; students only get their own room's row. For staff, `mergeRooms()` (calendar.ts) folds them back into one item per post and day, with `rooms` listing every room (shown as chips in the day drawer, `roomsSummary()` in one-line rows).
 - **PDF uploads go browser → Supabase Storage directly** (`src/lib/supabase/browser.ts`), into `materials/<uid>/<uuid>.pdf`, because server actions have a 1 MB body limit. The server then checks that the path is in the user's own folder and that the file exists before saving. If saving fails, the form deletes the upload.
 - **Downloads:** files are opened through `/files/[id]` (route handler). It reads the attachment via RLS, then redirects to a 60-second signed URL (`?download=1` saves the file instead). Never put signed URLs or storage paths in pages.
+- **Automatic compression** (`src/lib/compressFile.ts`, browser only; `pdfjs-dist` + `pdf-lib`, loaded only when a file is picked):
+  - **Teacher PDFs:** a teacher may pick up to 50 MB (`MAX_PICK_BYTES`, `pickProblem`). `compressPdf` redraws each page as a JPEG (long edge 1,750 px, quality 0.72, then 1,200 px / 0.6 if still too big) into a new PDF, so the stored file is at most 10 MB (`MAX_FILE_BYTES`, still checked by the server and the bucket).
+  - **When the original is kept:** files of 1 MB or less are left alone, and the original is also kept if compression saves under 20%. The form shows progress and "ย่อแล้ว จาก … เหลือ …". "ใช้ไฟล์ต้นฉบับ" uploads the original (text stays selectable) when it is 10 MB or less.
+  - **Roadmap proofs:** photos go through `compressImage` (long edge 2,000 px, JPEG) and PDFs through `compressPdf`. Students may pick up to 20 MB (`PROOF_MAX_PICK_BYTES`); the stored limit is still 5 MB.
+  - The pdf.js worker is loaded with `new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url)`; Turbopack ships it in `.next/static/media`.
+- **Teacher PDFs expire after 180 days** (migration `0014`, `FILE_LIFETIME_DAYS` / `EXPIRY_WARN_DAYS` in `postForm.ts`):
+  - **Dates:** `attachments.expires_at` is set by the `attachments_set_expiry` insert trigger, so users can't choose it. Users have no update policy on attachments. Links never expire.
+  - **Blocking:** `/files/[id]` returns 410 once a file has expired.
+  - **Clean-up:** the daily Vercel Cron (`vercel.json` → `/api/cron/expire-files`, 03:00 Thai time, needs `CRON_SECRET`) deletes the storage objects and sets `expired_at`, keeping the row.
+  - **Countdown:** `ExpiryChip` (`src/components/FileExpiry.tsx`) shows "ดาวน์โหลดได้อีก N วัน" (red within 14 days) wherever files are listed.
+  - **Pop-up:** `ExpiringFilesWindow` lists a teacher's own files that are due within 14 days (`loadExpiringFiles`) on the home page and `/teacher`, once per visit and after the guide closes (`ptn:guide-closed`).
+  - **Restarting:** picking a new file when editing inserts a new attachment row, which restarts the 180 days.
+- **Capacity on the free plans** (max users, file sizes, requests, PDF downloads): `docs/CAPACITY.md`. Downloads (5 GB/month Supabase egress) run out first.
 - **Editing** replaces the post's targets. The attachment is kept unless the teacher picks a new one.
 - **Who may edit and delete** (migration `0006`):
   - Admins: every post. Their console tab is "โพสต์ทั้งหมด".
@@ -172,6 +185,11 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
   - Calendar colors: `exam` / `exam-soft` / `exam-tint`, and `event` / `event-strong` / `event-ink`. For deadline dots, use the `BLINK` class from `DayDrawer.tsx`: a blink, or a red ring when reduced motion is on.
 - Navigation items per role are defined in `itemsFor()` in `src/components/NavBar.tsx`.
 - **Home feature cards** (ปฏิทินอัจฉริยะ, TCAS) share `.bg-feature-gradient` (red → purple, in `globals.css`).
+- **Home hero buttons depend on the role** (`STUDENT_LINKS` / `STAFF_LINKS` in `src/app/page.tsx`): big tiles with a one-line hint; the first is the main one. Students: TCAS, Roadmap, ปฏิทิน. Teachers/admins: คอนโซลครู, ปฏิทิน, plus "วิธีใช้งาน". The lower shortcut list uses the same lists.
+- **Teacher guide** (`src/components/teacher/TeacherGuide.tsx`, rendered in the root layout for teachers and admins): a step-by-step `<dialog>` written for people with little computer experience.
+  - It opens by itself for teachers once per visit (`sessionStorage` `ptn-teacher-guide-seen`) until they tick "ไม่ต้องแสดงคู่มือนี้อีก" (`localStorage` `ptn-teacher-guide-off`, this device only). Admins only get it from the button.
+  - `GuideButton` (glowing, blinking gradient, `onRed` for the hero) / `openTeacherGuide()` reopen it (home hero, Teacher's Console header).
+  - To add a step, add an entry to `STEPS`: 1–3 short lines, plus `buttons` (each drawn by `MockButton` like the real one, with what it does). Keep the button labels identical to the real UI text.
 - Layouts must work at 375px width with no horizontal page scroll.
 
 ## Status
@@ -194,7 +212,8 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
   - `/admin/errors`: the `error_logs` list.
   - `/admin/logins`: 24 h counts, a "failed only" filter, and IDs with 5+ failed tries in 24 h flagged.
   - Existing pages: ผู้ใช้, นำเข้ารายชื่อ.
-- `check:security` (28 checks) also signs in as `admin.test`. It covers feedback (send only as yourself), who can read the console tables, and admins posting like teachers.
+  - `/admin/limits` (ขีดจำกัดระบบ): bar meters against the free plans (migration `0015`, `admin_usage()`, admins only): storage per bucket, database size, peak sign-ins per 5 minutes, accounts, and days without use (holiday pause). Monthly downloads and Vercel runs can only be read on the providers’ usage pages, so those cards show the limit, our estimate and a link. The limits live in `src/lib/usage.ts`; keep them in step with `docs/CAPACITY.md`.
+- `check:security` (30 checks, including file expiry from `0014`) also signs in as `admin.test`. It covers feedback (send only as yourself), who can read the console tables, and admins posting like teachers.
 - **Pilot and launch steps:** `docs/PILOT.md`.
 
 **Phase 2, TCASter release 1 is built** (branch `tcaster`; migrations `0007` and `0008`). The pilot is on hold.

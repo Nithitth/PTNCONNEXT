@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getCurrentProfile, needsPdpa } from "@/lib/auth";
 import { logError } from "@/lib/logs";
-import { MATERIALS_BUCKET, isUuid } from "@/lib/postForm";
+import { FILE_LIFETIME_DAYS, MATERIALS_BUCKET, isUuid } from "@/lib/postForm";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -22,11 +22,15 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/files/[id]">
     const supabase = await createClient();
     const { data } = await supabase
       .from("attachments")
-      .select("kind, url, storage_path, file_name")
+      .select("kind, url, storage_path, file_name, expires_at, expired_at")
       .eq("id", id)
       .maybeSingle();
     if (!data) return text("ไม่พบไฟล์ หรือคุณไม่มีสิทธิ์เปิดไฟล์นี้", 404);
     if (data.kind === "link") return NextResponse.redirect(data.url as string);
+    // PDFs can be downloaded for 180 days (migration 0014); the daily clean-up then deletes them.
+    if (data.expired_at || !data.storage_path || (data.expires_at && Date.parse(data.expires_at as string) <= Date.now())) {
+      return text(`ไฟล์นี้หมดอายุแล้ว ระบบเก็บไฟล์ไว้ ${FILE_LIFETIME_DAYS} วัน ขอไฟล์ใหม่จากครูผู้สอน`, 410);
+    }
 
     const download = request.nextUrl.searchParams.has("download") ? (data.file_name as string) : false;
     const { data: signed, error } = await createAdminClient()

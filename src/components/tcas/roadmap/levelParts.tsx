@@ -4,10 +4,12 @@ import { useState, useTransition } from "react";
 import { Check, ChevronDown, DoorOpen, ExternalLink, Flag, Link2, Lock, Paperclip, PartyPopper, Pencil, Trash2, Users, X } from "lucide-react";
 import { removeProof, saveProof, type RoadmapResult } from "@/app/roadmap/actions";
 import { cx } from "@/components/ui";
+import { CompressError, compressImage, compressPdf } from "@/lib/compressFile";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
 import {
   PROOF_BUCKET,
   PROOF_MAX_BYTES,
+  PROOF_MAX_PICK_BYTES,
   REWARDS,
   STAGES,
   isUnlocked,
@@ -38,6 +40,7 @@ export function ProofControl({ api, step, kinds, label }: { api: ProofApi; step:
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, start] = useTransition();
+  const [shrinking, setShrinking] = useState(false);
 
   const done = (res: RoadmapResult) => {
     if (res.error) return setError(res.error);
@@ -47,12 +50,24 @@ export function ProofControl({ api, step, kinds, label }: { api: ProofApi; step:
     api.onResult(res);
   };
 
-  const upload = (file: File) =>
+  // Photos and PDFs are shrunk in the browser first (compressFile.ts), so phone photos over 5 MB still fit.
+  const upload = (picked: File) =>
     start(async () => {
       setError(null);
+      if (!EXT[picked.type]) return setError("รองรับเฉพาะ PDF, JPG, PNG หรือ WEBP");
+      if (picked.size > PROOF_MAX_PICK_BYTES) return setError("ไฟล์ใหญ่เกิน 20 MB");
+      let file: File;
+      setShrinking(true);
+      try {
+        const opts = { maxBytes: PROOF_MAX_BYTES };
+        file = (picked.type === "application/pdf" ? await compressPdf(picked, opts) : await compressImage(picked, opts)).file;
+      } catch (e) {
+        return setError(e instanceof CompressError ? e.message : "ย่อไฟล์ไม่สำเร็จ ลองอีกครั้ง");
+      } finally {
+        setShrinking(false);
+      }
+      if (file.size > PROOF_MAX_BYTES) return setError("ไฟล์ใหญ่เกิน 5 MB แม้ย่อแล้ว");
       const ext = EXT[file.type];
-      if (!ext) return setError("รองรับเฉพาะ PDF, JPG, PNG หรือ WEBP");
-      if (file.size > PROOF_MAX_BYTES) return setError("ไฟล์ใหญ่เกิน 5 MB");
       const path = `${api.userId}/${crypto.randomUUID()}.${ext}`;
       const sb = createBrowserSupabase();
       const { error: upError } = await sb.storage.from(PROOF_BUCKET).upload(path, file, { contentType: file.type });
@@ -142,7 +157,7 @@ export function ProofControl({ api, step, kinds, label }: { api: ProofApi; step:
             {kinds.includes("file") && (
               <label className={cx(chip, "cursor-pointer has-[:disabled]:opacity-50")}>
                 <Paperclip aria-hidden className="h-3.5 w-3.5" />
-                {busy ? "กำลังอัปโหลด…" : "แนบรูป/PDF"}
+                {shrinking ? "กำลังย่อไฟล์…" : busy ? "กำลังอัปโหลด…" : "แนบรูป/PDF"}
                 <input
                   type="file"
                   accept="application/pdf,image/jpeg,image/png,image/webp"

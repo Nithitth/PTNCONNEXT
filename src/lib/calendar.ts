@@ -114,7 +114,16 @@ export const WEEKDAYS_SHORT = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "
 
 // ─── Calendar items ──────────────────────────────────────────
 
-export type Attachment = { id: string; kind: "file" | "link"; name: string; href: string };
+export type Attachment = {
+  id: string;
+  kind: "file" | "link";
+  name: string;
+  href: string;
+  /** PDFs: when downloads stop (180 days after upload, migration 0014). Null for links. */
+  expiresAt: string | null;
+  /** The daily clean-up already deleted the PDF. */
+  expired: boolean;
+};
 
 /** One post as it lands in one classroom (a post sent to 2 rooms = 2 items; staff views merge them with mergeRooms). */
 export type CalendarItem = {

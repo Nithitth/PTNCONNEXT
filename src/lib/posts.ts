@@ -10,7 +10,8 @@ import {
   type CalendarItem,
   type DayKey,
 } from "@/lib/calendar";
-import type { ExamKind, PostKind } from "@/lib/postForm";
+import { logError } from "@/lib/logs";
+import { EXPIRY_WARN_DAYS, type ExamKind, type PostKind } from "@/lib/postForm";
 import { formatClassroom } from "@/lib/roster";
 
 // Reads posts for the calendar and the Teacher's Console.
@@ -20,7 +21,15 @@ import { formatClassroom } from "@/lib/roster";
 const KINDS: PostKind[] = ["assignment", "material", "exam", "event"];
 
 type SubjectRow = { code: string; name_th: string; color: string } | null;
-type AttachmentRow = { id: string; kind: "file" | "link"; url: string | null; file_name: string };
+type AttachmentRow = {
+  id: string;
+  kind: "file" | "link";
+  url: string | null;
+  file_name: string;
+  expires_at: string | null;
+  expired_at: string | null;
+};
+const ATTACHMENT_FIELDS = "attachments(id, kind, url, file_name, expires_at, expired_at)";
 type ClassroomRow = { grade: number; room: number } | null;
 type TargetRow = {
   classroom_id: string | null;
@@ -41,13 +50,20 @@ type PostRow = {
 };
 
 const POST_FIELDS =
-  "id, type, title, description, content_order, exam_kind, created_at, subject:subjects(code, name_th, color), attachments(id, kind, url, file_name)";
+  `id, type, title, description, content_order, exam_kind, created_at, subject:subjects(code, name_th, color), ${ATTACHMENT_FIELDS}`;
 
 const toSubject = (s: SubjectRow) => (s ? { code: s.code, name: s.name_th, color: s.color } : null);
 
 /** Links open directly; PDFs go through /files/[id], which checks access first. */
 const toAttachments = (rows: AttachmentRow[] = []): Attachment[] =>
-  rows.map((a) => ({ id: a.id, kind: a.kind, name: a.file_name, href: a.kind === "link" ? (a.url ?? "#") : `/files/${a.id}` }));
+  rows.map((a) => ({
+    id: a.id,
+    kind: a.kind,
+    name: a.file_name,
+    href: a.kind === "link" ? (a.url ?? "#") : `/files/${a.id}`,
+    expiresAt: a.kind === "file" ? a.expires_at : null,
+    expired: Boolean(a.expired_at),
+  }));
 
 const roomLabel = (t: { classroom_id: string | null; classroom: ClassroomRow }) =>
   t.classroom_id === null ? "ทั้งโรงเรียน" : t.classroom ? formatClassroom(t.classroom) : null;
@@ -157,7 +173,7 @@ export async function loadManagedPosts(
     .select(
       `id, type, title, description, content_order, exam_kind, subject_id, author_id,
        author:profiles(display_name),
-       subject:subjects(code, name_th, color), attachments(id, kind, url, file_name),
+       subject:subjects(code, name_th, color), ${ATTACHMENT_FIELDS},
        post_targets(classroom_id, due_at, ends_at, classroom:classrooms(grade, room))`,
     )
     .in("type", KINDS)
@@ -202,5 +218,43 @@ export async function loadManagedPosts(
       }))
       .sort((a, b) => compareRoomLabels(a.room, b.room)),
     attachments: toAttachments(p.attachments),
+  }));
+}
+
+export type ExpiringFile = { attachmentId: string; postId: string; postTitle: string; fileName: string; expiresAt: string };
+
+/**
+ * The teacher's own PDFs that will be deleted within EXPIRY_WARN_DAYS (or already passed their 180 days
+ * but weren't cleaned up yet), soonest first — for the "ไฟล์ที่จะถูกลบเร็ว ๆ นี้" pop-up window.
+ */
+export async function loadExpiringFiles(supabase: SupabaseClient, profile: Profile): Promise<ExpiringFile[]> {
+  try {
+    return await readExpiringFiles(supabase, profile);
+  } catch (e) {
+    // Only a reminder: never let it break the home page or the console.
+    await logError("posts/loadExpiringFiles", e);
+    return [];
+  }
+}
+
+async function readExpiringFiles(supabase: SupabaseClient, profile: Profile): Promise<ExpiringFile[]> {
+  const until = new Date(Date.now() + EXPIRY_WARN_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await supabase
+    .from("attachments")
+    .select("id, file_name, expires_at, post:posts!inner(id, title, author_id)")
+    .eq("kind", "file")
+    .is("expired_at", null)
+    .lte("expires_at", until)
+    .eq("post.author_id", profile.id)
+    .order("expires_at")
+    .limit(20);
+  if (error) throw error;
+  type Row = { id: string; file_name: string; expires_at: string; post: { id: string; title: string } };
+  return ((data ?? []) as unknown as Row[]).map((r) => ({
+    attachmentId: r.id,
+    postId: r.post.id,
+    postTitle: r.post.title,
+    fileName: r.file_name,
+    expiresAt: r.expires_at,
   }));
 }

@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --test src/lib/roster.test.ts src/lib/calendar.test.ts src/lib/tcas.test.ts src/lib/tcasSource.test.ts src/lib/roadmap.test.ts src/lib/roadmapLevels.test.ts",
+    "test": "tsx --test src/lib/roster.test.ts src/lib/calendar.test.ts src/lib/tcas.test.ts src/lib/tcasSource.test.ts src/lib/roadmap.test.ts src/lib/roadmapLevels.test.ts src/lib/postForm.test.ts",
     "typecheck": "tsc --noEmit",
     "seed": "tsx scripts/seed.ts",
     "check:security": "tsx scripts/check-security.ts"
@@ -17,6 +17,8 @@
     "@supabase/supabase-js": "^2.119.0",
     "lucide-react": "^1.71.0",
     "next": "16.4.6",
+    "pdf-lib": "1.17.1",
+    "pdfjs-dist": "6.4.299",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "read-excel-file": "^9.3.14",

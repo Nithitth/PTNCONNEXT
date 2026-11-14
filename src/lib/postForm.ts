@@ -1,6 +1,6 @@
 // Rules for what a teacher may post. Pure, so the Teacher's Console form can
 // show the same errors the server would, and the server checks them again.
-import { bangkokInputToIso } from "./calendar";
+import { bangkokInputToIso, dayKey, daysBetween } from "./calendar";
 
 /**
  * The four kinds of post (the database enum also has "announcement",
@@ -12,8 +12,16 @@ export type PostKind = "assignment" | "material" | "exam" | "event";
 export type RoomOption = { id: string; label: string };
 export type SubjectOption = { id: string; code: string; name: string; color: string };
 
+/** Largest PDF we store (bucket limit too). */
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
+/** Largest PDF a teacher may pick: the browser compresses it to MAX_FILE_BYTES or less (compressFile.ts). */
+export const MAX_PICK_BYTES = 50 * 1024 * 1024;
 export const MAX_DESCRIPTION = 2000;
+
+/** Uploaded PDFs can be downloaded for this many days, then the daily clean-up deletes them (migration 0014). */
+export const FILE_LIFETIME_DAYS = 180;
+/** Countdowns turn red, and teachers get the pop-up window, this many days before deletion. */
+export const EXPIRY_WARN_DAYS = 14;
 
 /** Supabase Storage bucket for teachers' PDFs. */
 export const MATERIALS_BUCKET = "materials";
@@ -99,12 +107,41 @@ export function cleanUrl(raw: string): string | null {
   }
 }
 
+/** The file that will be stored (after compression): a PDF of 10 MB or less. Checked again by the server. */
 export function fileProblem(file: { name: string; size: number; type?: string }): string | null {
   const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
   if (!isPdf) return "อัปโหลดได้เฉพาะไฟล์ PDF (ไฟล์อื่นให้แชร์เป็นลิงก์ เช่น Google Drive)";
-  if (file.size > MAX_FILE_BYTES) return "ไฟล์ใหญ่เกิน 10 MB ลองบีบอัดไฟล์ หรือแชร์เป็นลิงก์แทน";
+  if (file.size > MAX_FILE_BYTES) return "ไฟล์ใหญ่เกิน 10 MB แม้ย่อแล้ว แชร์เป็นลิงก์ Google Drive แทน";
   if (file.size === 0) return "ไฟล์ว่างเปล่า";
   return null;
+}
+
+/** The file the teacher picked, before compression: a PDF of 50 MB or less. */
+export function pickProblem(file: { name: string; size: number; type?: string }): string | null {
+  const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+  if (!isPdf) return "อัปโหลดได้เฉพาะไฟล์ PDF (ไฟล์อื่นให้แชร์เป็นลิงก์ เช่น Google Drive)";
+  if (file.size > MAX_PICK_BYTES) return "ไฟล์ใหญ่เกิน 50 MB แชร์เป็นลิงก์ Google Drive แทน";
+  if (file.size === 0) return "ไฟล์ว่างเปล่า";
+  return null;
+}
+
+/**
+ * Whole Thai-time days until a file is deleted: 0 = deleted later today, negative = already expired.
+ * `expiresAt` null (links, or files from before migration 0014) = never.
+ */
+export function daysLeft(expiresAt: string | null, now: Date): number | null {
+  if (!expiresAt) return null;
+  if (new Date(expiresAt).getTime() <= now.getTime()) return -1;
+  return daysBetween(dayKey(now), dayKey(expiresAt));
+}
+
+/** "ดาวน์โหลดได้อีก 45 วัน" / "ดาวน์โหลดได้ถึงวันนี้" / "ไฟล์หมดอายุแล้ว"; null = never expires. */
+export function expiryLabel(expiresAt: string | null, now: Date): { text: string; soon: boolean; expired: boolean } | null {
+  const left = daysLeft(expiresAt, now);
+  if (left === null) return null;
+  if (left < 0) return { text: "ไฟล์หมดอายุแล้ว", soon: true, expired: true };
+  if (left === 0) return { text: "ดาวน์โหลดได้ถึงวันนี้", soon: true, expired: false };
+  return { text: `ดาวน์โหลดได้อีก ${left} วัน`, soon: left <= EXPIRY_WARN_DAYS, expired: false };
 }
 
 type Checked = { ok: true; value: CleanPost } | { ok: false; error: string };
