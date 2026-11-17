@@ -9,7 +9,7 @@ const TABS = [
   { href: "/admin", label: "ภาพรวม", Icon: LayoutDashboard },
   { href: "/admin/feedback", label: "ความคิดเห็น", Icon: MessageSquareText },
   { href: "/admin/errors", label: "ข้อผิดพลาด", Icon: AlertTriangle },
-  { href: "/admin/logins", label: "การเข้าสู่ระบบ", Icon: LogIn },
+  { href: "/admin/access", label: "ลงทะเบียน & เข้าสู่ระบบ", Icon: LogIn },
   { href: "/admin/limits", label: "ขีดจำกัดระบบ", Icon: Gauge },
   { href: "/admin/users", label: "ผู้ใช้", Icon: UserSearch },
   { href: "/admin/tcas", label: "ข้อมูล TCAS", Icon: GraduationCap },
@@ -27,7 +27,7 @@ export function AdminNav() {
     >
       <ul className="inline-flex min-w-full gap-1 rounded-2xl border border-line bg-surface p-1.5 shadow-soft-sm sm:min-w-0">
         {TABS.map(({ href, label, Icon }) => {
-          const on = path === href;
+          const on = href === "/admin" ? path === href : path === href || path.startsWith(`${href}/`);
           return (
             <li key={href} className="shrink-0">
               <Link

@@ -1,6 +1,8 @@
 "use server";
 
 import { requireProfile, type Profile } from "@/lib/auth";
+import { DriveError, checkUploaded, shareWithLink, trashDriveFile } from "@/lib/drive";
+import { driveProblem, driveViewUrl } from "@/lib/driveCore";
 import { logError } from "@/lib/logs";
 import { MATERIALS_BUCKET, MAX_FILE_BYTES, isUuid, validatePost, type CleanPost, type PostInput } from "@/lib/postForm";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -55,12 +57,33 @@ async function checkUploadedFile(profile: Profile, storagePath: string) {
   return null;
 }
 
-/** Deletes the uploaded PDFs behind these attachment rows (links have no file). */
-async function removeFiles(rows: { storage_path: string | null }[] | null) {
+type FileRow = { storage_path: string | null; drive_file_id?: string | null; drive_owner_id?: string | null };
+const FILE_COLUMNS = "storage_path, drive_file_id, drive_owner_id";
+
+/**
+ * Deletes the PDFs behind these attachment rows (links have no file): Connext files are deleted, Google Drive
+ * files go to their owner's Drive trash (even when a colleague edits or deletes the post).
+ */
+async function removeFiles(rows: FileRow[] | null) {
   const paths = (rows ?? []).flatMap((r) => (r.storage_path ? [r.storage_path] : []));
-  if (paths.length === 0) return;
-  const { error } = await createAdminClient().storage.from(MATERIALS_BUCKET).remove(paths);
-  if (error) await logError("teacher/removeFiles", error);
+  if (paths.length) {
+    const { error } = await createAdminClient().storage.from(MATERIALS_BUCKET).remove(paths);
+    if (error) await logError("teacher/removeFiles", error);
+  }
+  for (const r of rows ?? []) if (r.drive_file_id) await trashDriveFile(r.drive_owner_id ?? null, r.drive_file_id);
+}
+
+/** The PDF the browser sent to this teacher's Google Drive: check it, then share it "anyone with the link". */
+async function prepareDriveFile(profile: Profile, fileId: string): Promise<string | null> {
+  try {
+    const { token } = await checkUploaded(profile.id, fileId);
+    await shareWithLink(token, fileId);
+    return null;
+  } catch (e) {
+    if (e instanceof DriveError) return e.message;
+    await logError("teacher/prepareDriveFile", e);
+    return driveProblem(500);
+  }
 }
 
 /**
@@ -82,6 +105,10 @@ export async function savePost(postId: string | null, input: PostInput): Promise
       post.attachment.mode === "file" ? checkUploadedFile(profile, post.attachment.storagePath) : null,
     ]);
     if (problem || fileProblem) return { error: (problem || fileProblem)! };
+    if (post.attachment.mode === "drive") {
+      const driveError = await prepareDriveFile(profile, post.attachment.fileId);
+      if (driveError) return { error: driveError };
+    }
 
     // author_id and type are set once, when the post is created.
     const fields = {
@@ -135,18 +162,21 @@ export async function savePost(postId: string | null, input: PostInput): Promise
 
     if (post.attachment.mode !== "keep") {
       if (postId) {
-        const { data: old } = await supabase.from("attachments").select("storage_path").eq("post_id", id);
+        const { data: old } = await supabase.from("attachments").select(FILE_COLUMNS).eq("post_id", id);
         if (old?.length) {
           await supabase.from("attachments").delete().eq("post_id", id);
           await removeFiles(old);
         }
       }
       const a = post.attachment;
-      if (a.mode === "link" || a.mode === "file") {
+      if (a.mode === "link" || a.mode === "file" || a.mode === "drive") {
+        // A Drive PDF is a link row plus its Drive id; the database records whose Drive it is (migration 0019).
         const row: Record<string, string | number> =
           a.mode === "link"
             ? { post_id: id, kind: "link", url: a.url, file_name: shortLinkName(a.url) }
-            : { post_id: id, kind: "file", storage_path: a.storagePath, file_name: a.fileName, size_bytes: a.size };
+            : a.mode === "drive"
+              ? { post_id: id, kind: "link", url: driveViewUrl(a.fileId), drive_file_id: a.fileId, file_name: a.fileName, size_bytes: a.size }
+              : { post_id: id, kind: "file", storage_path: a.storagePath, file_name: a.fileName, size_bytes: a.size };
         const { error: attErr } = await supabase.from("attachments").insert(row);
         if (attErr) await failed(attErr);
       }
@@ -175,7 +205,7 @@ export async function deletePost(postId: string): Promise<SaveResult> {
     if (!existing || !(await canManage(supabase, profile, existing))) {
       return { error: "ไม่พบโพสต์นี้ หรือคุณไม่มีสิทธิ์ลบ" };
     }
-    const { data: files } = await supabase.from("attachments").select("storage_path").eq("post_id", postId);
+    const { data: files } = await supabase.from("attachments").select(FILE_COLUMNS).eq("post_id", postId);
     // RLS checks the same rule again.
     const { data, error } = await supabase.from("posts").delete().eq("id", postId).select("id");
     if (error) throw error;

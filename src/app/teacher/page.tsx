@@ -5,9 +5,11 @@ import { KIND_STYLE } from "@/components/teacher/kindStyle";
 import { PostForm } from "@/components/teacher/PostForm";
 import { MyPosts } from "@/components/teacher/MyPosts";
 import { ExpiringFilesWindow } from "@/components/teacher/ExpiringFilesWindow";
+import { DriveBanner } from "@/components/teacher/DriveConnect";
 import { GuideButton } from "@/components/teacher/TeacherGuide";
 import { Card, Container, Notice, PageHeader, cx } from "@/components/ui";
 import { requireProfile } from "@/lib/auth";
+import { driveState } from "@/lib/drive";
 import type { PostKind } from "@/lib/postForm";
 import { loadExpiringFiles, loadManagedPosts } from "@/lib/posts";
 import { createClient } from "@/lib/supabase/server";
@@ -70,11 +72,12 @@ export default async function TeacherConsolePage({ searchParams }: PageProps<"/t
   const saved = typeof params.saved === "string" ? SAVED[params.saved] : undefined;
 
   const supabase = await createClient();
-  const [subjects, rooms, myPosts, expiring] = await Promise.all([
+  const [subjects, rooms, myPosts, expiring, drive] = await Promise.all([
     tab.kind ? loadTeachingOptions(supabase, profile) : Promise.resolve([]),
     tab.kind ? loadCurrentRooms(supabase) : Promise.resolve([]),
     tab.id === "mine" ? loadManagedPosts(supabase, profile) : Promise.resolve([]),
     loadExpiringFiles(supabase, profile),
+    driveState(profile.id),
   ]);
 
   return (
@@ -83,6 +86,8 @@ export default async function TeacherConsolePage({ searchParams }: PageProps<"/t
       <PageHeader eyebrow={profile.display_name} title="คอนโซลครู" subtitle="มอบหมายงาน แชร์เอกสาร และประกาศวันสอบ">
         <GuideButton />
       </PageHeader>
+
+      {drive.configured && !drive.connected && <DriveBanner next={`/teacher?tab=${tab.id}`} />}
 
       <nav aria-label="เมนูคอนโซลครู" className="mb-8 border-b-2 border-line pb-6">
         <p className="mb-3 text-sm font-bold text-muted">เลือกสิ่งที่จะทำ</p>
@@ -144,6 +149,7 @@ export default async function TeacherConsolePage({ searchParams }: PageProps<"/t
               subjects={subjects}
               rooms={rooms}
               allowSchoolWide={isAdmin && tab.kind === "event"}
+              drive={drive}
             />
           </Card>
 

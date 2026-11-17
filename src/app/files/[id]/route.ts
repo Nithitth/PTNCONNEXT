@@ -22,13 +22,19 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/files/[id]">
     const supabase = await createClient();
     const { data } = await supabase
       .from("attachments")
-      .select("kind, url, storage_path, file_name, expires_at, expired_at")
+      .select("kind, url, storage_path, file_name, expires_at, expired_at, drive_file_id")
       .eq("id", id)
       .maybeSingle();
     if (!data) return text("ไม่พบไฟล์ หรือคุณไม่มีสิทธิ์เปิดไฟล์นี้", 404);
+    const expired = Boolean(data.expired_at) || Boolean(data.expires_at && Date.parse(data.expires_at as string) <= Date.now());
+    // A PDF in the teacher's Google Drive (migration 0019): same 180 days, then it opens on Google Drive.
+    if (data.drive_file_id) {
+      if (expired) return text(`ไฟล์นี้หมดอายุแล้ว ระบบเก็บไฟล์ไว้ ${FILE_LIFETIME_DAYS} วัน ขอไฟล์ใหม่จากครูผู้สอน`, 410);
+      return NextResponse.redirect(data.url as string);
+    }
     if (data.kind === "link") return NextResponse.redirect(data.url as string);
     // PDFs can be downloaded for 180 days (migration 0014); the daily clean-up then deletes them.
-    if (data.expired_at || !data.storage_path || (data.expires_at && Date.parse(data.expires_at as string) <= Date.now())) {
+    if (expired || !data.storage_path) {
       return text(`ไฟล์นี้หมดอายุแล้ว ระบบเก็บไฟล์ไว้ ${FILE_LIFETIME_DAYS} วัน ขอไฟล์ใหม่จากครูผู้สอน`, 410);
     }
 

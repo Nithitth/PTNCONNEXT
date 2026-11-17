@@ -1,6 +1,7 @@
 // Rules for what a teacher may post. Pure, so the Teacher's Console form can
 // show the same errors the server would, and the server checks them again.
 import { bangkokInputToIso, dayKey, daysBetween } from "./calendar";
+import { DRIVE_MAX_BYTES, isDriveFileId } from "./driveCore";
 
 /**
  * The four kinds of post (the database enum also has "announcement",
@@ -44,7 +45,9 @@ export type AttachmentInput =
   | { mode: "keep" }
   | { mode: "none" }
   | { mode: "link"; url: string }
-  | { mode: "file"; storagePath: string; fileName: string; size: number };
+  | { mode: "file"; storagePath: string; fileName: string; size: number }
+  /** A PDF the browser sent to the teacher's own Google Drive (migration 0019). */
+  | { mode: "drive"; fileId: string; fileName: string; size: number };
 
 export type PostInput = {
   kind: PostKind;
@@ -215,6 +218,10 @@ export function validatePost(input: PostInput): Checked {
     const problem = fileProblem({ name: attachment.fileName, size: attachment.size });
     if (problem) return fail(problem);
     if (!attachment.storagePath || attachment.fileName.length > 200) return fail("ไฟล์ไม่ถูกต้อง");
+  } else if (attachment.mode === "drive") {
+    if (!isDriveFileId(attachment.fileId) || !attachment.fileName || attachment.fileName.length > 200) return fail("ไฟล์ไม่ถูกต้อง");
+    if (!(attachment.size > 0)) return fail("ไฟล์ว่างเปล่า");
+    if (attachment.size > DRIVE_MAX_BYTES) return fail("ไฟล์ใหญ่เกิน 50 MB");
   }
   if (kind === "material" && attachment.mode === "none") return fail("แนบไฟล์ PDF หรือลิงก์ของเอกสาร");
 

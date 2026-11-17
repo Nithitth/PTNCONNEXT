@@ -12,6 +12,8 @@ import {
   ChevronRight,
   CircleHelp,
   Clock,
+  CloudUpload,
+  HardDrive,
   CopyCheck,
   Download,
   FileText,
@@ -210,6 +212,21 @@ const STEPS: Step[] = [
       { look: "red", label: "แชร์เอกสาร", does: "ส่งเอกสารให้นักเรียน" },
     ],
     go: { href: "/teacher?tab=material", label: "ไปหน้าแชร์เอกสาร" },
+  },
+  {
+    title: "เก็บ PDF ใน Google Drive ของคุณ (ไม่บังคับ)",
+    lines: [
+      "เชื่อมต่อครั้งเดียว แล้ว PDF ที่คุณแชร์จะไปอยู่ในโฟลเดอร์ “PTN Connext” ใน Google Drive ของคุณเองโดยอัตโนมัติ",
+      "ระบบเห็นเฉพาะไฟล์ที่ส่งจาก Connext เท่านั้น ไม่เห็นไฟล์อื่นใน Drive ของคุณ",
+      "เชื่อมต่อได้ที่แถบด้านบนของคอนโซลครู หรือที่หน้าบัญชีของคุณ",
+    ],
+    picture: { type: "icon", Icon: CloudUpload },
+    buttons: [
+      { look: "red", label: "เชื่อมต่อ Google Drive", Icon: CloudUpload, does: "ไปหน้าของ Google เลือกบัญชีของคุณ แล้วกด “ดำเนินการต่อ” หรือ “อนุญาต”" },
+      { look: "plain", label: "ไว้ทีหลัง", does: "ซ่อนแถบนี้ไว้ก่อน (จะขึ้นอีกครั้งเมื่อเข้าใช้งานครั้งหน้า)" },
+      { look: "red", label: "เก็บในระบบ Connext แทน", Icon: HardDrive, does: "ขึ้นเฉพาะตอนที่ Google Drive มีปัญหา กดแล้วไฟล์จะเก็บใน Connext แทน" },
+    ],
+    go: { href: "/account", label: "ไปหน้าบัญชีของฉัน" },
   },
   {
     title: "ประกาศวันสอบ",

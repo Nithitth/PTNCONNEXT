@@ -17,9 +17,6 @@ const badge = (key: string, label: string, earned: boolean) => ({ key, label, hi
 
 export const DEMO_SCORE: RoadmapScore = {
   xp: 335,
-  level: 7,
-  levelStart: 300,
-  nextLevelXp: 350,
   cappedXp: 0,
   boxXp: {},
   badges: [
@@ -30,7 +27,6 @@ export const DEMO_SCORE: RoadmapScore = {
     badge("portfolio", "พอร์ตพร้อม", false),
     badge("activities", "นักกิจกรรม", true),
     badge("backup", "มีแผนสำรอง", false),
-    badge("lv5", "200 XP", true),
   ],
 };
 

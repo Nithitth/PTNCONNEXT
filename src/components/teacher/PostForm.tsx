@@ -1,10 +1,13 @@
 "use client";
 
-import { startTransition, useActionState, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { startTransition, useActionState, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Check, CheckCheck, CopyCheck, FileText, Link2, ListOrdered, Paperclip, Upload, X, type LucideIcon } from "lucide-react";
+import { Check, CheckCheck, Cloud, CopyCheck, FileText, HardDrive, Link2, ListOrdered, Paperclip, Upload, X, type LucideIcon } from "lucide-react";
 import { DatePicker } from "@/components/DatePicker";
 import { savePost, type SaveResult } from "@/app/teacher/actions";
+import { discardDriveUpload, startDriveUpload } from "@/app/teacher/driveActions";
+import { DriveConnectGuide, DriveOffer } from "@/components/teacher/DriveConnect";
+import { DRIVE_MAX_BYTES, driveProblem, googleReason } from "@/lib/driveCore";
 import type { Attachment } from "@/lib/calendar";
 import { CompressError, compressPdf, type CompressProgress } from "@/lib/compressFile";
 import {
@@ -15,7 +18,6 @@ import {
   MAX_DESCRIPTION,
   MAX_FILE_BYTES,
   SCHOOL,
-  fileProblem,
   pickProblem,
   validatePost,
   type AttachmentInput,
@@ -27,7 +29,7 @@ import {
 } from "@/lib/postForm";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
 import { ExpiryChip } from "@/components/FileExpiry";
-import { Button, Notice, cx, inputStyles } from "@/components/ui";
+import { Button, Notice, bigButtonStyles, cx, inputStyles } from "@/components/ui";
 
 export type FormInitial = {
   subjectId: string;
@@ -50,7 +52,35 @@ type Props = {
   /** Admins on school events: also offer "ทั้งโรงเรียน". */
   allowSchoolWide: boolean;
   editing?: { postId: string; initial: FormInitial; current: Attachment | null };
+  /** Google Drive (migration 0019): set up by the school, and connected by this teacher? */
+  drive?: { configured: boolean; connected: boolean };
 };
+
+/** What the teacher typed, kept for a few minutes while they connect Google Drive (sessionStorage). */
+type Draft = FormInitial & { at: number; mode: AttachmentInput["mode"]; url: string };
+const DRAFT_MINUTES = 30;
+
+/** Sends the PDF from the browser straight to the teacher's Google Drive, reporting progress. */
+function sendToDrive(url: string, file: File, onPct: (pct: number) => void): Promise<{ id?: string; status: number; reason: string }> {
+  return new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", url);
+    xhr.setRequestHeader("Content-Type", "application/pdf");
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onPct(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () => {
+      let body: unknown = null;
+      try {
+        body = JSON.parse(xhr.responseText);
+      } catch {}
+      const id = xhr.status < 300 ? (body as { id?: unknown } | null)?.id : undefined;
+      resolve({ id: typeof id === "string" ? id : undefined, status: xhr.status, reason: googleReason(body) });
+    };
+    xhr.onerror = () => resolve({ status: 0, reason: "" });
+    xhr.send(file);
+  });
+}
 
 const COPY: Record<PostKind, { submit: string; titlePlaceholder: string; dateLabel?: string; roomsLabel: string }> = {
   assignment: {
@@ -67,7 +97,7 @@ const COPY: Record<PostKind, { submit: string; titlePlaceholder: string; dateLab
 const sizeLabel = (bytes: number) =>
   bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 
-export function PostForm({ kind, userId, subjects, rooms: classrooms, allowSchoolWide, editing }: Props) {
+export function PostForm({ kind, userId, subjects, rooms: classrooms, allowSchoolWide, editing, drive }: Props) {
   const router = useRouter();
   const uid = useId();
   const copy = COPY[kind];
@@ -97,6 +127,58 @@ export function PostForm({ kind, userId, subjects, rooms: classrooms, allowSchoo
   const fileInput = useRef<HTMLInputElement>(null);
   const pickCount = useRef(0); // ignores a slow compression when another file was picked meanwhile
   const chosen = useOriginal ? original : file;
+
+  // Google Drive: once connected, PDFs go to the teacher's Drive automatically. If Drive fails, one big button
+  // ("เก็บในระบบ Connext แทน") sends this post's PDF to Connext instead.
+  const [useConnext, setUseConnext] = useState(false);
+  const useConnextRef = useRef(false);
+  const driveOn = Boolean(drive?.connected) && !useConnext;
+  const [driveTrouble, setDriveTrouble] = useState<{ message: string; reconnect: boolean } | null>(null);
+  const [drivePct, setDrivePct] = useState<number | null>(null);
+  const [restored, setRestored] = useState(false);
+  const limit = driveOn ? DRIVE_MAX_BYTES : MAX_FILE_BYTES;
+  const sizeError =
+    chosen && chosen.size > limit
+      ? driveOn
+        ? "ไฟล์ใหญ่เกิน 50 MB"
+        : "ไฟล์ใหญ่เกิน 10 MB แม้ย่อแล้ว แชร์เป็นลิงก์ Google Drive แทน"
+      : null;
+  const fileIssue = fileError ?? sizeError;
+  const draftKey = `ptn-post-draft:${editing?.postId ?? kind}`;
+  const backHere = editing ? `/teacher/posts/${editing.postId}` : `/teacher?tab=${kind === "assignment" ? "assign" : kind}`;
+
+  /** Before going to Google: keep what was typed, so nothing is lost (only the PDF must be picked again). */
+  function saveDraft() {
+    const draft: Draft = { at: Date.now(), subjectId, title, description, contentOrder, examKind, rooms, eventStart, eventEnd, mode, url };
+    try {
+      window.sessionStorage.setItem(draftKey, JSON.stringify(draft));
+    } catch {}
+  }
+
+  // Back from Google: put back what was typed.
+  useEffect(() => {
+    let draft: Draft | null = null;
+    try {
+      draft = JSON.parse(window.sessionStorage.getItem(draftKey) ?? "null") as Draft | null;
+      window.sessionStorage.removeItem(draftKey);
+    } catch {}
+    if (!draft || Date.now() - draft.at > DRAFT_MINUTES * 60_000) return;
+    const d = draft;
+    // One-time restore after a full page visit to Google; not derived state.
+    /* eslint-disable react-hooks/set-state-in-effect */
+    setSubjectId(d.subjectId);
+    setTitle(d.title);
+    setDescription(d.description);
+    setContentOrder(d.contentOrder);
+    setExamKind(d.examKind);
+    setRooms(d.rooms);
+    setEventStart(d.eventStart);
+    setEventEnd(d.eventEnd);
+    setMode(d.mode);
+    setUrl(d.url);
+    setRestored(true);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [draftKey]);
 
   const roomOptions = useMemo<RoomOption[]>(
     () => (allowSchoolWide ? [{ id: SCHOOL, label: "ทั้งโรงเรียน" }, ...classrooms] : classrooms),
@@ -152,7 +234,8 @@ export function PostForm({ kind, userId, subjects, rooms: classrooms, allowSchoo
       const result = await compressPdf(f, { maxBytes: MAX_FILE_BYTES, onProgress: (p) => current() && setProgress(p) });
       if (!current()) return;
       setFile(result.file);
-      setFileError(fileProblem(result.file));
+      // The size limit depends on where the PDF goes (Connext 10 MB, Google Drive 50 MB): see sizeError.
+      setFileError(result.file.size === 0 ? "ไฟล์ว่างเปล่า" : null);
     } catch (e) {
       if (current()) setFileError(e instanceof CompressError ? e.message : "ย่อขนาดไฟล์ไม่สำเร็จ ลองเลือกไฟล์อีกครั้ง");
     } finally {
@@ -190,19 +273,43 @@ export function PostForm({ kind, userId, subjects, rooms: classrooms, allowSchoo
     if (mode === "file" && progress) return { error: "รอให้ย่อขนาดไฟล์เสร็จก่อน" };
     if (mode === "file" && !chosen) return { error: "เลือกไฟล์ PDF ที่จะแนบ" };
     const upload = mode === "file" ? chosen : null;
+    const toDrive = Boolean(upload) && Boolean(drive?.connected) && !useConnextRef.current;
+    if (upload && upload.size > (toDrive ? DRIVE_MAX_BYTES : MAX_FILE_BYTES)) {
+      return { error: toDrive ? "ไฟล์ใหญ่เกิน 50 MB" : "ไฟล์ใหญ่เกิน 10 MB แม้ย่อแล้ว แชร์เป็นลิงก์ Google Drive แทน" };
+    }
     let attachment: AttachmentInput =
-      upload
-        ? { mode: "file", storagePath: "pending", fileName: upload.name, size: upload.size }
-        : mode === "link"
-          ? { mode: "link", url }
-          : { mode: mode === "keep" ? "keep" : "none" };
+      upload && toDrive
+        ? { mode: "drive", fileId: "pending-pending-pending", fileName: upload.name, size: upload.size }
+        : upload
+          ? { mode: "file", storagePath: "pending", fileName: upload.name, size: upload.size }
+          : mode === "link"
+            ? { mode: "link", url }
+            : { mode: mode === "keep" ? "keep" : "none" };
     const precheck = validatePost(buildInput(attachment));
     if (!precheck.ok) return { error: precheck.error };
+    setDriveTrouble(null);
 
-    // 2) Upload the PDF straight to Supabase Storage (into this teacher's own folder).
+    // 2a) Google Drive: the browser sends the PDF straight to the teacher's own Drive.
+    let sentToDrive: string | null = null;
+    if (upload && toDrive) {
+      setDrivePct(0);
+      const start = await startDriveUpload(upload.name, upload.size).catch(() => ({ error: driveProblem(0), url: undefined, reconnect: false }));
+      const sent = start.url ? await sendToDrive(start.url, upload, setDrivePct) : null;
+      // Keep 100% ("ส่งเรียบร้อย ✓") on screen while the post is saved.
+      setDrivePct(sent?.id ? 100 : null);
+      if (!sent?.id) {
+        const message = start.error ?? driveProblem(sent?.status ?? 0, sent?.reason);
+        setDriveTrouble({ message, reconnect: Boolean(start.reconnect) || sent?.status === 401 });
+        return { error: message };
+      }
+      sentToDrive = sent.id;
+      attachment = { mode: "drive", fileId: sent.id, fileName: upload.name, size: upload.size };
+    }
+
+    // 2b) Otherwise upload the PDF straight to Supabase Storage (into this teacher's own folder).
     const storage = createBrowserSupabase().storage.from(MATERIALS_BUCKET);
     let uploaded: string | null = null;
-    if (upload) {
+    if (upload && !toDrive) {
       uploaded = `${userId}/${crypto.randomUUID()}.pdf`;
       const { error } = await storage.upload(uploaded, upload, { contentType: "application/pdf", upsert: false });
       if (error) return { error: "อัปโหลดไฟล์ไม่สำเร็จ ตรวจสอบอินเทอร์เน็ตแล้วลองอีกครั้ง" };
@@ -217,6 +324,10 @@ export function PostForm({ kind, userId, subjects, rooms: classrooms, allowSchoo
       result = { error: "เชื่อมต่อไม่สำเร็จ ลองอีกครั้ง" };
     }
     if (result.error && uploaded) await storage.remove([uploaded]);
+    if (result.error && sentToDrive) {
+      await discardDriveUpload(sentToDrive).catch(() => null);
+      setDriveTrouble({ message: result.error, reconnect: false });
+    }
     if (result.ok) {
       router.push(`/teacher?tab=mine&saved=${editing ? "edit" : kind}`);
       router.refresh();
@@ -491,6 +602,17 @@ export function PostForm({ kind, userId, subjects, rooms: classrooms, allowSchoo
 
             {mode === "file" && (
               <div>
+                {restored && (
+                  <div className="mb-3">
+                    <Notice tone="success">ข้อมูลที่กรอกไว้ยังอยู่ครบ เหลือแค่เลือกไฟล์ PDF อีกครั้ง</Notice>
+                  </div>
+                )}
+                {driveOn && (
+                  <p className="mb-3 flex items-center gap-2.5 rounded-xl bg-success-soft px-4 py-3 text-lg font-bold text-success">
+                    <Cloud aria-hidden className="h-6 w-6 shrink-0" />
+                    PDF จะเก็บใน Google Drive ของคุณ
+                  </p>
+                )}
                 <input
                   ref={fileInput}
                   type="file"
@@ -527,7 +649,19 @@ export function PostForm({ kind, userId, subjects, rooms: classrooms, allowSchoo
                       file={file}
                       useOriginal={useOriginal}
                       onUseOriginal={setUseOriginal}
+                      limit={limit}
                     />
+                    {pending && driveOn && (
+                      <div className="mt-4 rounded-xl bg-brand-soft/60 p-4" aria-live="polite">
+                        <p className="text-lg font-bold text-ink">
+                          {drivePct === 100 ? "ส่งเรียบร้อย ✓ กำลังบันทึก…" : `กำลังส่งไป Google Drive…${drivePct ? ` ${drivePct}%` : ""}`}
+                        </p>
+                        <div className="mt-2 h-3 overflow-hidden rounded-full bg-surface">
+                          <div className="bg-brand-gradient h-full rounded-full transition-[width] duration-200" style={{ width: `${drivePct ?? 0}%` }} />
+                        </div>
+                        <p className="mt-2 text-base text-muted">อย่าเพิ่งปิดหน้านี้</p>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <label
@@ -545,15 +679,44 @@ export function PostForm({ kind, userId, subjects, rooms: classrooms, allowSchoo
                       ไม่เกิน 50 MB · ระบบย่อขนาดให้อัตโนมัติ · ไฟล์อื่น ๆ ให้แชร์เป็นลิงก์
                     </span>
                     <span className="text-xs text-muted">
-                      นักเรียนดาวน์โหลดได้ {FILE_LIFETIME_DAYS} วัน แล้วระบบจะลบไฟล์อัตโนมัติ
+                      {driveOn
+                        ? `นักเรียนเปิดได้ ${FILE_LIFETIME_DAYS} วัน แล้วระบบจะย้ายไฟล์ไปถังขยะใน Google Drive ของคุณ`
+                        : `นักเรียนดาวน์โหลดได้ ${FILE_LIFETIME_DAYS} วัน แล้วระบบจะลบไฟล์อัตโนมัติ`}
                     </span>
                   </label>
                 )}
-                {fileError && (
+                {fileIssue && (
                   <div className="mt-2">
-                    <Notice tone="error">{fileError}</Notice>
+                    <Notice tone="error">{fileIssue}</Notice>
                   </div>
                 )}
+                {driveTrouble && (
+                  <div className="mt-3 space-y-3 rounded-2xl border border-danger/30 bg-surface p-4">
+                    <p className="text-lg font-bold leading-snug text-ink">{driveTrouble.message}</p>
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={() => {
+                        // Send this post's PDF to Connext instead, right away.
+                        useConnextRef.current = true;
+                        setUseConnext(true);
+                        setDriveTrouble(null);
+                        startTransition(() => run());
+                      }}
+                      className={bigButtonStyles.primary}
+                    >
+                      <HardDrive aria-hidden className="h-6 w-6" />
+                      เก็บในระบบ Connext แทน
+                    </button>
+                    {driveTrouble.reconnect && (
+                      <div className="border-t border-line pt-3">
+                        <p className="mb-3 text-lg text-ink">หรือเชื่อมต่อ Google Drive ใหม่:</p>
+                        <DriveConnectGuide next={backHere} onLeave={saveDraft} />
+                      </div>
+                    )}
+                  </div>
+                )}
+                {drive?.configured && !drive.connected && !original && <DriveOffer next={backHere} onLeave={saveDraft} />}
               </div>
             )}
           </Step>
@@ -576,14 +739,16 @@ export function PostForm({ kind, userId, subjects, rooms: classrooms, allowSchoo
           type="submit"
           variant="primary"
           className="sm:min-w-44"
-          disabled={pending || noSubjects || (mode === "file" && (Boolean(fileError) || Boolean(progress)))}
+          disabled={pending || noSubjects || (mode === "file" && (Boolean(fileIssue) || Boolean(progress)))}
         >
           {mode === "file" && progress
             ? "กำลังย่อขนาดไฟล์…"
-            : pending
-              ? mode === "file" && chosen
-                ? "กำลังอัปโหลด…"
-                : "กำลังบันทึก…"
+            : pending && driveOn && mode === "file" && chosen
+              ? `กำลังส่งไป Google Drive…${drivePct ? ` ${drivePct}%` : ""}`
+              : pending
+                ? mode === "file" && chosen
+                  ? "กำลังอัปโหลด…"
+                  : "กำลังบันทึก…"
               : editing
                 ? "บันทึกการแก้ไข"
                 : copy.submit}
@@ -719,12 +884,15 @@ function CompressStatus({
   file,
   useOriginal,
   onUseOriginal,
+  limit,
 }: {
   progress: CompressProgress | "start" | null;
   original: File;
   file: File | null;
   useOriginal: boolean;
   onUseOriginal: (v: boolean) => void;
+  /** Largest file that may be kept: 10 MB in Connext, 50 MB in Google Drive. */
+  limit: number;
 }) {
   if (progress) {
     const p = progress === "start" ? null : progress;
@@ -743,7 +911,7 @@ function CompressStatus({
   if (!file) return null;
 
   const compressed = file !== original;
-  const originalFits = original.size <= MAX_FILE_BYTES;
+  const originalFits = original.size <= limit;
   return (
     <div className="mt-3 space-y-1.5 text-sm" aria-live="polite">
       {compressed && !useOriginal && (

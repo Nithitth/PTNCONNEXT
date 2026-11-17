@@ -5,13 +5,16 @@
  *
  *   npm run check:security
  *
- * Needs the test accounts to still have their birthdate passwords.
+ * Needs the test accounts to still have their birthdate passwords, and runs only on the TEST project
+ * (run npm run seed first; it also sets up admin.test's two-step verification).
  */
-import { config } from "dotenv";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { currentAcademicYear, loginIdToEmail } from "../src/lib/roster";
+import { hiddenEmailFor, loginEmailSecretFrom } from "../src/lib/authEmailCore";
+import { currentAcademicYear, LOGIN_EMAIL_DOMAIN } from "../src/lib/roster";
+import { loadEnv, readTestFactor, requireTestDatabase, totp } from "./lib";
 
-config({ path: ".env.local", quiet: true });
+loadEnv();
+const loginIdToEmail = (id: string) => hiddenEmailFor(id, loginEmailSecretFrom(process.env));
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const secret = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -34,7 +37,26 @@ async function signIn(loginId: string, password: string): Promise<SupabaseClient
   return c;
 }
 
+/** Passes admin.test's two-step check, so the session is "aal2" (full admin powers). */
+async function passTwoStep(c: SupabaseClient) {
+  const f = readTestFactor();
+  if (!f) {
+    console.error("No .ptn-test-totp.json: run npm run seed first (it sets up admin.test's two-step).");
+    process.exit(1);
+  }
+  let { error } = await c.auth.mfa.challengeAndVerify({ factorId: f.factorId, code: totp(f.secret) });
+  if (error) {
+    await new Promise((r) => setTimeout(r, 31_000)); // the same code can't be used twice: wait for the next one
+    ({ error } = await c.auth.mfa.challengeAndVerify({ factorId: f.factorId, code: totp(f.secret) }));
+  }
+  if (error) {
+    console.error(`admin.test's two-step check failed (${error.message}). Run npm run seed again.`);
+    process.exit(1);
+  }
+}
+
 async function main() {
+  await requireTestDatabase(admin);
   const year = currentAcademicYear();
   const room = async (grade: number, r: number) =>
     (await admin.from("classrooms").select("id").match({ grade, room: r, academic_year: year }).single()).data!.id as string;
@@ -142,7 +164,9 @@ async function main() {
   );
   const sErr = await s1.from("error_logs").select("id");
   check("student can't read the error log", (sErr.data ?? []).length === 0);
+  const aOne = await signIn("admin.test", "01011990"); // password only (aal1)
   const a = await signIn("admin.test", "01011990");
+  await passTwoStep(a);
   const aFb = await a.from("feedback").select("id").like("message", "[security check]%");
   check("admin can read feedback", (aFb.data ?? []).length >= 1, aFb.error?.message);
   const aErr = await a.from("error_logs").select("id").limit(1);
@@ -362,6 +386,123 @@ async function main() {
   const tUsage = await t.rpc("admin_usage");
   const aUsage = await a.rpc("admin_usage");
   check("only admins can read the usage numbers", Boolean(sUsage.error) && Boolean(tUsage.error) && !aUsage.error && typeof aUsage.data?.db_bytes === "number", aUsage.error?.message);
+
+  // Security (0017/0018): admin powers need two-step; the hidden log-in emails can't be guessed.
+  console.log("\nSecurity");
+  const oneFb = await aOne.from("feedback").select("id").limit(1);
+  const oneUsage = await aOne.rpc("admin_usage");
+  check(
+    "an admin who only typed the password (no two-step) has no admin powers",
+    (oneFb.data ?? []).length === 0 && Boolean(oneUsage.error),
+    oneUsage.error ? "" : "paste migration 0018 into the test project",
+  );
+  const secTables = ["audit_events", "login_unlocks"];
+  for (const who of [
+    { name: "a student", c: s1 },
+    { name: "a teacher", c: t },
+    { name: "an admin (in the browser)", c: a },
+  ]) {
+    const reads = await Promise.all(secTables.map((tbl) => who.c.from(tbl).select("*").limit(1)));
+    check(`${who.name} can't read the audit log or unlocks`, reads.every((r) => (r.data ?? []).length === 0));
+  }
+  const guessed = createClient(url, anon, opts);
+  const old = await guessed.auth.signInWithPassword({ email: `90001@${LOGIN_EMAIL_DOMAIN}`, password: "05052009" });
+  check("the old guessable hidden email no longer signs in", Boolean(old.error));
+  await aOne.auth.signOut();
+
+  // Google Drive (0019): teachers' Google keys are server-only; a Drive PDF always belongs to whoever added it.
+  console.log("\nGoogle Drive");
+  for (const who of [
+    { name: "a student", c: s1 },
+    { name: "a teacher", c: t },
+    { name: "an admin (in the browser)", c: a },
+  ]) {
+    const r = await who.c.from("drive_connections").select("*").limit(1);
+    check(`${who.name} can't read anyone's Google Drive keys`, (r.data ?? []).length === 0);
+  }
+  const fakeKey = await t.from("drive_connections").insert({ user_id: teacherId, refresh_token_enc: "x" });
+  check("nobody can save a Google Drive key from the browser", Boolean(fakeKey.error));
+  const DRIVE_ID = "security-check-drive-file-id-0001";
+  await admin.from("attachments").delete().eq("drive_file_id", DRIVE_ID); // leftover from an interrupted run
+  const drivePost = await t
+    .from("posts")
+    .insert({ type: "material", title: "[security check] Drive", author_id: teacherId })
+    .select("id")
+    .single();
+  const driveAtt = await t
+    .from("attachments")
+    .insert({
+      post_id: drivePost.data?.id,
+      kind: "link",
+      url: `https://drive.google.com/file/d/${DRIVE_ID}/view`,
+      file_name: "drive.pdf",
+      drive_file_id: DRIVE_ID,
+      drive_owner_id: adminId, // tries to claim the admin's Drive
+      size_bytes: 20 * 1024 * 1024,
+    })
+    .select("id")
+    .single();
+  check("teacher can attach a Google Drive PDF (up to 50 MB) to their post", !driveAtt.error, driveAtt.error?.message);
+  const driveRow = await admin.from("attachments").select("drive_owner_id, expires_at").eq("id", driveAtt.data?.id ?? "").maybeSingle();
+  check("a Drive PDF always belongs to the teacher who added it", driveRow.data?.drive_owner_id === teacherId);
+  check("a Drive PDF gets the 180-day expiry too", Boolean(driveRow.data?.expires_at));
+  const bigLink = await t
+    .from("attachments")
+    .insert({ post_id: drivePost.data?.id, kind: "link", url: "https://x.com", file_name: "x", size_bytes: 20 * 1024 * 1024 });
+  check("only Drive PDFs may be bigger than 10 MB", Boolean(bigLink.error));
+  if (drivePost.data?.id) await admin.from("posts").delete().eq("id", drivePost.data.id);
+
+  // Sign-up (0016): the sign-up tables are server-only; one person = one account.
+  console.log("\nSign-up");
+  const guest = createClient(url, anon, opts);
+  const signupTables = ["registrations", "signup_rooms", "signup_email_codes", "signup_events", "app_settings"];
+  for (const who of [
+    { name: "a guest", c: guest },
+    { name: "a student", c: s1 },
+    { name: "a teacher", c: t },
+    { name: "an admin (in the browser)", c: a },
+  ]) {
+    const reads = await Promise.all(signupTables.map((tbl) => who.c.from(tbl).select("*").limit(1)));
+    check(`${who.name} can't read any sign-up table`, reads.every((r) => (r.data ?? []).length === 0));
+  }
+  const forgedReg = await guest
+    .from("registrations")
+    .insert({ kind: "student", login_id: "99999", first_name: "x", last_name: "y", name_key: "x y", classroom_id: room51 });
+  const forgedSlot = await s1.from("signup_rooms").insert({ classroom_id: room51, code: "HACKED", starts_at: new Date().toISOString(), ends_at: new Date(Date.now() + 3_600_000).toISOString() });
+  const flipped = await t.from("app_settings").update({ value: false }).eq("key", "signup_open").select("key");
+  check(
+    "nobody can pre-register, open a room or flip the switch from the browser",
+    Boolean(forgedReg.error) && Boolean(forgedSlot.error) && (flipped.data ?? []).length === 0,
+  );
+  const s1Id = (await s1.auth.getUser()).data.user!.id;
+  const guestClaim = await guest.rpc("claim_registration", { p_registration: s1Id, p_user: s1Id, p_login_id: "x", p_display_name: "x", p_email: null, p_phone: null });
+  const studentClaim = await s1.rpc("claim_registration", { p_registration: s1Id, p_user: s1Id, p_login_id: "x", p_display_name: "x", p_email: null, p_phone: null });
+  check("only the server can claim a registration", Boolean(guestClaim.error) && Boolean(studentClaim.error));
+  const claimed = await admin.from("registrations").select("id").eq("login_id", "90001").maybeSingle();
+  if (claimed.data) {
+    const again = await admin.rpc("claim_registration", {
+      p_registration: claimed.data.id,
+      p_user: s1Id,
+      p_login_id: "90001-again",
+      p_display_name: "x",
+      p_email: null,
+      p_phone: null,
+    });
+    check("a person who already registered can't be claimed again", Boolean(again.error));
+  } else {
+    check("a person who already registered can't be claimed again", false, "run npm run seed first (no registration for 90001)");
+  }
+  const peekContact = await s1.from("profiles").select("email, phone").eq("login_id", "teacher.test");
+  check("a student can't see anyone else's email or phone", (peekContact.data ?? []).length === 0);
+  await s1.from("profiles").update({ email: "stolen@example.com" }).eq("login_id", "90001");
+  const ownEmail = await admin.from("profiles").select("email").eq("login_id", "90001").single();
+  check("users can't change their own email directly", ownEmail.data?.email !== "stolen@example.com");
+  const tPhone = (await admin.from("profiles").select("phone").eq("login_id", "teacher.test").single()).data?.phone;
+  if (tPhone) {
+    const dupPhone = await admin.from("profiles").update({ phone: tPhone }).eq("login_id", "90002");
+    check("one phone number per account (database rule)", Boolean(dupPhone.error));
+  }
+  await guest.auth.signOut();
 
   // Clean up
   await admin.from("posts").delete().in("id", [mathPost, sciencePost]);

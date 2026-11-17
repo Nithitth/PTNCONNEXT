@@ -7,18 +7,22 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --test src/lib/roster.test.ts src/lib/calendar.test.ts src/lib/tcas.test.ts src/lib/tcasSource.test.ts src/lib/roadmap.test.ts src/lib/roadmapLevels.test.ts src/lib/postForm.test.ts",
+    "test": "tsx --test src/lib/roster.test.ts src/lib/calendar.test.ts src/lib/tcas.test.ts src/lib/tcasSource.test.ts src/lib/roadmap.test.ts src/lib/roadmapLevels.test.ts src/lib/postForm.test.ts src/lib/signup.test.ts src/lib/driveCore.test.ts",
     "typecheck": "tsc --noEmit",
     "seed": "tsx scripts/seed.ts",
-    "check:security": "tsx scripts/check-security.ts"
+    "check:security": "tsx scripts/check-security.ts",
+    "migrate:auth-emails": "tsx scripts/migrate-auth-emails.ts",
+    "first-admin": "tsx scripts/first-admin.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.119.0",
     "lucide-react": "^1.71.0",
     "next": "16.4.6",
+    "nodemailer": "^10.5.0",
     "pdf-lib": "1.17.1",
     "pdfjs-dist": "6.4.299",
+    "qrcode": "^1.5.4",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "read-excel-file": "^9.3.14",
@@ -28,6 +32,8 @@
   "devDependencies": {
     "@tailwindcss/turbopack": "4.3.3",
     "@types/node": "^20",
+    "@types/nodemailer": "^8.0.2",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "dotenv": "^18.0.10",

@@ -5,6 +5,7 @@ import { ArrowLeft, Pencil } from "lucide-react";
 import { PostForm, type FormInitial } from "@/components/teacher/PostForm";
 import { Card, Container, PageHeader } from "@/components/ui";
 import { requireProfile } from "@/lib/auth";
+import { driveState } from "@/lib/drive";
 import { isoToBangkokInput } from "@/lib/calendar";
 import { KIND_LABEL, SCHOOL, isUuid } from "@/lib/postForm";
 import { loadManagedPosts, type MyPost } from "@/lib/posts";
@@ -39,10 +40,11 @@ export default async function EditPostPage({ params }: PageProps<"/teacher/posts
 
   const supabase = await createClient();
   const isAdmin = profile.role === "admin";
-  const [[post], subjects, rooms] = await Promise.all([
+  const [[post], subjects, rooms, drive] = await Promise.all([
     loadManagedPosts(supabase, profile, { id, limit: 1 }),
     loadTeachingOptions(supabase, profile),
     loadCurrentRooms(supabase),
+    driveState(profile.id),
   ]);
   if (!post) notFound();
   const kind = post.type;
@@ -71,6 +73,7 @@ export default async function EditPostPage({ params }: PageProps<"/teacher/posts
           rooms={rooms}
           allowSchoolWide={isAdmin && kind === "event"}
           editing={{ postId: post.id, initial: toInitial(post), current: post.attachments[0] ?? null }}
+          drive={drive}
         />
       </Card>
     </Container>

@@ -5,9 +5,9 @@ import { GraduationCap, Presentation } from "lucide-react";
 import { login, type LoginKind, type LoginState } from "@/app/login/actions";
 import { Button, Field, Notice } from "@/components/ui";
 
-const COPY: Record<LoginKind, { label: string; idLabel: string; idPlaceholder: string; inputMode: "numeric" | "text" }> = {
-  student: { label: "นักเรียน", idLabel: "เลขประจำตัวนักเรียน", idPlaceholder: "12345", inputMode: "numeric" },
-  teacher: { label: "ครู", idLabel: "ชื่อผู้ใช้", idPlaceholder: "somsri.k", inputMode: "text" },
+const COPY: Record<LoginKind, { label: string; idLabel: string; idPlaceholder: string }> = {
+  student: { label: "นักเรียน", idLabel: "เลขประจำตัวนักเรียน หรืออีเมล", idPlaceholder: "12345 หรือ name@gmail.com" },
+  teacher: { label: "ครู", idLabel: "อีเมล หรือเบอร์โทร", idPlaceholder: "name@gmail.com หรือ 081-234-5678" },
 };
 
 export function LoginForm() {
@@ -44,7 +44,6 @@ export function LoginForm() {
         label={copy.idLabel}
         name="loginId"
         autoComplete="username"
-        inputMode={copy.inputMode}
         placeholder={copy.idPlaceholder}
         defaultValue={state.kind === kind ? state.loginId : ""}
         required
@@ -55,12 +54,6 @@ export function LoginForm() {
         type="password"
         autoComplete="current-password"
         required
-        hint={
-          <>
-            เข้าครั้งแรก ใช้วันเกิดแบบ <b className="font-semibold text-ink">วว ดด ปปปป</b> ปี ค.ศ. เช่น เกิด 5 พ.ค. 2552 →{" "}
-            <b className="font-semibold text-ink">05052009</b>
-          </>
-        }
       />
 
       {state.error && <Notice tone="error">{state.error}</Notice>}

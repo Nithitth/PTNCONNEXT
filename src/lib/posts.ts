@@ -28,8 +28,9 @@ type AttachmentRow = {
   file_name: string;
   expires_at: string | null;
   expired_at: string | null;
+  drive_file_id: string | null;
 };
-const ATTACHMENT_FIELDS = "attachments(id, kind, url, file_name, expires_at, expired_at)";
+const ATTACHMENT_FIELDS = "attachments(id, kind, url, file_name, expires_at, expired_at, drive_file_id)";
 type ClassroomRow = { grade: number; room: number } | null;
 type TargetRow = {
   classroom_id: string | null;
@@ -54,16 +55,23 @@ const POST_FIELDS =
 
 const toSubject = (s: SubjectRow) => (s ? { code: s.code, name: s.name_th, color: s.color } : null);
 
-/** Links open directly; PDFs go through /files/[id], which checks access first. */
+/**
+ * Links open directly; PDFs go through /files/[id], which checks access first. A PDF kept in the teacher's
+ * Google Drive (migration 0019) is shown like any PDF (180-day countdown, /files/[id]), marked drive.
+ */
 const toAttachments = (rows: AttachmentRow[] = []): Attachment[] =>
-  rows.map((a) => ({
-    id: a.id,
-    kind: a.kind,
-    name: a.file_name,
-    href: a.kind === "link" ? (a.url ?? "#") : `/files/${a.id}`,
-    expiresAt: a.kind === "file" ? a.expires_at : null,
-    expired: Boolean(a.expired_at),
-  }));
+  rows.map((a) => {
+    const pdf = a.kind === "file" || Boolean(a.drive_file_id);
+    return {
+      id: a.id,
+      kind: pdf ? "file" : "link",
+      name: a.file_name,
+      href: pdf ? `/files/${a.id}` : (a.url ?? "#"),
+      expiresAt: pdf ? a.expires_at : null,
+      expired: Boolean(a.expired_at),
+      drive: Boolean(a.drive_file_id),
+    };
+  });
 
 const roomLabel = (t: { classroom_id: string | null; classroom: ClassroomRow }) =>
   t.classroom_id === null ? "ทั้งโรงเรียน" : t.classroom ? formatClassroom(t.classroom) : null;
@@ -242,7 +250,7 @@ async function readExpiringFiles(supabase: SupabaseClient, profile: Profile): Pr
   const { data, error } = await supabase
     .from("attachments")
     .select("id, file_name, expires_at, post:posts!inner(id, title, author_id)")
-    .eq("kind", "file")
+    // Only PDFs have expires_at: Connext files and Google Drive files (links never expire).
     .is("expired_at", null)
     .lte("expires_at", until)
     .eq("post.author_id", profile.id)

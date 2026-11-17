@@ -68,14 +68,17 @@ export function AttachmentLinks({ attachments, compact }: { attachments: Attachm
               <FileText aria-hidden className="h-3.5 w-3.5 shrink-0" />
               <span className="truncate">{compact ? "เปิด PDF" : a.name}</span>
             </a>
-            <a
-              href={`${a.href}?download=1`}
-              aria-label={`ดาวน์โหลด ${a.name}`}
-              className={cx(base, size, "border-line bg-surface text-ink shadow-soft-sm hover:border-brand/30 hover:text-brand")}
-            >
-              <Download aria-hidden className="h-3.5 w-3.5" />
-              {!compact && "ดาวน์โหลด"}
-            </a>
+            {/* A PDF in Google Drive opens on Drive's own page, which has its own download button. */}
+            {!a.drive && (
+              <a
+                href={`${a.href}?download=1`}
+                aria-label={`ดาวน์โหลด ${a.name}`}
+                className={cx(base, size, "border-line bg-surface text-ink shadow-soft-sm hover:border-brand/30 hover:text-brand")}
+              >
+                <Download aria-hidden className="h-3.5 w-3.5" />
+                {!compact && "ดาวน์โหลด"}
+              </a>
+            )}
             <ExpiryChip expiresAt={a.expiresAt} compact={compact} />
           </span>
         ) : (

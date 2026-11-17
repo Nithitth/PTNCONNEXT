@@ -11,7 +11,6 @@ export const ROADMAP_MAX_BOXES = 10;
 export const BOX_MAX_ITEMS = 20;
 export const BOX_MAX_LINKS = 10;
 export const BOX_MAX_BACKUPS = 3;
-export const XP_PER_LEVEL = 50;
 /** XP from things students type themselves (own quests, activities, study) is capped at this share. */
 export const TYPED_XP_SHARE = 0.4;
 /** …but a fresh roadmap always allows this much typed XP, so the first own quests still count. */
@@ -286,22 +285,28 @@ export type RoadmapProgram = {
   weights: Record<string, number>;
   hasRound3: boolean;
   round1: { projectName: string | null; portfolio: string; criteria: string }[];
+  /** The roadmap's own Round 3 option (picked by its position among options with a calculator), or null. */
+  option: Round3Option | null;
 };
 
-/** Picks what the roadmap needs from a program's detail and the roadmap's Round 3 option. */
-export function toRoadmapProgram(
-  p: {
-    programId: string;
-    groupField: string;
-    round1: { projectName: string | null; portfolio: string; criteria: string }[];
-    round3: Round3Option[];
-  },
-  position: number,
-): RoadmapProgram {
-  const option = pickOption(
-    p.round3.filter((o) => !o.problem),
+/** What a roadmap reads from a program's detail (a subset of tcasData's ProgramDetail). */
+export type ProgramForRoadmap = {
+  programId: string;
+  groupField: string;
+  round1: { projectName: string | null; portfolio: string; criteria: string }[];
+  round3: Round3Option[];
+};
+
+/** The option at a saved position, among the options that have a calculator. */
+const usableOption = (round3: Round3Option[], position: number) =>
+  pickOption(
+    round3.filter((o) => !o.problem),
     position,
   );
+
+/** Picks what the roadmap needs from a program's detail and the roadmap's Round 3 option. */
+export function toRoadmapProgram(p: ProgramForRoadmap, position: number): RoadmapProgram {
+  const option = usableOption(p.round3, position);
   const any = option ?? p.round3[0] ?? null;
   return {
     programId: p.programId,
@@ -310,8 +315,20 @@ export function toRoadmapProgram(
     weights: option?.weights ?? {},
     hasRound3: p.round3.length > 0,
     round1: p.round1.map((r) => ({ projectName: r.projectName, portfolio: r.portfolio, criteria: r.criteria })),
+    option,
   };
 }
+
+/** A program the roadmap can't load (removed from TCAS): nothing to fill in or check. */
+export const emptyRoadmapProgram = (programId: string): RoadmapProgram => ({
+  programId,
+  groupField: "",
+  minGpax: null,
+  weights: {},
+  hasRound3: false,
+  round1: [],
+  option: null,
+});
 
 /** The 1–5 chance level from a saved target's calculator scores, or null (no target, no calculator, no data). */
 export function targetChance(
@@ -319,12 +336,22 @@ export function targetChance(
   target: { position: number; sliderScores: Record<string, number> } | null,
 ): number | null {
   if (!target) return null;
-  const option = pickOption(
-    round3.filter((o) => !o.problem),
-    target.position,
-  );
+  const option = usableOption(round3, target.position);
   if (!option) return null;
   return calculate(option, target.sliderScores).chance?.level ?? null;
+}
+
+/**
+ * Everything a roadmap needs to know about its program, from the program's detail, the roadmap's
+ * position and the saved target (if the program is one): the roadmap's view of the program and the
+ * 1–5 chance from the target's calculator scores.
+ */
+export function roadmapContext(
+  p: ProgramForRoadmap,
+  position: number,
+  target: { programId: string; position: number; sliderScores: Record<string, number> } | null,
+): { program: RoadmapProgram; chance: number | null } {
+  return { program: toRoadmapProgram(p, position), chance: targetChance(p.round3, target) };
 }
 
 /** A short, stable id for a text (djb2, base 36). Used to key portfolio items by project name. */
@@ -447,7 +474,7 @@ export function newBoxData<K extends BoxKind>(
   return d as BoxData[K];
 }
 
-// ─── Scoring: XP, level, badges ──────────────────────────────
+// ─── Scoring: XP and badges (stages live in roadmapLevels.ts) ─
 
 export type ScoreContext = {
   program: RoadmapProgram;
@@ -460,10 +487,6 @@ export type Badge = { key: string; label: string; hint: string; earned: boolean 
 
 export type RoadmapScore = {
   xp: number;
-  level: number;
-  /** XP where the current level started and where the next one begins. */
-  levelStart: number;
-  nextLevelXp: number;
   /** XP from typed entries that didn't count because of the 40% cap. */
   cappedXp: number;
   boxXp: Record<string, number>;
@@ -488,10 +511,8 @@ export function latestGpax(g: BoxData["gpa"]): number | null {
   return null;
 }
 
-export const levelOf = (xp: number) => 1 + Math.floor(Math.max(0, xp) / XP_PER_LEVEL);
-
 /**
- * XP per box, the total, the level and the badges.
+ * XP per box, the total and the badges.
  * - Program-driven progress (GPA, scores, suggested and template quests, portfolio, goals) always counts.
  * - Typed entries (own quests, activities, study slots, skill steps) count up to 40% of the total,
  *   with a floor of 30 XP so a new roadmap still rewards the first entries.
@@ -572,7 +593,6 @@ export function scoreRoadmap(boxes: AnyBox[], ctx: ScoreContext): RoadmapScore {
   const boxXp: Record<string, number> = {};
   for (const [id, r] of Object.entries(raw)) boxXp[id] = r.earned + Math.floor(r.typed * ratio);
   const xp = earned + allowedTyped;
-  const level = levelOf(xp);
 
   const badges: Badge[] = [
     { key: "first", label: "ก้าวแรก", hint: "เพิ่มกล่องแรก", earned: boxes.length > 0 },
@@ -588,15 +608,10 @@ export function scoreRoadmap(boxes: AnyBox[], ctx: ScoreContext): RoadmapScore {
     { key: "activities", label: "นักกิจกรรม", hint: "บันทึกกิจกรรม 5 รายการ", earned: activities >= 5 },
     { key: "backup", label: "มีแผนสำรอง", hint: "เพิ่มหลักสูตรสำรอง", earned: backups > 0 },
     { key: "full", label: "ครบ 10 กล่อง", hint: "ใช้กล่องครบ 10 กล่อง", earned: boxes.length >= ROADMAP_MAX_BOXES },
-    { key: "lv5", label: "200 XP", hint: "เก็บ XP รวมให้ถึง 200", earned: level >= 5 },
-    { key: "lv10", label: "450 XP", hint: "เก็บ XP รวมให้ถึง 450", earned: level >= 10 },
   ];
 
   return {
     xp,
-    level,
-    levelStart: (level - 1) * XP_PER_LEVEL,
-    nextLevelXp: level * XP_PER_LEVEL,
     cappedXp: typed - allowedTyped,
     boxXp,
     badges,

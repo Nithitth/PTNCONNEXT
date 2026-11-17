@@ -1,11 +1,10 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { dayKey } from "@/lib/calendar";
-import { isBoxKind, isTerm, scoreRoadmap, targetChance, toRoadmapProgram, type AnyBox, type KeyDate, type RoadmapTemplate, type Term } from "@/lib/roadmap";
-import { nextStreak, stageOf, type Proof } from "@/lib/roadmapLevels";
+import { isBoxKind, isTerm, roadmapContext, type AnyBox, type KeyDate, type RoadmapProgram, type RoadmapTemplate, type Term } from "@/lib/roadmap";
+import { evaluateRoadmap, nextStreak, type Proof } from "@/lib/roadmapLevels";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { pickOption } from "@/lib/tcas";
-import { loadMyTargets, loadProgram } from "@/lib/tcasData";
+import { loadMyTargets, loadProgram, type ProgramDetail, type TargetCard } from "@/lib/tcasData";
 
 // Reads the user's roadmap (their own client, so RLS keeps it private) plus the shared
 // templates and TCAS key dates, and keeps the saved stage/XP/streak in step (syncLevel).
@@ -97,43 +96,81 @@ export async function loadClassStats(supabase: SupabaseClient): Promise<{ studen
 }
 
 /**
- * Recomputes the roadmap's XP and stage from its boxes and proof, updates the weekly streak when
- * `progress` is true, and saves them (service role: users can't write these columns themselves).
- * Call after requireProfile(); `userId` must be that profile's id.
+ * The program behind a roadmap, as the roadmap sees it: the program's detail (cached), the roadmap's
+ * view of it (with its Round 3 option) and the chance from the saved target. Null when the program
+ * is gone from TCAS. Callers must run requireProfile() first (loadProgram reads with the admin client).
  */
-export async function syncLevel(supabase: SupabaseClient, userId: string, progress: boolean): Promise<LevelSaved | null> {
-  const [roadmap, proofs, targets] = await Promise.all([loadMyRoadmap(supabase), loadMyProofs(supabase), loadMyTargets(supabase).catch(() => [])]);
-  if (!roadmap) return null;
-  const program = await loadProgram(roadmap.programId);
-  if (!program) return roadmap.level;
-  const rp = toRoadmapProgram(program, roadmap.position);
-  const today = dayKey(new Date());
+export async function loadRoadmapContext(
+  roadmap: { programId: string; position: number },
+  targets: TargetCard[],
+): Promise<{ detail: ProgramDetail; program: RoadmapProgram; chance: number | null; target: TargetCard | null } | null> {
+  const detail = await loadProgram(roadmap.programId);
+  if (!detail) return null;
   const target = targets.find((t) => t.programId === roadmap.programId) ?? null;
-  const { xp } = scoreRoadmap(roadmap.boxes, { program: rp, chance: targetChance(program.round3, target), today });
-  const option = pickOption(
-    program.round3.filter((o) => !o.problem),
-    roadmap.position,
-  );
-  const level = stageOf({ boxes: roadmap.boxes, program: rp, option, proofs }, xp);
+  return { detail, target, ...roadmapContext(detail, roadmap.position, target) };
+}
+
+/** Everything a roadmap's level depends on, read once (the user's own client, so RLS applies). */
+export type RoadmapSnapshot = { roadmap: MyRoadmap; proofs: Proof[]; targets: TargetCard[] };
+
+export async function loadSnapshot(supabase: SupabaseClient): Promise<RoadmapSnapshot | null> {
+  const [roadmap, proofs, targets] = await Promise.all([
+    loadMyRoadmap(supabase),
+    loadMyProofs(supabase),
+    loadMyTargets(supabase).catch(() => []),
+  ]);
+  return roadmap ? { roadmap, proofs, targets } : null;
+}
+
+/**
+ * Recomputes the roadmap's XP and stage, moves the weekly streak when `progress` is true, and saves
+ * them (service role: users can't write these columns). Pass a `snapshot` the action already holds
+ * (with its own change applied) to skip re-reading it. Nothing is written when nothing changed.
+ * Returns the saved level and the proof list. Call after requireProfile(); `userId` is that profile.
+ */
+export async function syncLevel(
+  supabase: SupabaseClient,
+  userId: string,
+  progress: boolean,
+  snapshot?: RoadmapSnapshot | null,
+): Promise<{ level: LevelSaved; proofs: Proof[] } | null> {
+  const snap = snapshot ?? (await loadSnapshot(supabase));
+  if (!snap) return null;
+  const { roadmap, proofs, targets } = snap;
   const prev = roadmap.level;
+  const ctx = await loadRoadmapContext(roadmap, targets);
+  if (!ctx) return { level: prev, proofs };
+
+  const today = dayKey(new Date());
+  const { score, level } = evaluateRoadmap(roadmap.boxes, { program: ctx.program, chance: ctx.chance, today }, proofs);
   const streak = progress ? nextStreak(prev.lastActiveWeek, prev.streak, today) : { lastWeek: prev.lastActiveWeek, streak: prev.streak };
-  const next = {
+  const next: LevelSaved = {
     stage: level.stage,
-    max_stage: Math.max(prev.maxStage, level.stage),
+    maxStage: Math.max(prev.maxStage, level.stage),
     finished: level.finished,
-    xp,
+    xp: score.xp,
     streak: streak.streak,
-    best_streak: Math.max(prev.bestStreak, streak.streak),
-    last_active_week: streak.lastWeek,
+    bestStreak: Math.max(prev.bestStreak, streak.streak),
+    lastActiveWeek: streak.lastWeek,
+    frame: prev.frame,
   };
-  const { data, error } = await createAdminClient()
+  const same = (Object.keys(next) as (keyof LevelSaved)[]).every((k) => next[k] === prev[k]);
+  if (same) return { level: prev, proofs };
+
+  const { error } = await createAdminClient()
     .from("tcas_roadmaps")
-    .update(next)
-    .eq("student_id", userId)
-    .select(LEVEL_COLUMNS)
-    .single();
+    .update({
+      stage: next.stage,
+      max_stage: next.maxStage,
+      finished: next.finished,
+      xp: next.xp,
+      streak: next.streak,
+      best_streak: next.bestStreak,
+      last_active_week: next.lastActiveWeek,
+    })
+    .eq("student_id", userId);
   if (error) throw error;
-  return toLevel(data as LevelRow);
+  return { level: next, proofs };
 }
 
 /** Templates the guidance teacher has checked (students only ever receive approved rows). */

@@ -6,9 +6,9 @@ import { RoadmapCard } from "./RoadmapCard";
 
 /**
  * The big Roadmap band on /tcas (students only), right under the university showcase.
- * Without a roadmap it invites them to make one; with one it shows their level and program.
+ * Without a roadmap it invites them to make one; with one it shows their stage and program.
  */
-export function RoadmapPromo({ mine }: { mine: { level: number; pct: number; label: string } | null }) {
+export function RoadmapPromo({ mine }: { mine: { stage: number; stageName: string; pct: number; label: string } | null }) {
   return (
     <section
       aria-labelledby="roadmap-promo-title"
@@ -27,7 +27,7 @@ export function RoadmapPromo({ mine }: { mine: { level: number; pct: number; lab
             เลือกหลักสูตรที่อยากเข้า แล้วสร้างการ์ดเป้าหมายแบบเกมของคุณเอง 1 ใบต่อคน แก้หรือลบได้ทุกเมื่อ
           </p>
           <ul className="mt-5 grid gap-2 text-sm font-bold sm:grid-cols-3">
-            {["เลือกกล่องที่ใช่", "ติ๊กภารกิจเก็บ XP", "เลเวลอัปเมื่อใกล้เป้า"].map((t) => (
+            {["เลือกกล่องที่ใช่", "ติ๊กภารกิจเก็บ XP", "ผ่านทีละด่านจนพร้อมสมัคร"].map((t) => (
               <li key={t} className="flex items-center gap-2">
                 <CheckCircle2 aria-hidden className="h-4 w-4 shrink-0" />
                 {t}
@@ -42,12 +42,13 @@ export function RoadmapPromo({ mine }: { mine: { level: number; pct: number; lab
             >
               <span className="bg-brand-gradient grid h-12 w-12 shrink-0 place-items-center rounded-2xl text-center text-white">
                 <span>
-                  <span className="block text-[9px] font-bold leading-none text-white/80">LV</span>
-                  <span className="font-display text-xl font-extrabold leading-none">{mine.level}</span>
+                  <span className="block text-[9px] font-bold leading-none text-white/80">ด่าน</span>
+                  <span className="font-display text-xl font-extrabold leading-none">{mine.stage}</span>
                 </span>
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-bold">{mine.label}</span>
+                <span className="block text-xs text-muted">ด่าน {mine.stage} · {mine.stageName}</span>
                 <span className="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-sunken" aria-hidden>
                   <span className="bg-brand-gradient block h-full rounded-full" style={{ width: `${mine.pct}%` }} />
                 </span>

@@ -26,6 +26,16 @@ export const buttonStyles = {
   danger: `${BUTTON_BASE} ${PRESS} border border-line bg-surface text-danger shadow-soft-sm hover:bg-danger hover:text-white hover:shadow-soft`,
 };
 
+const BIG_BASE =
+  "inline-flex min-h-14 w-full items-center justify-center gap-2.5 rounded-2xl px-6 py-3 text-lg font-bold disabled:pointer-events-none disabled:opacity-60 sm:w-auto";
+
+/** Extra-large buttons for steps teachers with little computer experience must not miss (e.g. Google Drive). */
+export const bigButtonStyles = {
+  primary: `${BIG_BASE} ${PRESS} border border-brand bg-brand text-white shadow-brand-glow hover:bg-brand-hot hover:shadow-brand-glow-lg active:bg-brand-deep`,
+  secondary: `${BIG_BASE} ${SECONDARY}`,
+  danger: `${BIG_BASE} ${PRESS} border border-danger bg-danger text-white shadow-soft hover:shadow-soft-lg`,
+};
+
 /** Smaller secondary button (lists, toolbars). Don't shrink buttonStyles with extra classes — they clash. */
 export const smallButtonStyles = `inline-flex h-9 items-center justify-center gap-1.5 rounded-lg px-3 text-sm font-bold ${SECONDARY}`;
 

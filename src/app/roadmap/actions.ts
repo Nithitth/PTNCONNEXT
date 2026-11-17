@@ -8,6 +8,7 @@ import {
   ROADMAP_MAX_BOXES,
   cleanBoxData,
   cleanBoxTitle,
+  emptyRoadmapProgram,
   isBoxKind,
   mergeQuests,
   newBoxData,
@@ -17,7 +18,7 @@ import {
   type BoxKind,
   type QuestItem,
 } from "@/lib/roadmap";
-import { loadApprovedTemplates, loadKeyDates, loadMyProofs, syncLevel, type LevelSaved } from "@/lib/roadmapData";
+import { loadApprovedTemplates, loadKeyDates, loadSnapshot, syncLevel, type LevelSaved } from "@/lib/roadmapData";
 import { PROOF_BUCKET, PROOF_MAX_BYTES, PROOF_STEP, pickFrame, type Proof } from "@/lib/roadmapLevels";
 import { createClient } from "@/lib/supabase/server";
 import { isProgramId, mytcasUrl } from "@/lib/tcas";
@@ -33,6 +34,9 @@ const FAILED = "บันทึกไม่สำเร็จ ลองอีก
 const isBoxId = (id: string) => /^\d{1,18}$/.test(id);
 
 type BoxRow = { id: number; kind: string; title: string; sort: number; data: unknown };
+type Synced = Awaited<ReturnType<typeof syncLevel>>;
+/** What every changing action sends back: the saved level and the proof list. */
+const synced = (s: Synced) => ({ level: s?.level ?? null, proofs: s?.proofs });
 const toBox = (r: BoxRow) => ({ id: String(r.id), kind: r.kind, title: r.title, sort: r.sort, data: r.data }) as AnyBox;
 
 async function activeProgram(programId: string) {
@@ -44,9 +48,7 @@ async function activeProgram(programId: string) {
 /** Starting data for a box of this kind, filled from the roadmap's program. */
 async function startingData(supabase: Awaited<ReturnType<typeof createClient>>, kind: BoxKind, programId: string, position: number) {
   const p = await loadProgram(programId);
-  const program = p
-    ? toRoadmapProgram(p, position)
-    : { programId, groupField: "", minGpax: null, weights: {}, hasRound3: false, round1: [] };
+  const program = p ? toRoadmapProgram(p, position) : emptyRoadmapProgram(programId);
   const [templates, keyDates] = await Promise.all([
     kind === "quests" ? loadApprovedTemplates(supabase, program.groupField) : Promise.resolve([]),
     kind === "countdown" ? loadKeyDates(supabase) : Promise.resolve([]),
@@ -160,7 +162,7 @@ export async function addBox(kind: string): Promise<RoadmapResult> {
       if (error.code === "23514") return { error: `ใส่ได้สูงสุด ${ROADMAP_MAX_BOXES} กล่อง ลบกล่องเดิมก่อน` };
       throw error;
     }
-    return { ok: true, box: toBox(data as BoxRow), level: await syncLevel(supabase, profile.id, true) };
+    return { ok: true, box: toBox(data as BoxRow), ...synced(await syncLevel(supabase, profile.id, true)) };
   } catch (e) {
     await logError("tcas/roadmap", e);
     return { error: FAILED };
@@ -173,10 +175,12 @@ export async function updateBox(id: string, title: unknown, data: unknown): Prom
   if (!isBoxId(id)) return { error: "ไม่พบกล่องนี้" };
   try {
     const supabase = await createClient();
-    const { data: row } = await supabase.from("tcas_roadmap_boxes").select("kind").eq("id", id).maybeSingle();
-    if (!row || !isBoxKind(row.kind)) return { error: "ไม่พบกล่องนี้" };
-    const cleanTitle = cleanBoxTitle(row.kind, title);
-    const clean = cleanBoxData(row.kind, data);
+    // One read of the roadmap (with its boxes, proof and targets) serves both the check and the new level.
+    const snap = await loadSnapshot(supabase);
+    const box = snap?.roadmap.boxes.find((b) => b.id === id);
+    if (!snap || !box) return { error: "ไม่พบกล่องนี้" };
+    const cleanTitle = cleanBoxTitle(box.kind, title);
+    const clean = cleanBoxData(box.kind, data);
     if (cleanTitle === null) return { error: "ชื่อกล่องยาวเกิน 60 ตัวอักษร" };
     if (clean === null) return { error: "ข้อมูลในกล่องไม่ถูกต้อง หรือยาว/มากเกินไป" };
     const { error } = await supabase
@@ -184,7 +188,8 @@ export async function updateBox(id: string, title: unknown, data: unknown): Prom
       .update({ title: cleanTitle, data: clean, updated_at: new Date().toISOString() })
       .eq("id", id);
     if (error) throw error;
-    return { ok: true, level: await syncLevel(supabase, profile.id, true) };
+    const boxes = snap.roadmap.boxes.map((b) => (b.id === id ? ({ ...b, title: cleanTitle, data: clean } as AnyBox) : b));
+    return { ok: true, ...synced(await syncLevel(supabase, profile.id, true, { ...snap, roadmap: { ...snap.roadmap, boxes } })) };
   } catch (e) {
     await logError("tcas/roadmap", e);
     return { error: FAILED };
@@ -225,7 +230,7 @@ export async function deleteBox(id: string): Promise<RoadmapResult> {
     const supabase = await createClient();
     const { error } = await supabase.from("tcas_roadmap_boxes").delete().eq("id", id);
     if (error) throw error;
-    return { ok: true, level: await syncLevel(supabase, profile.id, false) };
+    return { ok: true, ...synced(await syncLevel(supabase, profile.id, false)) };
   } catch (e) {
     await logError("tcas/roadmap", e);
     return { error: "ลบไม่สำเร็จ ลองอีกครั้ง" };
@@ -253,7 +258,7 @@ export async function fillQuestSuggestions(id: string): Promise<RoadmapResult> {
       .update({ data: { items }, updated_at: new Date().toISOString() })
       .eq("id", id);
     if (error) throw error;
-    return { ok: true, box: toBox({ ...(row as BoxRow), data: { items } }), level: await syncLevel(supabase, profile.id, true) };
+    return { ok: true, box: toBox({ ...(row as BoxRow), data: { items } }), ...synced(await syncLevel(supabase, profile.id, true)) };
   } catch (e) {
     await logError("tcas/roadmap", e);
     return { error: FAILED };
@@ -322,7 +327,7 @@ export async function saveProof(
     const { error } = await supabase.from("tcas_roadmap_proofs").upsert(row, { onConflict: "owner_id,step" });
     if (error) throw error;
     if (old?.file_path && old.file_path !== row.file_path) await supabase.storage.from(PROOF_BUCKET).remove([old.file_path]);
-    return { ok: true, proofs: await loadMyProofs(supabase), level: await syncLevel(supabase, profile.id, true) };
+    return { ok: true, ...synced(await syncLevel(supabase, profile.id, true)) };
   } catch (e) {
     await logError("tcas/roadmap-proof", e);
     return { error: PROOF_FAILED };
@@ -339,7 +344,7 @@ export async function removeProof(step: string): Promise<RoadmapResult> {
     const { error } = await supabase.from("tcas_roadmap_proofs").delete().eq("step", step);
     if (error) throw error;
     if (old?.file_path) await supabase.storage.from(PROOF_BUCKET).remove([old.file_path]);
-    return { ok: true, proofs: await loadMyProofs(supabase), level: await syncLevel(supabase, profile.id, false) };
+    return { ok: true, ...synced(await syncLevel(supabase, profile.id, false)) };
   } catch (e) {
     await logError("tcas/roadmap-proof", e);
     return { error: "ลบหลักฐานไม่สำเร็จ ลองอีกครั้ง" };

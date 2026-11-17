@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
+import { TwoStepResetButton } from "@/components/admin/AccessControls";
 import { AdminNav } from "@/components/admin/AdminNav";
 import { ResetPasswordButton } from "@/components/admin/ResetPasswordButton";
 import { Button, Card, Container, PageHeader } from "@/components/ui";
 import { PROFILE_CLASSROOM, requireProfile } from "@/lib/auth";
 import { formatClassroom } from "@/lib/roster";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "ผู้ใช้" };
@@ -37,6 +39,17 @@ export default async function UsersPage({ searchParams }: PageProps<"/admin/user
       .limit(25);
     users = (data ?? []) as unknown as Row[];
   }
+  // Staff: is two-step on? (read from Supabase Auth, at most 25 people)
+  const twoStep = new Map<string, boolean>();
+  const admin = createAdminClient();
+  await Promise.all(
+    users
+      .filter((u) => u.role !== "student")
+      .map(async (u) => {
+        const { data } = await admin.auth.admin.mfa.listFactors({ userId: u.id });
+        twoStep.set(u.id, (data?.factors ?? []).some((f) => f.status === "verified"));
+      }),
+  );
 
   return (
     <Container className="py-10">
@@ -67,9 +80,13 @@ export default async function UsersPage({ searchParams }: PageProps<"/admin/user
                       {u.login_id} · {ROLE_LABEL[u.role]}
                       {u.classroom && ` · ${formatClassroom(u.classroom)}`}
                       {u.must_change_password && " · ยังไม่ได้ตั้งรหัสผ่านใหม่"}
+                      {twoStep.has(u.id) && (twoStep.get(u.id) ? " · ยืนยันสองขั้นตอน: เปิด" : " · ยืนยันสองขั้นตอน: ปิด")}
                     </div>
                   </div>
-                  <ResetPasswordButton userId={u.id} name={u.display_name} />
+                  <div className="flex flex-col items-end gap-2">
+                    <ResetPasswordButton userId={u.id} name={u.display_name} />
+                    {twoStep.get(u.id) && <TwoStepResetButton userId={u.id} />}
+                  </div>
                 </li>
               ))}
             </ul>

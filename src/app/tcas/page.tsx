@@ -9,9 +9,8 @@ import { TcasCredits } from "@/components/tcas/TcasCredits";
 import { UniversityShowcase } from "@/components/tcas/UniversityShowcase";
 import { Container, EmptyState, PageHeader, buttonStyles, cx, inputStyles, smallButtonStyles } from "@/components/ui";
 import { requireProfile } from "@/lib/auth";
-import { dayKey } from "@/lib/calendar";
-import { scoreRoadmap, targetChance, toRoadmapProgram } from "@/lib/roadmap";
 import { loadMyRoadmap } from "@/lib/roadmapData";
+import { STAGES, stageBar, type StageId } from "@/lib/roadmapLevels";
 import { createClient } from "@/lib/supabase/server";
 import { TCAS_UNIVERSITIES, fmtNum, paginateGroups, universityShort } from "@/lib/tcas";
 import {
@@ -121,14 +120,6 @@ export default async function TcasPage({ searchParams }: PageProps<"/tcas">) {
     loadMyRoadmap(supabase), // everyone can have a roadmap
   ]);
   const roadmapProgram = roadmap ? await loadProgram(roadmap.programId) : null;
-  const roadmapScore =
-    roadmap && roadmapProgram
-      ? scoreRoadmap(roadmap.boxes, {
-          program: toRoadmapProgram(roadmapProgram, roadmap.position),
-          chance: targetChance(roadmapProgram.round3, targets.find((t) => t.programId === roadmap.programId) ?? null),
-          today: dayKey(new Date()),
-        })
-      : null;
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
 
   // Pages of about 100 programs. Sorted by faculty, a faculty is never split across two pages.
@@ -155,12 +146,18 @@ export default async function TcasPage({ searchParams }: PageProps<"/tcas">) {
       {total > 0 && (
         <RoadmapPromo
           mine={
-            roadmapScore && roadmapProgram
-              ? {
-                  level: roadmapScore.level,
-                  pct: ((roadmapScore.xp - roadmapScore.levelStart) / (roadmapScore.nextLevelXp - roadmapScore.levelStart)) * 100,
-                  label: `${universityShort(roadmapProgram.universityId)} · ${roadmapProgram.nameTh}`,
-                }
+            roadmap && roadmapProgram
+              ? (() => {
+                  // The stage the server saved (no recompute here).
+                  const stage = roadmap.level.stage as StageId;
+                  const bar = stageBar(stage, roadmap.level.xp);
+                  return {
+                    stage,
+                    stageName: STAGES[stage - 1].name,
+                    pct: roadmap.level.finished ? 100 : (bar.xpInStage / bar.stageSize) * 100,
+                    label: `${universityShort(roadmapProgram.universityId)} · ${roadmapProgram.nameTh}`,
+                  };
+                })()
               : null
           }
         />

@@ -2,7 +2,7 @@
 
 import { revalidatePath, updateTag } from "next/cache";
 import { requireProfile } from "@/lib/auth";
-import { logError } from "@/lib/logs";
+import { logAudit, logError } from "@/lib/logs";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { TCAS_UNIVERSITIES } from "@/lib/tcas";
@@ -66,13 +66,14 @@ export async function pullUniversity(universityId: string): Promise<TcasActionRe
 
 /** Publishes the staged programs of one university (tcas_publish checks admin again, all-or-nothing). */
 export async function publishUniversity(universityId: string): Promise<TcasActionResult> {
-  await requireProfile({ roles: ["admin"] });
+  const me = await requireProfile({ roles: ["admin"] });
   if (!known(universityId)) return { error: "ไม่รู้จักมหาวิทยาลัยนี้" };
   try {
     const supabase = await createClient();
     const { data, error } = await supabase.rpc("tcas_publish", { p_university: universityId });
     if (error) throw error;
     const counts = data as { added: number; changed: number; removed: number };
+    await logAudit(me.id, "tcas-publish", universityId, counts);
     // Expire the cached TCAS reference data (counts, field groups, program pages) right away.
     updateTag(TCAS_CACHE_TAG);
     revalidatePath("/admin/tcas");

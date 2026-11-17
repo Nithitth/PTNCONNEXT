@@ -4,18 +4,22 @@ import { useActionState } from "react";
 import { changePassword, type ChangePasswordState } from "@/app/change-password/actions";
 import { Button, Field, Notice } from "@/components/ui";
 
-export function ChangePasswordForm({ firstLogin }: { firstLogin: boolean }) {
+export function ChangePasswordForm({ firstLogin, twoStep = false }: { firstLogin: boolean; twoStep?: boolean }) {
   const [state, formAction, pending] = useActionState<ChangePasswordState, FormData>(changePassword, {});
 
   return (
     <form action={formAction} className="space-y-4">
-      <Field
-        label={firstLogin ? "รหัสผ่านปัจจุบัน (วันเกิด วว ดด ปปปป)" : "รหัสผ่านปัจจุบัน"}
-        name="current"
-        type="password"
-        autoComplete="current-password"
-        required
-      />
+      {twoStep ? (
+        <Field label="รหัส 6 หลักจากแอปยืนยันตัวตน" name="code" inputMode="numeric" autoComplete="one-time-code" maxLength={7} placeholder="123456" required />
+      ) : (
+        <Field
+          label={firstLogin ? "รหัสผ่านปัจจุบัน (วันเกิด วว ดด ปปปป)" : "รหัสผ่านปัจจุบัน"}
+          name="current"
+          type="password"
+          autoComplete="current-password"
+          required
+        />
+      )}
       <Field
         label="รหัสผ่านใหม่"
         name="next"

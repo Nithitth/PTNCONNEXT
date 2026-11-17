@@ -5,12 +5,15 @@ import { addDays, type DayKey } from "./calendar";
 import {
   latestGpax,
   portfolioItems,
+  scoreRoadmap,
   weekStart,
   type AnyBox,
   type BoxData,
   type RoadmapProgram,
+  type RoadmapScore,
+  type ScoreContext,
 } from "./roadmap";
-import { TCAS_UNIVERSITIES, calculate, examInfo, type Round3Option } from "./tcas";
+import { TCAS_UNIVERSITIES, calculate, examInfo } from "./tcas";
 
 // ─── Proof ───────────────────────────────────────────────────
 
@@ -64,9 +67,8 @@ export type GateStep = {
 
 export type LevelInput = {
   boxes: AnyBox[];
+  /** The roadmap's program; its `option` drives the exam-ready gate. */
   program: RoadmapProgram;
-  /** The roadmap's Round 3 option (for the exam-ready gate), or null when the program has none. */
-  option: Round3Option | null;
   proofs: Proof[];
 };
 
@@ -79,7 +81,8 @@ export const weightedExams = (program: RoadmapProgram) =>
 
 /** The steps of each stage's gate (the checklist to move up from that stage). */
 export function gates(input: LevelInput): Record<StageId, GateStep[]> {
-  const { boxes, program, option, proofs } = input;
+  const { boxes, program, proofs } = input;
+  const { option } = program;
   const proof = (step: string) => proofs.find((p) => p.step === step) ?? null;
   const quests = boxesOf(boxes, "quests").flatMap((q) => q.items);
   const questDone = (key: string) => quests.some((q) => q.key === key && q.done);
@@ -210,17 +213,32 @@ export type LevelState = {
   gateWaiting: boolean;
 };
 
+/** How full a stage's XP bar is: XP into it (capped at its size), its size and the sub-level (1–5). */
+export function stageBar(stage: StageId, xp: number) {
+  const before = STAGES.filter((s) => s.id < stage).reduce((n, s) => n + s.xp, 0);
+  const size = STAGES[stage - 1].xp;
+  const raw = Math.max(0, xp - before);
+  const subLevel = Math.min(SUBLEVELS, 1 + Math.floor(Math.min(raw, size - 1) / (size / SUBLEVELS)));
+  return { xpInStage: Math.min(raw, size), stageSize: size, subLevel, full: raw >= size };
+}
+
 /** Where the student stands: the first stage whose gate isn't complete. */
 export function stageOf(input: LevelInput, xp: number): LevelState {
   const g = gates(input);
   let stage: StageId = 1;
   while (stage < 6 && g[stage].every((s) => s.done)) stage = (stage + 1) as StageId;
   const finished = stage === 6 && g[6].every((s) => s.done);
-  const before = STAGES.filter((s) => s.id < stage).reduce((n, s) => n + s.xp, 0);
-  const size = STAGES[stage - 1].xp;
-  const xpInStage = Math.max(0, xp - before);
-  const subLevel = Math.min(SUBLEVELS, 1 + Math.floor(Math.min(xpInStage, size - 1) / (size / SUBLEVELS)));
-  return { stage, finished, gates: g, xpInStage: Math.min(xpInStage, size), stageSize: size, subLevel, gateWaiting: xpInStage >= size && !finished };
+  const { full, ...bar } = stageBar(stage, xp);
+  return { stage, finished, gates: g, ...bar, gateWaiting: full && !finished };
+}
+
+/**
+ * The one way to evaluate a roadmap, in the browser and on the server: its XP and badges, then its
+ * stage. Never stored as-is; the server saves stage/XP/streak from this in syncLevel().
+ */
+export function evaluateRoadmap(boxes: AnyBox[], ctx: ScoreContext, proofs: Proof[]): { score: RoadmapScore; level: LevelState } {
+  const score = scoreRoadmap(boxes, ctx);
+  return { score, level: stageOf({ boxes, program: ctx.program, proofs }, score.xp) };
 }
 
 // ─── Weekly streak ───────────────────────────────────────────

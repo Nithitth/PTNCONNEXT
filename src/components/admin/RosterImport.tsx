@@ -27,15 +27,15 @@ const TEMPLATES: Record<Kind, { file: string; rows: string[][] }> = {
     file: "แม่แบบ-รายชื่อนักเรียน.xlsx",
     rows: [
       STUDENT_COLUMNS.map((c) => c.header),
-      ["12345", "ด.ญ.", "มีนา", "ใจดี", "ม.5", "2", "05/05/2552"],
+      ["12345", "ด.ญ.", "มีนา", "ใจดี", "ม.5", "2"],
     ],
   },
   teacher: {
     file: "แม่แบบ-รายชื่อครู.xlsx",
     rows: [
       TEACHER_COLUMNS.map((c) => c.header),
-      ["somsri.k", "ครูสมศรี มีสุข", "12/03/2523", "คณิตศาสตร์", "", "ม.5/1, ม.5/2"],
-      ["somsri.k", "ครูสมศรี มีสุข", "12/03/2523", "PAT", "", "ม.4/1"],
+      ["นางสมศรี มีสุข", "คณิตศาสตร์", "", "ม.5/1, ม.5/2"],
+      ["นางสมศรี มีสุข", "PAT", "", "ม.4/1"],
     ],
   },
 };
@@ -57,12 +57,13 @@ function previewTeachers(data: Cell[][]) {
   const { rows, missingColumns } = mapSheet(data, TEACHER_COLUMNS);
   const out: PreviewRow[] = rows.map((r) => {
     const v = validateTeacherRow(r);
-    if (!v.ok) return { rowNumber: r.rowNumber, loginId: String(r.cells.loginId ?? ""), summary: "", errors: v.errors, cells: r.cells };
+    // Teachers have no ID: their name groups their rows (one row per subject).
+    if (!v.ok) return { rowNumber: r.rowNumber, loginId: String(r.cells.displayName ?? ""), summary: "", errors: v.errors, cells: r.cells };
     const t = v.value;
     const summary = [t.displayName, t.subject?.name, t.classrooms.map(formatClassroom).join(", ")]
       .filter(Boolean)
       .join(" · ");
-    return { rowNumber: r.rowNumber, loginId: t.loginId, summary, errors: [], cells: r.cells };
+    return { rowNumber: r.rowNumber, loginId: t.displayName, summary, errors: [], cells: r.cells };
   });
   return { out, missingColumns };
 }
@@ -247,7 +248,7 @@ export function RosterImport() {
           )}
           {importError && <Notice tone="error">{importError}</Notice>}
           <Notice tone={failed.length ? "warning" : "success"}>
-            สร้างบัญชีใหม่ {created} · อัปเดต {updated} · ไม่สำเร็จ {failed.length}
+            ลงทะเบียนล่วงหน้าใหม่ {created} · อัปเดต {updated} · ไม่สำเร็จ {failed.length} (ทุกคนต้องลงทะเบียนเองที่หน้า “ลงทะเบียน”)
           </Notice>
           {failed.length > 0 && (
             <ul className="space-y-1 rounded-xl border border-line bg-surface p-4 text-sm">
@@ -282,8 +283,8 @@ function ColumnGuide({ kind }: { kind: Kind }) {
       </div>
       <p className="mt-3 text-xs leading-relaxed text-muted">
         {kind === "student"
-          ? "วันเกิดใช้เป็นรหัสผ่านครั้งแรก (วว ดด ปปปป ค.ศ.) ระบบแปลงปี พ.ศ. ให้อัตโนมัติ และไม่เก็บวันเกิดไว้หลังสร้างบัญชี นักเรียนที่มีบัญชีอยู่แล้วจะถูกอัปเดตชื่อและห้อง รหัสผ่านเดิมไม่เปลี่ยน"
-          : `ครูหนึ่งคนสอนหลายวิชาได้ ใส่หนึ่งแถวต่อหนึ่งวิชา วิชาต้องเป็นหนึ่งใน: ${SUBJECT_NAMES} (หรือรหัสวิชา เช่น ค32101) ห้องที่สอนคั่นด้วยจุลภาค เช่น ม.5/1, ม.5/2`}
+          ? "การนำเข้าไม่ได้สร้างบัญชี เป็นการลงทะเบียนล่วงหน้า นักเรียนลงทะเบียนเองด้วย QR ของห้อง (ตั้งเวลาที่ “ลงทะเบียน & เข้าสู่ระบบ”) นำเข้าซ้ำได้ ชื่อและห้องจะถูกอัปเดต"
+          : `ครูไม่มีชื่อผู้ใช้ ใช้ชื่อ-นามสกุลเต็ม (สะกดเหมือนกันทุกแถว) ครูลงทะเบียนเองด้วยรหัสส่วนตัวจากผู้ดูแลระบบ ครูหนึ่งคนสอนหลายวิชาได้ ใส่หนึ่งแถวต่อหนึ่งวิชา วิชาต้องเป็นหนึ่งใน: ${SUBJECT_NAMES} (หรือรหัสวิชา เช่น ค32101) ห้องที่สอนคั่นด้วยจุลภาค เช่น ม.5/1, ม.5/2`}
         {" "}
         {CLASSROOM_RULE}
       </p>

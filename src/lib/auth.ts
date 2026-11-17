@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 export type Role = "student" | "teacher" | "admin";
 
 /** Bump this when the PDPA notice text changes — everyone will be asked again. */
-export const PDPA_VERSION = 4; // 2: TCASter targets (2026-11-11) · 3: TCAS Roadmap (2026-11-12) · 4: Roadmap proof + room comparison (2026-11-13)
+export const PDPA_VERSION = 5; // 2: TCASter targets (2026-11-11) · 3: TCAS Roadmap (2026-11-12) · 4: Roadmap proof + room comparison (2026-11-13) · 5: sign-up (names, email, phone) (2026-11-16)
 
 export type Profile = {
   id: string;
@@ -18,6 +18,10 @@ export type Profile = {
   must_change_password: boolean;
   pdpa_version: number | null;
   classroom: { id: string; grade: number; room: number } | null;
+  /** "aal2" once this session passed two-step verification (authenticator code). */
+  aal: "aal1" | "aal2";
+  /** The user has a verified authenticator (two-step is on for them). */
+  twoStepOn: boolean;
 };
 
 /**
@@ -38,22 +42,34 @@ export const getCurrentProfile = cache(async (): Promise<Profile | null> => {
   const userId = claims?.claims?.sub;
   if (!userId) return null;
 
-  const { data, error } = await supabase
-    .from("profiles")
-    .select(`id, role, login_id, display_name, must_change_password, pdpa_version, ${PROFILE_CLASSROOM}`)
-    .eq("id", userId)
-    .maybeSingle();
+  const [{ data, error }, { data: level }] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select(`id, role, login_id, display_name, must_change_password, pdpa_version, ${PROFILE_CLASSROOM}`)
+      .eq("id", userId)
+      .maybeSingle(),
+    supabase.auth.mfa.getAuthenticatorAssuranceLevel(), // read from the session cookie, no network
+  ]);
   if (error) console.error("getCurrentProfile", error);
-  return (data as Profile | null) ?? null;
+  if (!data) return null;
+  return {
+    ...(data as unknown as Omit<Profile, "aal" | "twoStepOn">),
+    aal: claims?.claims?.aal === "aal2" ? "aal2" : "aal1",
+    twoStepOn: level?.nextLevel === "aal2",
+  };
 });
 
 export const needsPdpa = (p: Profile) => (p.pdpa_version ?? 0) < PDPA_VERSION;
+
+/** Admins always, and anyone who turned two-step on, must pass it before using the app. */
+export const needsTwoStep = (p: Profile) => p.aal !== "aal2" && (p.role === "admin" || p.twoStepOn);
 
 type Gate = { roles?: Role[]; skipPdpa?: boolean };
 
 /**
  * Call at the top of every protected page or action.
- * Sends guests to /login, makes sure PDPA is accepted, then checks the role.
+ * Sends guests to /login, then to /mfa for two-step (admins, and staff who turned it on), makes sure
+ * PDPA is accepted, then checks the role.
  * Changing the birthdate password is optional: it's offered once after PDPA,
  * then PasswordReminder nags until it's done (must_change_password = false).
  * (The database's RLS rules are the second, stronger lock.)
@@ -61,6 +77,7 @@ type Gate = { roles?: Role[]; skipPdpa?: boolean };
 export async function requireProfile(gate: Gate = {}): Promise<Profile> {
   const profile = await getCurrentProfile();
   if (!profile) redirect("/login");
+  if (needsTwoStep(profile)) redirect("/mfa");
   if (!gate.skipPdpa && needsPdpa(profile)) redirect("/pdpa");
   if (gate.roles && !gate.roles.includes(profile.role)) redirect("/?denied=1");
   return profile;

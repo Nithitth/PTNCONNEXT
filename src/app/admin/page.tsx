@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AlertTriangle, ArrowRight, FileText, FileUp, LogIn, MessageSquareText, Presentation, Users } from "lucide-react";
+import { AlertTriangle, ArrowRight, FileText, FileUp, LogIn, MessageSquareText, Presentation, Sparkles, Users } from "lucide-react";
 import { AdminNav } from "@/components/admin/AdminNav";
-import { Card, Container, PageHeader, cx } from "@/components/ui";
+import { Card, Container, PageHeader, buttonStyles, cx } from "@/components/ui";
 import { requireProfile } from "@/lib/auth";
 import { formatDateTime, hoursAgo } from "@/lib/calendar";
 import { createClient } from "@/lib/supabase/server";
@@ -36,13 +36,24 @@ export default async function AdminPage() {
   const watch = [
     { href: "/admin/feedback", label: "ความคิดเห็นใหม่", hint: "7 วันที่ผ่านมา", value: newFeedback.count ?? 0, Icon: MessageSquareText },
     { href: "/admin/errors", label: "ข้อผิดพลาดของระบบ", hint: "24 ชั่วโมงที่ผ่านมา", value: errors24.count ?? 0, Icon: AlertTriangle },
-    { href: "/admin/logins", label: "เข้าสู่ระบบไม่สำเร็จ", hint: "24 ชั่วโมงที่ผ่านมา", value: failed24.count ?? 0, Icon: LogIn },
+    { href: "/admin/access/history?show=failed", label: "เข้าสู่ระบบไม่สำเร็จ", hint: "24 ชั่วโมงที่ผ่านมา", value: failed24.count ?? 0, Icon: LogIn },
   ];
 
   return (
     <Container className="py-10">
       <PageHeader eyebrow="ผู้ดูแลระบบ" title="คอนโซลผู้พัฒนา" subtitle="ภาพรวมการใช้งานของระบบ" />
       <AdminNav />
+
+      <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4 shadow-soft-sm sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <div>
+          <p className="font-display text-lg font-bold text-ink">รหัสลงทะเบียนของห้องเรียน</p>
+          <p className="text-sm text-muted">เลือกห้อง วันที่ และเวลา แล้วได้รหัสพร้อมการ์ด QR</p>
+        </div>
+        <Link href="/admin/access/rooms#generate" className={buttonStyles.primary}>
+          <Sparkles aria-hidden className="h-4 w-4" />
+          สร้างรหัสลงทะเบียน
+        </Link>
+      </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
         {stats.map(({ label, value, Icon }) => (

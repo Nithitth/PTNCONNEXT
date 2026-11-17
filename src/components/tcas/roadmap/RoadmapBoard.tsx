@@ -21,14 +21,12 @@ import {
   BOX_KINDS,
   BOX_PRESETS,
   ROADMAP_MAX_BOXES,
-  scoreRoadmap,
   termLabel,
   type AnyBox,
   type BoxKind,
 } from "@/lib/roadmap";
 import type { LevelSaved } from "@/lib/roadmapData";
-import { STAGES, currentStreak, stageOf, type Proof, type StageId } from "@/lib/roadmapLevels";
-import type { Round3Option } from "@/lib/tcas";
+import { STAGES, currentStreak, evaluateRoadmap, type Proof, type StageId } from "@/lib/roadmapLevels";
 import type { BodyProps, BoxCtx } from "./boxParts";
 import { ClassStrip, ProofControl, RewardsCabinet, StagePanel, StageUp, type ProofApi } from "./levelParts";
 import { ActivitiesBox, BackupBox, LinksBox, MottoBox, NotesBox, SkillsBox, StudyBox } from "./personalBoxes";
@@ -61,7 +59,6 @@ export function RoadmapBoard({
   initialBoxes,
   initialProofs,
   saved: initialSaved,
-  option,
   userId,
   classStats,
   program,
@@ -72,7 +69,6 @@ export function RoadmapBoard({
   initialProofs: Proof[];
   /** Stage, streak and rewards as the server last saved them. */
   saved: LevelSaved;
-  option: Round3Option | null;
   userId: string;
   classStats: { students: number; avgStage: number; behind: number } | null;
   program: CardProgram;
@@ -106,8 +102,10 @@ export function RoadmapBoard({
     [baseCtx, api],
   );
 
-  const score = useMemo(() => scoreRoadmap(boxes, { program: ctx.program, chance: ctx.chance, today: ctx.today }), [boxes, ctx]);
-  const level = useMemo(() => stageOf({ boxes, program: ctx.program, option, proofs }, score.xp), [boxes, ctx.program, option, proofs, score.xp]);
+  const { score, level } = useMemo(
+    () => evaluateRoadmap(boxes, { program: baseCtx.program, chance: baseCtx.chance, today: baseCtx.today }, proofs),
+    [boxes, baseCtx, proofs],
+  );
   const streak = currentStreak(saved.lastActiveWeek, saved.streak, ctx.today);
   const maxStage = Math.max(saved.maxStage, level.stage);
 

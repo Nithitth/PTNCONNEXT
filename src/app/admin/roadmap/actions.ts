@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
-import { logError } from "@/lib/logs";
+import { logAudit, logError } from "@/lib/logs";
 import { isDayKey, isTerm } from "@/lib/roadmap";
 import { createClient } from "@/lib/supabase/server";
 import { TCAS_YEAR } from "@/lib/tcas";
@@ -16,10 +16,13 @@ const isId = (id: unknown): id is number => Number.isInteger(id) && (id as numbe
 const trim = (v: unknown, max: number) => (typeof v === "string" && v.trim().length <= max ? v.trim() : null);
 
 async function run(fn: () => Promise<AdminRoadmapResult>): Promise<AdminRoadmapResult> {
-  await requireProfile({ roles: ["admin"] });
+  const me = await requireProfile({ roles: ["admin"] });
   try {
     const res = await fn();
-    if (res.ok) revalidatePath(PAGE);
+    if (res.ok) {
+      revalidatePath(PAGE);
+      await logAudit(me.id, "roadmap-template");
+    }
     return res;
   } catch (e) {
     await logError("admin/roadmap", e);

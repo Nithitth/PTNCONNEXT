@@ -58,6 +58,7 @@ If a free limit is exceeded, sign-in returns an error (HTTP 429). The pages don'
 
 ## Ways to get more room
 
+- **Teachers connect Google Drive** (docs/SETUP.md step 3b). Their PDFs then go to their own Drive automatically and use none of our Supabase space or downloads; each teacher has 15 GB of their own.
 - **Share big or popular files as Google Drive links.** These use none of our Supabase downloads.
 - **Launch room by room** (one room every couple of minutes), or raise the sign-in limit in Supabase → Authentication → Rate Limits.
 - **Supabase Pro ($25 a month):** 250 GB downloads, 100 GB files, 8 GB database, and no holiday pause.

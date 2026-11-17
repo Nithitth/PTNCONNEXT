@@ -33,15 +33,14 @@ const program = toRoadmapProgram(
   { programId: "10010121300001A", groupField: "x", round1: [{ projectName: "A", portfolio: "", criteria: "" }], round3: [option] },
   0,
 );
-const bare: RoadmapProgram = { programId: "X", groupField: "", minGpax: null, weights: {}, hasRound3: false, round1: [] };
+const bare: RoadmapProgram = { programId: "X", groupField: "", minGpax: null, weights: {}, hasRound3: false, round1: [], option: null };
 
 const box = (id: string, kind: AnyBox["kind"], data: unknown): AnyBox => ({ id, kind, title: "", sort: 0, data }) as AnyBox;
 const proof = (step: string, p: Partial<Proof>): Proof => ({ id: step, step, kind: "file", value: null, url: null, hasFile: false, ...p });
 
 const base = (extra: AnyBox[] = [], proofs: Proof[] = [], prog = program, opt: Round3Option | null = option): LevelInput => ({
   boxes: [box("a", "notes", { text: "" }), box("b", "notes", { text: "" }), box("c", "notes", { text: "" }), ...extra],
-  program: prog,
-  option: opt,
+  program: { ...prog, option: opt },
   proofs,
 });
 

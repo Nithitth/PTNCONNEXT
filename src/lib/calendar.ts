@@ -123,6 +123,8 @@ export type Attachment = {
   expiresAt: string | null;
   /** The daily clean-up already deleted the PDF. */
   expired: boolean;
+  /** The PDF is kept in the teacher's own Google Drive (opens on Google Drive). */
+  drive?: boolean;
 };
 
 /** One post as it lands in one classroom (a post sent to 2 rooms = 2 items; staff views merge them with mergeRooms). */

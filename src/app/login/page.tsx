@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import Link from "next/link";
 import { redirect } from "next/navigation";
-import { CalendarDays, FileDown, GraduationCap } from "lucide-react";
+import { CalendarDays, FileDown, GraduationCap, UserPlus } from "lucide-react";
 import { LoginForm } from "@/components/LoginForm";
-import { Brand, Notice } from "@/components/ui";
+import { Brand, Notice, buttonStyles, cx } from "@/components/ui";
 import { getCurrentProfile } from "@/lib/auth";
 import { isSupabaseConfigured, NOT_CONFIGURED_MESSAGE } from "@/lib/env";
 
@@ -63,7 +64,14 @@ export default async function LoginPage() {
               </div>
             )}
             <LoginForm />
-            <p className="mt-7 border-t border-line pt-5 text-xs leading-relaxed text-muted">
+            <div className="mt-7 border-t border-line pt-6">
+              <p className="mb-3 text-center text-sm text-muted">ยังไม่มีบัญชี? (ใช้ครั้งแรก)</p>
+              <Link href="/signup" className={cx(buttonStyles.secondary, "h-12 w-full")}>
+                <UserPlus aria-hidden className="h-4 w-4" />
+                ลงทะเบียน
+              </Link>
+            </div>
+            <p className="mt-6 text-xs leading-relaxed text-muted">
               ลืมรหัสผ่าน? ติดต่อครูประจำชั้นหรือผู้ดูแลระบบเพื่อรีเซ็ตรหัสผ่าน
             </p>
           </div>

@@ -27,11 +27,15 @@ npm run lint              # eslint
 npm run typecheck         # tsc --noEmit (run `npx next typegen` first if PageProps/LayoutProps are missing)
 npm test                  # node:test via tsx on src/lib/*.test.ts (the list is in package.json)
 npx tsx --test --test-name-pattern "birthdate" src/lib/roster.test.ts   # single test
-npm run seed              # create test classrooms/subjects + one account per role (idempotent)
-npm run check:security    # logs in as test student/teacher against the real Supabase project and verifies RLS
+npm run seed              # TEST project only: classrooms/subjects + one account per role + admin.test two-step (idempotent)
+npm run check:security    # TEST project only: logs in as test student/teacher/admin and verifies RLS
+npm run migrate:auth-emails -- --apply   # after setting/changing LOGIN_EMAIL_SECRET (add --env=.env.production.local for the real project)
+npm run first-admin -- --env=.env.production.local --name="…"   # personal code for the first real admin
 ```
 
-The test accounts and their passwords are listed in the header of `scripts/seed.ts`. `check:security` needs those accounts to still have their birthdate passwords. If you change one while testing in the browser, restore it afterwards with the admin client (`auth.admin.updateUserById`), and reset `must_change_password`/`pdpa_version`.
+**Two Supabase projects:** `.env.local` points at a separate free **test** project (marked by the `app_settings` row `environment = "test"`; seed and check:security refuse any other database, `requireTestDatabase` in `scripts/lib.ts`). The real school project's keys live in `.env.production.local` for the few scripts that take `--env=`. Every migration is pasted into both. The real project never holds test accounts.
+
+The test accounts and their passwords are listed in the header of `scripts/seed.ts`. `check:security` needs those accounts to still have their birthdate passwords. `admin.test`'s two-step secret is in `.ptn-test-totp.json` (gitignored, written by the seed; `totp()` in `scripts/lib.ts` makes codes). If you change one while testing in the browser, restore it afterwards with the admin client (`auth.admin.updateUserById`), and reset `must_change_password`/`pdpa_version`.
 
 ## Architecture
 
@@ -46,11 +50,29 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
 - `getCurrentProfile()` calls `connection()` so every page renders per request.
 
 **Identity:**
-- Users type a student ID or teacher username (`login_id`). It's mapped to a hidden email `<login_id>@ptn-connext.local` by `loginIdToEmail()` in `src/lib/roster.ts`, because Supabase Auth needs an email.
-- The first password is the birthdate as `DDMMYYYY` (Gregorian year).
+- Every account has a `login_id` mapped to a hidden email `u-<HMAC(LOGIN_EMAIL_SECRET, login_id)>@ptn-connext.local` by `loginIdToEmail()` (`src/lib/authEmail.ts`, server-only; scripts use `hiddenEmailFor` in `authEmailCore.ts`), because Supabase Auth needs an email. It's scrambled so nobody can call Supabase's sign-in directly and skip our lockout. Changing the secret needs `npm run migrate:auth-emails -- --apply`. Students' `login_id` is their student ID; teachers get a hidden `t-xxxxxx` they never type; seeded test accounts keep usernames.
+- **Log-in** (`src/app/login/actions.ts`): students type their student ID or email, teachers their email or phone (`classifyLoginIdentifier` in `src/lib/signup.ts`). Emails/phones are looked up to the `login_id` with the admin client; unknown ones fail with the same message as a wrong password (no account-existence leak).
 - The role lives in `public.profiles`, not in auth metadata.
-- Public sign-up is disabled in Supabase. Accounts are created only by the admin roster import (`src/app/admin/actions.ts`) or the seed script, both using the service-role key.
-- `createAccount()` deletes the auth user again if the profile insert fails.
+- Public sign-up is disabled in Supabase. Accounts are created only by the app's own sign-up (`src/app/signup/actions.ts`, service role) or the seed script. Birthdate passwords are gone (only the seeded test accounts still have them).
+
+**Security (migrations `0017`, `0018`; design `docs/specs/2026-11-17-security-design.md`; summary for schools `docs/SECURITY.md`, breach plan `docs/INCIDENT.md`):**
+- **Lockout** (`src/app/login/actions.ts`, `src/lib/lockout.ts`, pure rules `lockoutLimit`/`countedFailures` in `signup.ts`): wrong passwords are counted per *what was typed* (`lockKey`, scrambled; same for unknown accounts, so no existence leak) in 15 minutes since the last success or admin unlock: student IDs 10, everything else 5. `login_events` has `identifier` + `reason` (`wrong-password` and `mfa-wrong` count; `wrong-tab`, `no-profile`, `locked` don't). Unlocks are `login_unlocks` rows (ประวัติ → "ล็อกอยู่ตอนนี้").
+- **Two-step (Supabase MFA, TOTP):** required for admins, optional for teachers (`/account`), none for students. `getCurrentProfile()` adds `aal` and `twoStepOn`; `requireProfile()` sends `needsTwoStep` users to `/mfa` *before* PDPA. `/mfa` uses its own gate (never `requireProfile`). An admin's first set-up also needs an emailed code (`src/lib/twoStep.ts` signed cookie). 5 wrong codes in 15 min sign the user out. Change-password asks a fresh code instead of the password when two-step is on (re-signing-in would drop to aal1). Admins reset someone's factors in ผู้ใช้ (`resetTwoStep`).
+- **`0018`: `is_admin()` also requires `auth.jwt()->>'aal' = 'aal2'`.** An aal1 admin keeps teacher-level powers only (`is_staff`, `my_role` unchanged). Paste it only after every admin has set up two-step.
+- **Headers** in `next.config.ts` (CSP with `frame-ancestors 'none'`, HSTS, nosniff, Referrer-Policy, Permissions-Policy). New outside origins (images, fetches, scripts) must be added to the CSP there.
+- **Audit:** `logAudit(actorId, action, target, detail)` (`src/lib/logs.ts`) → `audit_events` (server-only), listed in ประวัติ → "การกระทำของผู้ดูแล". Add a Thai label to `ACTION` in `admin/access/history/page.tsx` for new actions. The daily cron deletes log rows older than 365 days.
+- **Passwords:** `newPasswordProblem(pw, confirm, loginId)` also refuses common passwords and the login ID.
+
+**Sign-up (migration `0016`):** separate from log-in, at `/signup` (public). Approved 2026-11-16.
+- **Pre-registration:** the roster import no longer creates logins. It upserts `registrations` (one row per person: `kind`, student `login_id` + room, names, `name_key`; teachers `assignments` jsonb of `{subject_code, classroom_id}`). Signing up "claims" a row once, via `claim_registration()` (service role only, row lock): it inserts the profile (and teacher `teaching_assignments`) and sets `claimed_by`. Deleting the auth user (admin "release") reopens the row.
+- **Students:** room code (6 chars) from a QR the admin schedules per room (`signup_rooms`: one slot + code per classroom; works only inside the slot, Thai time, and only for names in that room; shown by a student volunteer) → first + last name (matched by `nameKey`, ignoring titles/spacing) → the student ID is shown → verified email → password. Absent students: a 9-char personal code from the admin.
+- **Teachers:** full name + subject + a 9-char personal code the admin hands over outside the system (14 days, 5 tries then locked) → email (verified) or phone (typed twice, not SMS-verified) → password.
+- **Codes are never stored readable:** `hashCode()` (HMAC-SHA256 with `SIGNUP_SECRET`, `src/lib/signupServer.ts`). Progress between steps is a signed httpOnly cookie (`ptn-signup`, 20 min, path `/signup`); the last step re-checks everything in the database.
+- **Email codes:** `src/lib/mail.ts` sends via Gmail SMTP (`SMTP_USER`/`SMTP_PASS` app password, ~500/day; the app stops at 480/day). Without SMTP in development, the code is printed in the dev-server log (`[dev email]`). 10 minutes, 5 tries, resend after 60 s.
+- **One person = one account:** auth refuses a second hidden email per student ID; `profiles.login_id`, `email`, `phone` are unique; the claim locks the row.
+- **New tables** (`registrations`, `signup_rooms`, `signup_email_codes`, `signup_events`, `app_settings`) have RLS on and **no policies**: server-only. `app_settings.signup_open` is the master switch every sign-up step checks (`isSignupOpen`).
+- **Events:** `logSignup(kind, outcome, …)` in `src/lib/logs.ts` writes `signup_events` (never passwords, codes or full emails: `maskEmail`/`maskPhone`). Admin actions record who did them.
+- **Pure rules** in `src/lib/signup.ts` (tested in `signup.test.ts`): `nameKey`, `nameKeyFromFull`, `splitFullName`, `normalizePhone`, `normalizeEmail`, code formats, `slotStatus`.
 
 **Two Supabase clients — pick deliberately:**
 - `src/lib/supabase/server.ts` `createClient()` acts as the logged-in user, so every query is filtered by RLS. Use it by default.
@@ -81,12 +103,12 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
 - **`profiles` reaches `classrooms` two ways** (directly, and via `teaching_assignments`), so a plain embed fails with "more than one relationship". Use the `PROFILE_CLASSROOM` constant from `src/lib/auth.ts` (`classrooms!profiles_classroom_id_fkey`).
 - **Migrations aren't run by tooling.** There's no Supabase CLI or Docker here. Each file is pasted into the Supabase SQL Editor once, in number order.
   - Never edit an applied migration. Add the next numbered file instead.
-  - Tell the user to run it: `Get-Content <file> -Raw | Set-Clipboard` makes pasting easy.
+  - Tell the user to run it: `Get-Content <file> -Raw -Encoding UTF8 | Set-Clipboard` makes pasting easy (without `-Encoding UTF8`, Windows PowerShell scrambles the Thai text). Paste into the test project first, then the real one.
 - **RLS speed (migration `0010`):** in policies and helper functions, current-user calls are wrapped as `(select auth.uid())`, `(select public.is_admin())` etc. so Postgres runs them once per query, not once per row. Keep that wrapping in any new policy; row-dependent calls like `can_see_post(id)` stay unwrapped. `0010` also adds indexes on `posts`, `teaching_assignments`, `attachments`, `feedback` and `error_logs`.
 - **Styles missing in the dev server** (the gradient "t", blobs, glass, colours) while `npm run build` has them: Turbopack's dev cache kept an old `globals.css`. This happens after a branch switch rewrites files while `npm run dev` runs, and it survives restarts. Fix: stop the dev server, delete `.next/dev`, start again.
 - **Never rewrite source files with Windows PowerShell 5.1** (`Get-Content` / `Set-Content`). It reads UTF-8 without a BOM as the ANSI codepage and scrambles every Thai string. Use the Edit tool, or a Node script with `fs.readFileSync(f, "utf8")`.
 
-**Roster import:**
+**Roster import** (pre-registers people; no logins, no birthdates):
 - `src/lib/roster.ts` is pure and shared by both sides. The admin's browser parses the `.xlsx` (with `read-excel-file`) and validates it for a preview. The server action re-validates the same rows before writing.
 - It handles:
   - Thai/English header aliases.
@@ -141,6 +163,12 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
   - **Countdown:** `ExpiryChip` (`src/components/FileExpiry.tsx`) shows "ดาวน์โหลดได้อีก N วัน" (red within 14 days) wherever files are listed.
   - **Pop-up:** `ExpiringFilesWindow` lists a teacher's own files that are due within 14 days (`loadExpiringFiles`) on the home page and `/teacher`, once per visit and after the guide closes (`ptn:guide-closed`).
   - **Restarting:** picking a new file when editing inserts a new attachment row, which restarts the 180 days.
+- **Google Drive for teacher PDFs** (migration `0019`, optional; set-up in `docs/SETUP.md` 3b, needs `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`GOOGLE_TOKEN_SECRET`, else hidden):
+  - Each teacher connects their own Google account once (`/api/google/connect` → Google → `/api/google/callback` → big result page `/teacher/drive`). Scope is only `drive.file`. The refresh token is AES-GCM encrypted (`driveCrypto.ts`) in `drive_connections` (server-only, no email stored). Server calls are plain `fetch` in `src/lib/drive.ts`; pure rules (`safeNext`, `driveProblem` Thai errors) in `driveCore.ts`.
+  - Once connected, every PDF goes to Drive with no choice: compressed as before, `startDriveUpload` (`src/app/teacher/driveActions.ts`) opens a resumable session, the browser PUTs the file to Google (CSP allows `www.googleapis.com`), `savePost` checks it, shares it "anyone with the link" and saves a `kind: 'link'` row with `drive_file_id`; the trigger sets `drive_owner_id = auth.uid()` and the 180-day `expires_at`. Up to 50 MB (`DRIVE_MAX_BYTES`).
+  - If Drive fails, the form shows one big "เก็บในระบบ Connext แทน" button. Before leaving for Google from the form, what was typed is kept in `sessionStorage` and restored (the PDF must be picked again).
+  - `posts.ts` shows Drive rows as `kind: "file"` with `drive: true` (countdown, `/files/[id]` → 410 after expiry, else redirect to Drive). Replacing/deleting a post and the daily cron switch off the file's link sharing (Google keeps trashed files open to link holders) and move it to the **owner's** Drive trash (`trashDriveFile`).
+  - Teacher UI is deliberately extra-large and plain (`bigButtonStyles` in `ui.tsx`, `DriveConnect.tsx`: `DriveBanner` on `/teacher` with "ไว้ทีหลัง", `DriveOffer` in the PDF step, `DriveAccountCard` on `/account`).
 - **Capacity on the free plans** (max users, file sizes, requests, PDF downloads): `docs/CAPACITY.md`. Downloads (5 GB/month Supabase egress) run out first.
 - **Editing** replaces the post's targets. The attachment is kept unless the teacher picks a new one.
 - **Who may edit and delete** (migration `0006`):
@@ -210,10 +238,10 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
   - ภาพรวม: stats, plus "ควรตรวจดู" cards that turn red when there is new feedback, errors, or failed logins.
   - `/admin/feedback`: the inbox, with sender name, role and room.
   - `/admin/errors`: the `error_logs` list.
-  - `/admin/logins`: 24 h counts, a "failed only" filter, and IDs with 5+ failed tries in 24 h flagged.
+  - `/admin/access` (**ลงทะเบียน & เข้าสู่ระบบ**, `src/app/admin/access/`, controls in `src/components/admin/AccessControls.tsx`, reads in `src/lib/accessData.ts`): ภาพรวม (progress per room, teachers, today's sign-ups/logins, email quota, warnings, the master switch) · ห้องเรียน & QR (the **"สร้างรหัสลงทะเบียน" generator** at `#generate`: `CodeGenerator` → `createRoomCode`, pick room + date + time, always a new code, replacing a live one needs two taps, `?room=<id>` preselects, times checked by `slotProblem` in `signup.ts`; shortcut buttons on the console and access overviews; then each room's slot, "เปิดตอนนี้", "ปิดทันที", "สร้าง QR ใหม่", printable QR card at `rooms/[id]/card` via `qrcode`, per-room list with release and personal codes) · ครู (personal codes, shown once) · ประวัติ (sign-up events + the old log-in report; `/admin/logins` redirects here, with IDs with 5+ failed tries in 24 h flagged).
   - Existing pages: ผู้ใช้, นำเข้ารายชื่อ.
   - `/admin/limits` (ขีดจำกัดระบบ): bar meters against the free plans (migration `0015`, `admin_usage()`, admins only): storage per bucket, database size, peak sign-ins per 5 minutes, accounts, and days without use (holiday pause). Monthly downloads and Vercel runs can only be read on the providers’ usage pages, so those cards show the limit, our estimate and a link. The limits live in `src/lib/usage.ts`; keep them in step with `docs/CAPACITY.md`.
-- `check:security` (30 checks, including file expiry from `0014`) also signs in as `admin.test`. It covers feedback (send only as yourself), who can read the console tables, and admins posting like teachers.
+- `check:security` (including file expiry from `0014` and the sign-up tables from `0016`; run `npm run seed` first) also signs in as `admin.test`. It covers feedback (send only as yourself), who can read the console tables, and admins posting like teachers.
 - **Pilot and launch steps:** `docs/PILOT.md`.
 
 **Phase 2, TCASter release 1 is built** (branch `tcaster`; migrations `0007` and `0008`). The pilot is on hold.
@@ -276,11 +304,10 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
   - `cleanBoxData(kind, raw)`, which validates every save;
   - `newBoxData`, which fills a new box from the program;
   - `suggestedQuests` and `portfolioItems`;
-  - `scoreRoadmap`, which works out XP, the level and badges, and is never stored;
+  - `scoreRoadmap`, which works out XP and badges (the stage is in `roadmapLevels.ts`), and is never stored;
   - `currentTerm`.
   - List boxes hold at most 20 items, links 10, and backups 3.
 - **XP:**
-  - The level is `1 + floor(xp / 50)`.
   - XP from things the student types themselves (own quests, activities, study slots, skill steps) is capped at 40% of the total, with a 30 XP floor.
   - Quest and portfolio items have stable keys (`exam:<code>`, `gpax`, `apply:r1`, `tpl:<id>`, `own:<id>`, `r1:<hash>:read|make`), so ticks survive a target change.
 - **Adding a box kind:**
@@ -299,13 +326,13 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
   - The home page has a third feature card, "Roadmap".
   - On a program page, `RoadmapButton` creates, switches or opens the roadmap.
 - **TCAS tabs:** `src/app/tcas/layout.tsx` renders `TcasTabs` (ค้นหาหลักสูตร | สถิตินักเรียน) for staff only.
-- **PDPA:** `PDPA_VERSION` is 4, because the notice now mentions the roadmap (3) and its proof and room comparison (4).
+- **PDPA:** `PDPA_VERSION` is 5: the roadmap (3), its proof and room comparison (4), and sign-up names/email/phone (5).
 
 **Roadmap levels (migration `0013`; design in `docs/specs/2026-11-13-roadmap-levels-design.md`):**
 - **6 named stages** (สำรวจ → ตั้งเป้า → ปูพื้น → สะสมผลงาน → พร้อมสอบ → พร้อมสมัคร). Each has a **gate checklist**; the stage is the first one whose gate isn't complete. Inside a stage, XP fills **5 steps** (stage sizes 100/150/200/250/300/350). A full bar with an open gate shows "ประตูด่านรออยู่".
-- **Pure rules** in `src/lib/roadmapLevels.ts` (tested in `roadmapLevels.test.ts`): `gates`, `stageOf`, `weightedExams`, `nextStreak`/`currentStreak` (weekly, Monday start; last week still counts), `REWARDS`, `isUnlocked`, `pickReward`. Steps that don't apply (no Round 1 / no Round 3) count as done and show "ไม่ต้องทำ".
+- **Pure rules** in `src/lib/roadmapLevels.ts` (tested in `roadmapLevels.test.ts`): `gates`, `stageOf`, `weightedExams`, `stageBar`, `nextStreak`/`currentStreak` (weekly, Monday start; last week still counts), `REWARDS`, `isUnlocked`, `pickFrame`. **`evaluateRoadmap(boxes, ctx, proofs)` → `{ score, level }` is the one entry point** for both the board and the server; don’t call `scoreRoadmap` + `stageOf` separately. Steps that don't apply (no Round 1 / no Round 3) count as done and show "ไม่ต้องทำ".
 - **Proof** (`tcas_roadmap_proofs`, one per `(owner_id, step)`): `gpax` = a grade-report file; `act:<activityId>` = a file or link; `score:<examCode>` = a number 0–100; `portfolio-link` = a link. Files go browser → private bucket `roadmap-proofs/<uid>/<uuid>.<ext>` (5 MB; PDF/JPG/PNG/WEBP); `saveProof` checks the folder and that the file exists, then replaces any older file. Files open through `/roadmap/proof/[id]` (60-second signed link). Owner only: admins can't read proof either.
-- **Saved level:** `tcas_roadmaps` holds `stage, max_stage, finished, xp, streak, best_streak, last_active_week, frame, theme`. Users may only update `program_id, position, updated_at, frame, theme` (column grants). Every roadmap action calls `syncLevel()` (`roadmapData.ts`), which recomputes XP and the stage and writes them with the admin client; `progress: true` (adding/saving, proof) also moves the weekly streak. The board shows the browser's own `stageOf` result, so the card updates instantly.
+- **Saved level:** `tcas_roadmaps` holds `stage, max_stage, finished, xp, streak, best_streak, last_active_week, frame, theme`. Users may only update `program_id, position, updated_at, frame, theme` (column grants). Every roadmap action calls `syncLevel()` (`roadmapData.ts`), which recomputes XP and the stage and writes them with the admin client; `progress: true` (adding/saving, proof) also moves the weekly streak. It skips the write when nothing changed, and `updateBox` passes the `loadSnapshot()` it already read (so a save is about 3 queries). The program side always comes from `loadRoadmapContext()` (program detail, `RoadmapProgram` with its Round 3 `option`, chance, target); `/tcas` shows the saved stage instead of recomputing. The board shows the browser's own `stageOf` result, so the card updates instantly.
 - **Rewards:** card frames unlock by the highest stage ever reached and the best streak, and stay. `setLook` re-checks them (`pickFrame`). Their looks are CSS in `globals.css` (`.roadmap-card[data-frame=…]`); add a frame in `REWARDS` plus its CSS. The glass frame uses the faculty colour (`--fc`).
 - **The card's colours can't be changed:** `universityTheme()` gives the face of the target university (`uni-<TCAS id>`: its colours plus its emblem from `public/tcas/emblem-*.svg` as a faint `::before` watermark), so switching the target switches the card. The old `theme` column (0013) is unused.
 - **Room comparison:** `roadmap_class_stats()` returns, for a student only, how many classmates have a roadmap, the room's average stage and how many are behind. Nothing under 3. `ClassStrip` shows it.
@@ -331,7 +358,7 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
 - `tcas_targets` can be read and written only by the student who owns them; admins can't read them either.
 - The limit is 5 per student, enforced by the `tcas_targets_limit` trigger (migration `0008`). `saveTarget` updates an existing target instead of re-inserting it.
 - Programs without a calculator can still be saved, with no scores.
-- `PDPA_VERSION` is 4: the notice mentions TCASter targets (2), the Roadmap (3), and Roadmap proof and the room comparison (4).
+- `PDPA_VERSION` is 5: TCASter targets (2), the Roadmap (3), Roadmap proof and the room comparison (4), sign-up names, email and phone (5).
 
 **Terms of use:** mytcas.com's terms forbid copying content beyond the service's purpose; the team chose to use the data anyway.
 - Every program page credits "ข้อมูล TCAS70 จาก mytcas.com (ทปอ.)" and links to the original.

@@ -29,7 +29,7 @@ export default async function ChangePasswordPage() {
             <p className="text-sm text-muted">{profile.display_name}</p>
           )}
         </div>
-        <ChangePasswordForm firstLogin={first} />
+        <ChangePasswordForm firstLogin={first} twoStep={profile.twoStepOn} />
         {first && (
           <Link href="/calendar" className={`${buttonStyles.ghost} mt-2 w-full`}>
             ข้ามไปก่อน

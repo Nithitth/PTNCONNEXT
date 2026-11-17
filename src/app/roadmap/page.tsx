@@ -10,10 +10,10 @@ import { Container, PageHeader, buttonStyles, cx, inputStyles } from "@/componen
 import { requireProfile } from "@/lib/auth";
 import { dayKey } from "@/lib/calendar";
 import { facultyColor } from "@/lib/facultyColors";
-import { currentTerm, portfolioItems, targetChance, toRoadmapProgram } from "@/lib/roadmap";
-import { loadClassStats, loadKeyDates, loadMyProofs, loadMyRoadmap } from "@/lib/roadmapData";
+import { currentTerm, portfolioItems, targetChance } from "@/lib/roadmap";
+import { loadClassStats, loadKeyDates, loadMyProofs, loadMyRoadmap, loadRoadmapContext } from "@/lib/roadmapData";
 import { createClient } from "@/lib/supabase/server";
-import { pickOption, universityShort } from "@/lib/tcas";
+import { universityShort } from "@/lib/tcas";
 import { loadMyTargets, loadProgram, searchPrograms } from "@/lib/tcasData";
 
 export const metadata: Metadata = { title: "Roadmap · TCAS" };
@@ -86,7 +86,14 @@ export default async function RoadmapPage({ searchParams }: PageProps<"/roadmap"
   const q = typeof params.q === "string" ? params.q.slice(0, 100).trim() : "";
 
   const supabase = await createClient();
-  const [roadmap, targets] = await Promise.all([loadMyRoadmap(supabase), loadMyTargets(supabase)]);
+  // One wave for everything that doesn't depend on the roadmap itself.
+  const [roadmap, targets, keyDates, proofs, classStats] = await Promise.all([
+    loadMyRoadmap(supabase),
+    loadMyTargets(supabase),
+    loadKeyDates(supabase),
+    loadMyProofs(supabase),
+    profile.role === "student" ? loadClassStats(supabase).catch(() => null) : null,
+  ]);
 
   // Saved targets (still offered) with their chance level, for starting, switching and backups.
   const details = await Promise.all(targets.filter((t) => t.active).map((t) => loadProgram(t.programId)));
@@ -146,21 +153,10 @@ export default async function RoadmapPage({ searchParams }: PageProps<"/roadmap"
     );
   }
 
-  const [program, keyDates, proofs, classStats] = await Promise.all([
-    loadProgram(roadmap.programId),
-    loadKeyDates(supabase),
-    loadMyProofs(supabase),
-    profile.role === "student" ? loadClassStats(supabase).catch(() => null) : null,
-  ]);
-  if (!program) redirect("/tcas");
-  const rp = toRoadmapProgram(program, roadmap.position);
-  const target = targets.find((t) => t.programId === roadmap.programId) ?? null;
-  const chance = targetChance(program.round3, target);
+  const context = await loadRoadmapContext(roadmap, targets);
+  if (!context) redirect("/tcas");
+  const { detail: program, program: rp, chance, target } = context;
   const today = dayKey(new Date());
-  const option = pickOption(
-    program.round3.filter((o) => !o.problem),
-    roadmap.position,
-  );
 
   return (
     <>
@@ -184,7 +180,6 @@ export default async function RoadmapPage({ searchParams }: PageProps<"/roadmap"
             initialBoxes={roadmap.boxes}
             initialProofs={proofs}
             saved={roadmap.level}
-            option={option}
             userId={profile.id}
             classStats={classStats}
             program={{

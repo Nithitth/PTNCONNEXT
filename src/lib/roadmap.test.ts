@@ -7,7 +7,6 @@ import {
   cleanBoxTitle,
   currentTerm,
   isDayKey,
-  levelOf,
   mergeQuests,
   newBoxData,
   portfolioItems,
@@ -44,7 +43,7 @@ const engineering = toRoadmapProgram(
   0,
 );
 
-const bare: RoadmapProgram = { programId: "X", groupField: "", minGpax: null, weights: {}, hasRound3: false, round1: [] };
+const bare: RoadmapProgram = { programId: "X", groupField: "", minGpax: null, weights: {}, hasRound3: false, round1: [], option: null };
 const today = "2026-11-12";
 const box = <K extends AnyBox["kind"]>(id: string, kind: K, data: unknown): AnyBox => ({ id, kind, title: "", sort: 0, data }) as AnyBox;
 
@@ -172,13 +171,6 @@ test("cleanBoxTitle falls back to the preset name", () => {
   assert.equal(cleanBoxTitle("goal", "x".repeat(61)), null);
 });
 
-test("levels every 50 XP", () => {
-  assert.equal(levelOf(0), 1);
-  assert.equal(levelOf(49), 1);
-  assert.equal(levelOf(50), 2);
-  assert.equal(levelOf(250), 6);
-});
-
 test("XP: GPA, portfolio, goal, scores and badges", () => {
   const p = portfolioItems(engineering).map((x) => x.key);
   const s = scoreRoadmap(
@@ -191,7 +183,6 @@ test("XP: GPA, portfolio, goal, scores and badges", () => {
     { program: engineering, chance: 4, today },
   );
   assert.equal(s.xp, 40 + 40 + 30 + 20);
-  assert.equal(s.level, 3);
   const earned = new Set(s.badges.filter((b) => b.earned).map((b) => b.key));
   for (const k of ["first", "goal", "goal-done", "exam", "portfolio"]) assert.ok(earned.has(k), k);
   assert.ok(!earned.has("activities") && !earned.has("full"));
