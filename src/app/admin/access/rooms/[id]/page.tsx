@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, CheckCircle2, Circle } from "lucide-react";
-import { AccessNav, PersonActions } from "@/components/admin/AccessControls";
-import { AdminNav } from "@/components/admin/AdminNav";
+import { PersonActions } from "@/components/admin/AccessControls";
+import { AdminBack } from "@/components/admin/AdminBack";
 import { Container, EmptyState, PageHeader } from "@/components/ui";
 import { loadRoomPeople, loadRooms } from "@/lib/accessData";
 import { requireProfile } from "@/lib/auth";
@@ -23,9 +23,8 @@ export default async function AccessRoomPage({ params }: PageProps<"/admin/acces
 
   return (
     <Container className="py-10">
+      <AdminBack parent={{ href: "/admin/access/rooms", label: "ห้องเรียน & QR" }} />
       <PageHeader eyebrow="ผู้ดูแลระบบ" title={`ห้อง ${room.label}`} subtitle={`ลงทะเบียนแล้ว ${room.registered}/${room.total} · ${SLOT_LABEL[room.status]}`} />
-      <AdminNav />
-      <AccessNav />
       <Link href="/admin/access/rooms" className="mb-4 inline-flex items-center gap-1.5 text-sm font-bold text-muted hover:text-brand">
         <ArrowLeft aria-hidden className="h-4 w-4" />
         ทุกห้อง

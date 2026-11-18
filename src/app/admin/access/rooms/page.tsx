@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Sparkles, Users } from "lucide-react";
-import { AccessNav, CodeGenerator, SlotEditor } from "@/components/admin/AccessControls";
-import { AdminNav } from "@/components/admin/AdminNav";
+import { CodeGenerator, SlotEditor } from "@/components/admin/AccessControls";
+import { AdminBack } from "@/components/admin/AdminBack";
 import { Card, Container, Notice, PageHeader, cx } from "@/components/ui";
 import { loadRooms } from "@/lib/accessData";
 import { requireProfile } from "@/lib/auth";
@@ -26,9 +26,8 @@ export default async function AccessRoomsPage({ searchParams }: PageProps<"/admi
 
   return (
     <Container className="py-10">
-      <PageHeader eyebrow="ผู้ดูแลระบบ" title="ลงทะเบียน & เข้าสู่ระบบ" subtitle="ตั้งเวลาลงทะเบียนของแต่ละห้อง แล้วพิมพ์การ์ด QR ให้นักเรียนอาสาของห้อง" />
-      <AdminNav />
-      <AccessNav />
+      <AdminBack />
+      <PageHeader eyebrow="ผู้ดูแลระบบ" title="ห้องเรียน & QR" subtitle="ตั้งเวลาลงทะเบียนของแต่ละห้อง แล้วพิมพ์การ์ด QR ให้นักเรียนอาสาของห้อง" />
 
       <Notice tone="info">
         เลือกห้อง วันที่ และเวลา แล้วกด “สร้างรหัส” จากนั้นพิมพ์การ์ด QR ให้นักเรียนอาสาของห้อง รหัสใช้ได้เฉพาะช่วงเวลานั้น และเฉพาะชื่อนักเรียนในห้องนั้น ห้องหนึ่งมีรหัสได้ครั้งละ 1 รหัส

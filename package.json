@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --test src/lib/roster.test.ts src/lib/calendar.test.ts src/lib/tcas.test.ts src/lib/tcasSource.test.ts src/lib/roadmap.test.ts src/lib/roadmapLevels.test.ts src/lib/postForm.test.ts src/lib/signup.test.ts src/lib/driveCore.test.ts",
+    "test": "tsx --test src/lib/roster.test.ts src/lib/calendar.test.ts src/lib/tcas.test.ts src/lib/tcasSource.test.ts src/lib/roadmap.test.ts src/lib/roadmapLevels.test.ts src/lib/postForm.test.ts src/lib/signup.test.ts src/lib/driveCore.test.ts src/lib/adminMenu.test.ts src/lib/report.test.ts src/lib/reportAnalysis.test.ts src/lib/reportIdeas.test.ts",
     "typecheck": "tsc --noEmit",
     "seed": "tsx scripts/seed.ts",
     "check:security": "tsx scripts/check-security.ts",

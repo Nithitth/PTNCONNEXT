@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
 import { CheckCircle2, Circle, Lock } from "lucide-react";
-import { AccessNav, PersonActions } from "@/components/admin/AccessControls";
-import { AdminNav } from "@/components/admin/AdminNav";
+import { PersonActions } from "@/components/admin/AccessControls";
+import { AdminBack } from "@/components/admin/AdminBack";
 import { Container, EmptyState, Notice, PageHeader, cx } from "@/components/ui";
 import { loadTeacherPeople } from "@/lib/accessData";
 import { requireProfile } from "@/lib/auth";
 import { dayKey, formatDateTime, formatDayShort } from "@/lib/calendar";
 import { subjectByCode } from "@/lib/school";
 
-export const metadata: Metadata = { title: "ครู · ลงทะเบียน" };
+export const metadata: Metadata = { title: "รหัสครู · ลงทะเบียน" };
 
 const STATE = {
   none: { text: "ยังไม่มีรหัส", tone: "bg-sunken text-muted" },
@@ -24,9 +24,8 @@ export default async function AccessTeachersPage() {
 
   return (
     <Container className="py-10">
-      <PageHeader eyebrow="ผู้ดูแลระบบ" title="ลงทะเบียน & เข้าสู่ระบบ" subtitle="ครูลงทะเบียนด้วยชื่อ วิชา และรหัสส่วนตัวที่ผู้ดูแลระบบให้" />
-      <AdminNav />
-      <AccessNav />
+      <AdminBack />
+      <PageHeader eyebrow="ผู้ดูแลระบบ" title="รหัสครู" subtitle="ครูลงทะเบียนด้วยชื่อ วิชา และรหัสส่วนตัวที่ผู้ดูแลระบบให้" />
       <Notice tone="info">
         กด “สร้างรหัสส่วนตัว” แล้วให้รหัสกับครูท่านนั้น<b> เป็นการส่วนตัวนอกระบบ</b> (กระดาษ LINE หรือโทรศัพท์) รหัสแสดงครั้งเดียว ใช้ได้ 14 วัน
         กรอกผิด 5 ครั้งจะถูกล็อก ให้สร้างรหัสใหม่

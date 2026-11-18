@@ -601,3 +601,25 @@ body {
     transform: none !important;
   }
 }
+
+/* Printing (รายงาน & OKR, QR cards): clean A4, keep the brand colours, no entrance animations. */
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+  html,
+  body {
+    background: #fff !important;
+  }
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .animate-rise,
+  .animate-page {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}

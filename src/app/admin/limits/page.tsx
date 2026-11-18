@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Database, ExternalLink, HardDrive, LogIn, PauseCircle, Users } from "lucide-react";
-import { AdminNav } from "@/components/admin/AdminNav";
+import { AdminBack } from "@/components/admin/AdminBack";
 import { Container, Notice, PageHeader, cx } from "@/components/ui";
 import { requireProfile } from "@/lib/auth";
 import { formatDateTime } from "@/lib/calendar";
@@ -103,8 +103,8 @@ export default async function LimitsPage() {
 
   return (
     <Container className="py-10">
+      <AdminBack />
       <PageHeader eyebrow="ผู้ดูแลระบบ" title="ขีดจำกัดระบบ" subtitle="เว็บใช้แพ็กเกจฟรีของ Supabase และ Vercel หน้านี้บอกว่าใช้ไปเท่าไรแล้ว" />
-      <AdminNav />
 
       {!u ? (
         <Notice tone="error">

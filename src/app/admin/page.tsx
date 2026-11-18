@@ -1,125 +1,89 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { AlertTriangle, ArrowRight, FileText, FileUp, LogIn, MessageSquareText, Presentation, Sparkles, Users } from "lucide-react";
-import { AdminNav } from "@/components/admin/AdminNav";
-import { Card, Container, PageHeader, buttonStyles, cx } from "@/components/ui";
+import { Search } from "lucide-react";
+import { SignupSwitch } from "@/components/admin/AccessControls";
+import { AdminAlerts, AdminMenu } from "@/components/admin/AdminMenu";
+import { Container, PageHeader, buttonStyles, cx, inputStyles } from "@/components/ui";
+import { loadOverview } from "@/lib/accessData";
+import { alertItems, buildMenu, type MenuCounts } from "@/lib/adminMenu";
 import { requireProfile } from "@/lib/auth";
-import { formatDateTime, hoursAgo } from "@/lib/calendar";
+import { hoursAgo } from "@/lib/calendar";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "คอนโซลผู้พัฒนา" };
 
+/** The Developer Console's front page: a people search, the sign-up switch, what needs a look, and the box menu. */
 export default async function AdminPage() {
   await requireProfile({ roles: ["admin"] });
   const supabase = await createClient();
 
   const head = { count: "exact" as const, head: true };
-  const [students, teachers, posts, files, newFeedback, errors24, failed24, latestFeedback] = await Promise.all([
+  const [students, staff, posts, files, newFeedback, errors24, failed24, waiting, overview] = await Promise.all([
     supabase.from("profiles").select("*", head).eq("role", "student"),
     supabase.from("profiles").select("*", head).in("role", ["teacher", "admin"]),
     supabase.from("posts").select("*", head),
     supabase.from("attachments").select("*", head).eq("kind", "file"),
-    supabase.from("feedback").select("*", head).gte("created_at", hoursAgo(24 * 7)),
+    supabase
+      .from("feedback")
+      .select("*", head)
+      .gte("created_at", hoursAgo(24 * 7)),
     supabase.from("error_logs").select("*", head).gte("created_at", hoursAgo(24)),
     supabase.from("login_events").select("*", head).eq("success", false).gte("created_at", hoursAgo(24)),
-    supabase.from("feedback").select("id, message, created_at").order("created_at", { ascending: false }).limit(3),
+    createAdminClient().from("tcas_roadmap_templates").select("*", head).eq("approved", false),
+    loadOverview(),
   ]);
 
-  const stats = [
-    { label: "นักเรียน", value: students.count ?? 0, Icon: Users },
-    { label: "ครูและผู้ดูแล", value: teachers.count ?? 0, Icon: Presentation },
-    { label: "โพสต์ทั้งหมด", value: posts.count ?? 0, Icon: FileText },
-    { label: "ไฟล์ที่อัปโหลด", value: files.count ?? 0, Icon: FileUp },
-  ];
-
-  // Things worth a look. Each turns red when its number isn't zero.
-  const watch = [
-    { href: "/admin/feedback", label: "ความคิดเห็นใหม่", hint: "7 วันที่ผ่านมา", value: newFeedback.count ?? 0, Icon: MessageSquareText },
-    { href: "/admin/errors", label: "ข้อผิดพลาดของระบบ", hint: "24 ชั่วโมงที่ผ่านมา", value: errors24.count ?? 0, Icon: AlertTriangle },
-    { href: "/admin/access/history?show=failed", label: "เข้าสู่ระบบไม่สำเร็จ", hint: "24 ชั่วโมงที่ผ่านมา", value: failed24.count ?? 0, Icon: LogIn },
-  ];
+  const counts: MenuCounts = {
+    students: students.count ?? 0,
+    staff: staff.count ?? 0,
+    studentsRegistered: overview.students.registered,
+    studentsTotal: overview.students.total,
+    teachersRegistered: overview.teachers.registered,
+    teachersTotal: overview.teachers.total,
+    openRooms: overview.rooms.filter((r) => r.status === "open").length,
+    signupsToday: overview.today.signups,
+    templatesWaiting: waiting.count ?? 0,
+    posts: posts.count ?? 0,
+    files: files.count ?? 0,
+    newFeedback: newFeedback.count ?? 0,
+    errors24: errors24.count ?? 0,
+    failedLogins24: failed24.count ?? 0,
+    lockedToday: overview.today.lockedLogins,
+  };
 
   return (
     <Container className="py-10">
-      <PageHeader eyebrow="ผู้ดูแลระบบ" title="คอนโซลผู้พัฒนา" subtitle="ภาพรวมการใช้งานของระบบ" />
-      <AdminNav />
+      <PageHeader eyebrow="ผู้ดูแลระบบ" title="คอนโซลผู้พัฒนา" subtitle="เลือกส่วนที่ต้องการจัดการ" />
 
-      <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4 shadow-soft-sm sm:flex-row sm:items-center sm:justify-between sm:p-5">
-        <div>
-          <p className="font-display text-lg font-bold text-ink">รหัสลงทะเบียนของห้องเรียน</p>
-          <p className="text-sm text-muted">เลือกห้อง วันที่ และเวลา แล้วได้รหัสพร้อมการ์ด QR</p>
-        </div>
-        <Link href="/admin/access/rooms#generate" className={buttonStyles.primary}>
-          <Sparkles aria-hidden className="h-4 w-4" />
-          สร้างรหัสลงทะเบียน
-        </Link>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
-        {stats.map(({ label, value, Icon }) => (
-          <div key={label} className="rounded-2xl border border-line bg-surface p-5 shadow-soft">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-bold text-muted">{label}</span>
-              <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-soft text-brand">
-                <Icon aria-hidden className="h-4 w-4" strokeWidth={2.4} />
-              </span>
-            </div>
-            <div className="mt-3 font-display text-4xl font-extrabold tabular-nums text-ink">{value.toLocaleString("th-TH")}</div>
-          </div>
-        ))}
-      </div>
-
-      <h2 className="mb-3 mt-8 font-display text-lg font-bold text-ink">ควรตรวจดู</h2>
-      <div className="grid gap-3 md:grid-cols-3 md:gap-4">
-        {watch.map(({ href, label, hint, value, Icon }) => (
-          <Link
-            key={href}
-            href={href}
-            className="group flex items-center gap-4 rounded-2xl border border-line bg-surface p-5 shadow-soft-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-soft"
-          >
-            <span
-              className={cx(
-                "grid h-12 w-12 shrink-0 place-items-center rounded-xl",
-                value ? "bg-brand text-white shadow-brand-glow" : "bg-sunken text-faint",
-              )}
-            >
-              <Icon aria-hidden className="h-5 w-5" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-bold text-ink">{label}</span>
-              <span className="block text-xs text-muted">{hint}</span>
-            </span>
-            <span className={cx("font-display text-3xl font-extrabold tabular-nums", value ? "text-brand" : "text-faint")}>
-              {value.toLocaleString("th-TH")}
-            </span>
-            <ArrowRight aria-hidden className="h-4 w-4 text-faint transition-transform group-hover:translate-x-0.5 group-hover:text-brand" />
-          </Link>
-        ))}
-      </div>
-
-      <Card bold className="mt-8 overflow-hidden p-0 sm:p-0">
-        <h2 className="flex items-center justify-between gap-2 border-b border-line bg-sunken px-5 py-4 sm:px-7">
-          <span className="flex items-center gap-2 font-display text-lg font-bold text-ink">
-            <MessageSquareText aria-hidden className="h-5 w-5 text-brand" />
-            ความคิดเห็นล่าสุด
+      <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-stretch">
+        <form action="/admin/users" role="search" className="flex min-w-0 flex-1 items-center gap-2">
+          <label htmlFor="admin-search" className="sr-only">
+            ค้นหาผู้ใช้
+          </label>
+          <input
+            id="admin-search"
+            name="q"
+            type="search"
+            maxLength={60}
+            placeholder="ค้นหาผู้ใช้: ชื่อ เลขประจำตัว หรืออีเมล"
+            className={cx(inputStyles, "h-11 min-w-0 flex-1 shadow-soft-sm")}
+          />
+          <button type="submit" className={buttonStyles.primary}>
+            <Search aria-hidden className="h-4 w-4" />
+            <span className="hidden sm:inline">ค้นหา</span>
+          </button>
+        </form>
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-surface px-4 py-2 shadow-soft-sm">
+          <span className="flex items-center gap-2 text-sm font-bold text-ink">
+            <span aria-hidden className={cx("h-2.5 w-2.5 rounded-full", overview.open ? "animate-pulse bg-success" : "bg-faint")} />
+            {overview.open ? "เปิดรับลงทะเบียน" : "ปิดรับลงทะเบียน"}
           </span>
-          <Link href="/admin/feedback" className="text-sm font-bold text-brand hover:underline">
-            ดูทั้งหมด
-          </Link>
-        </h2>
-        {(latestFeedback.data ?? []).length === 0 ? (
-          <p className="px-5 py-6 text-sm text-muted sm:px-7">ยังไม่มีความคิดเห็น</p>
-        ) : (
-          <ul className="divide-y divide-line">
-            {latestFeedback.data!.map((f) => (
-              <li key={f.id} className="px-5 py-3.5 sm:px-7">
-                <p className="line-clamp-2 text-sm text-ink">{f.message}</p>
-                <p className="mt-1 text-xs text-muted">{formatDateTime(f.created_at)}</p>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
+          <SignupSwitch open={overview.open} />
+        </div>
+      </div>
+
+      <AdminAlerts items={alertItems(counts)} checkedAt={new Date().toISOString()} />
+      <AdminMenu groups={buildMenu(counts)} />
     </Container>
   );
 }

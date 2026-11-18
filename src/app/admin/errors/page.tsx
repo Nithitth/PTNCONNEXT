@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { CheckCircle2 } from "lucide-react";
-import { AdminNav } from "@/components/admin/AdminNav";
+import { AdminBack } from "@/components/admin/AdminBack";
 import { Container, EmptyState, PageHeader } from "@/components/ui";
 import { requireProfile } from "@/lib/auth";
 import { formatDateTime } from "@/lib/calendar";
@@ -24,12 +24,12 @@ export default async function ErrorLogPage() {
 
   return (
     <Container className="py-10">
+      <AdminBack />
       <PageHeader
         eyebrow="ผู้ดูแลระบบ"
         title="ข้อผิดพลาด"
         subtitle={`สิ่งที่ระบบทำไม่สำเร็จ เช่น บันทึกโพสต์ไม่ได้ · แสดงล่าสุด ${LIMIT} รายการ`}
       />
-      <AdminNav />
 
       {rows.length === 0 ? (
         <EmptyState

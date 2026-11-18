@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { AdminNav } from "@/components/admin/AdminNav";
+import { AdminBack } from "@/components/admin/AdminBack";
 import { RoadmapTemplatesAdmin, type AdminTemplate } from "@/components/admin/RoadmapTemplatesAdmin";
 import { Container, PageHeader } from "@/components/ui";
 import { requireProfile } from "@/lib/auth";
@@ -34,12 +34,12 @@ export default async function AdminRoadmapPage() {
 
   return (
     <Container className="py-10">
+      <AdminBack />
       <PageHeader
         eyebrow="ผู้ดูแลระบบ"
         title="แม่แบบ Roadmap"
         subtitle="ภารกิจแนะนำตามกลุ่มสาขาที่ทีมเขียนและครูแนะแนวตรวจ และวันสำคัญ TCAS สำหรับกล่องนับถอยหลัง"
       />
-      <AdminNav />
       <RoadmapTemplatesAdmin templates={templates} groups={groups} keyDates={keyDates} />
     </Container>
   );

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { AdminNav } from "@/components/admin/AdminNav";
+import { AdminBack } from "@/components/admin/AdminBack";
 import { RosterImport } from "@/components/admin/RosterImport";
 import { Card, Container, PageHeader } from "@/components/ui";
 import { requireProfile } from "@/lib/auth";
@@ -11,12 +11,12 @@ export default async function RosterPage() {
   await requireProfile({ roles: ["admin"] });
   return (
     <Container className="py-10">
+      <AdminBack />
       <PageHeader
         eyebrow="ผู้ดูแลระบบ"
         title="นำเข้ารายชื่อจาก Excel"
         subtitle={`ปีการศึกษา ${currentAcademicYear()} · นำเข้านักเรียนก่อน แล้วจึงนำเข้าครู`}
       />
-      <AdminNav />
       <Card>
         <RosterImport />
       </Card>

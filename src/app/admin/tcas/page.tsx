@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { AdminNav } from "@/components/admin/AdminNav";
+import { AdminBack } from "@/components/admin/AdminBack";
 import { TcasUniversityCard, type StagingSummary } from "@/components/admin/TcasUniversityCard";
 import { Container, Notice, PageHeader } from "@/components/ui";
 import { requireProfile } from "@/lib/auth";
@@ -107,8 +107,8 @@ export default async function TcasDataPage() {
 
   return (
     <Container className="py-10">
+      <AdminBack />
       <PageHeader eyebrow="ผู้ดูแลระบบ" title="ข้อมูล TCAS" subtitle="หลักสูตรและเกณฑ์รับสมัครรอบ 1 และรอบ 3 สำหรับหน้า TCAS" />
-      <AdminNav />
       <div className="mb-5">
         <Notice tone="info">ข้อมูลจาก mytcas.com (ทปอ.) — ดึงทีละมหาวิทยาลัย ตรวจรายการด้านล่างก่อนกดเผยแพร่</Notice>
       </div>

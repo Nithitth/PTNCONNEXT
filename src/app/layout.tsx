@@ -29,11 +29,14 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="th" className={`${prompt.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col font-sans">
-        <div aria-hidden className="bg-brand-gradient h-1.5" />
-        <NavBar />
-        {profile?.must_change_password && <PasswordReminder />}
+        {/* The site's chrome is hidden when printing (the report prints as a clean A4 document). */}
+        <div className="contents print:hidden">
+          <div aria-hidden className="bg-brand-gradient h-1.5" />
+          <NavBar />
+          {profile?.must_change_password && <PasswordReminder />}
+        </div>
         <main className="flex-1">{children}</main>
-        <footer className="border-t border-line bg-surface">
+        <footer className="border-t border-line bg-surface print:hidden">
           <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-6 sm:px-6">
             <Logo size="sm" />
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
@@ -44,8 +47,10 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             </div>
           </div>
         </footer>
-        {!profile && <GuestPrivacyBanner />}
-        {(profile?.role === "teacher" || profile?.role === "admin") && <TeacherGuide autoOpen={profile.role === "teacher"} />}
+        <div className="contents print:hidden">
+          {!profile && <GuestPrivacyBanner />}
+          {(profile?.role === "teacher" || profile?.role === "admin") && <TeacherGuide autoOpen={profile.role === "teacher"} />}
+        </div>
       </body>
     </html>
   );

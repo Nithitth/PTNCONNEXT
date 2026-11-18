@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { TwoStepResetButton } from "@/components/admin/AccessControls";
-import { AdminNav } from "@/components/admin/AdminNav";
+import { AdminBack } from "@/components/admin/AdminBack";
 import { ResetPasswordButton } from "@/components/admin/ResetPasswordButton";
 import { Button, Card, Container, PageHeader } from "@/components/ui";
 import { PROFILE_CLASSROOM, requireProfile } from "@/lib/auth";
@@ -53,8 +53,8 @@ export default async function UsersPage({ searchParams }: PageProps<"/admin/user
 
   return (
     <Container className="py-10">
+      <AdminBack />
       <PageHeader eyebrow="ผู้ดูแลระบบ" title="ผู้ใช้" subtitle="ค้นหาด้วยเลขประจำตัว ชื่อผู้ใช้ หรือชื่อ เพื่อรีเซ็ตรหัสผ่าน" />
-      <AdminNav />
       <form className="mb-4 flex gap-2">
         <input
           name="q"

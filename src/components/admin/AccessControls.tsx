@@ -2,8 +2,8 @@
 
 import { useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { AlertTriangle, Copy, DoorClosed, DoorOpen, History, KeyRound, LayoutDashboard, QrCode, RefreshCw, School, Sparkles, UserX, Users } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { AlertTriangle, Copy, DoorClosed, DoorOpen, KeyRound, QrCode, RefreshCw, Sparkles, UserX } from "lucide-react";
 import {
   closeNow,
   createRoomCode,
@@ -22,39 +22,7 @@ import { buttonStyles, cx, inputStyles, smallButtonStyles } from "@/components/u
 import { bangkokInputToIso, dayKey, formatDayLong, formatDayShort, formatTime } from "@/lib/calendar";
 import { SLOT_LABEL, slotProblem, slotStatus, type SlotStatus } from "@/lib/signup";
 
-// Interactive pieces of Developer Console → ลงทะเบียน & เข้าสู่ระบบ.
-
-const TABS = [
-  { href: "/admin/access", label: "ภาพรวม", Icon: LayoutDashboard },
-  { href: "/admin/access/rooms", label: "ห้องเรียน & QR", Icon: School },
-  { href: "/admin/access/teachers", label: "ครู", Icon: Users },
-  { href: "/admin/access/history", label: "ประวัติ", Icon: History },
-];
-
-export function AccessNav() {
-  const path = usePathname();
-  return (
-    <nav aria-label="เมนูลงทะเบียน" className="mb-6 flex flex-wrap gap-1.5">
-      {TABS.map(({ href, label, Icon }) => {
-        const on = href === "/admin/access" ? path === href : path.startsWith(href);
-        return (
-          <Link
-            key={href}
-            href={href}
-            aria-current={on ? "page" : undefined}
-            className={cx(
-              "inline-flex h-9 items-center gap-1.5 rounded-full border px-3.5 text-sm font-bold transition-colors",
-              on ? "border-brand bg-brand-soft text-brand" : "border-line bg-surface text-muted hover:text-brand",
-            )}
-          >
-            <Icon aria-hidden className="h-4 w-4" />
-            {label}
-          </Link>
-        );
-      })}
-    </nav>
-  );
-}
+// Interactive pieces of the Developer Console's sign-up pages (and the switch on its front page).
 
 /** Runs an action, shows its error, and refreshes the page on success. */
 function useAction() {
