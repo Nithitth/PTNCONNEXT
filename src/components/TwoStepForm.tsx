@@ -119,14 +119,25 @@ export function TwoStepSetup({ email, emailChecked, needsEmail, onDone }: { emai
 
       {stage === "scan" && setup && (
         <form onSubmit={(e) => { const code = codeOf(e); run(() => finishSetup(setup.factorId, code), () => { if (onDone) onDone(); else { router.push("/calendar"); router.refresh(); } }); }} className="space-y-4">
-          <div className="grid place-items-center rounded-xl border border-line bg-white p-4">
-            {/* eslint-disable-next-line @next/next/no-img-element -- a data: URL SVG from Supabase */}
-            <img src={setup.qr} alt="QR สำหรับแอปยืนยันตัวตน" className="h-48 w-48" />
+          <p className="text-sm leading-relaxed text-ink">
+            เปิดแอป Google Authenticator หรือ Microsoft Authenticator ในโทรศัพท์ กด <b>+</b> แล้ว<b>สแกน QR นี้</b>
+          </p>
+          <div className="grid place-items-center rounded-xl border border-line bg-white p-3">
+            {/* eslint-disable-next-line @next/next/no-img-element -- a PNG data: URL drawn by our server (qrcode) */}
+            <img src={setup.qr} alt="QR สำหรับแอปยืนยันตัวตน" width={240} height={240} className="h-60 w-60" />
           </div>
-          <details className="text-xs text-muted">
-            <summary className="cursor-pointer">สแกนไม่ได้? พิมพ์รหัสนี้ในแอปแทน</summary>
-            <code className="mt-2 block break-all rounded-lg bg-sunken p-2 font-mono text-ink">{setup.secret}</code>
+          <details className="text-sm text-muted">
+            <summary className="cursor-pointer font-bold text-brand">สแกนไม่ได้? พิมพ์รหัสนี้ในแอปแทน</summary>
+            <code className="mt-2 block break-all rounded-lg bg-sunken p-2 font-mono text-base tracking-wider text-ink">{setup.secret}</code>
           </details>
+          <div className="rounded-xl bg-sunken px-3.5 py-3 text-sm leading-relaxed text-muted">
+            <b className="text-ink">แอปขึ้นรหัสแล้ว แต่ระบบบอกว่าไม่ถูกต้อง?</b>
+            <ul className="mt-1 list-disc space-y-0.5 pl-5">
+              <li>ใช้รหัสจาก<b>แอปในโทรศัพท์</b> ไม่ใช่รหัสที่ส่งไปทางอีเมล</li>
+              <li>ลบรายการ “PTN Connext” เก่าในแอปทิ้ง แล้วสแกน QR ที่อยู่บนหน้าจอนี้ใหม่</li>
+              <li>ตั้งวันที่และเวลาของโทรศัพท์เป็น “อัตโนมัติ” รหัสจะตรงกับระบบ</li>
+            </ul>
+          </div>
           <Field label="รหัส 6 หลักจากแอป" {...CODE_FIELD} autoFocus />
           <Button type="submit" variant="primary" className="w-full" disabled={pending}>
             {pending ? "กำลังตรวจ…" : "เปิดใช้การยืนยันสองขั้นตอน"}

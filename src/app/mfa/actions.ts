@@ -2,6 +2,7 @@
 
 import { randomInt } from "node:crypto";
 import { redirect } from "next/navigation";
+import QRCode from "qrcode";
 import { lockKey } from "@/lib/authEmail";
 import { getCurrentProfile } from "@/lib/auth";
 import { failuresFor, TWO_STEP_LOCKED_MESSAGE } from "@/lib/lockout";
@@ -113,7 +114,18 @@ export async function startSetup(): Promise<TwoStepResult> {
     await dropUnfinished(supabase);
     const { data, error } = await supabase.auth.mfa.enroll({ factorType: "totp", friendlyName: "PTN Connext", issuer: "PTN Connext" });
     if (error) throw error;
-    return { ok: true, factorId: data.id, qr: data.totp.qr_code, secret: data.totp.secret };
+    // We draw the QR ourselves: Supabase's own is a 360 KB SVG with no viewBox (it gets cropped when shrunk,
+    // so phones couldn't read it) and its account name is the scrambled hidden email. Ours is a PNG with a
+    // white border, labelled with the person's name.
+    const uri = `otpauth://totp/${encodeURIComponent(`PTN Connext:${profile.display_name}`)}?${new URLSearchParams({
+      secret: data.totp.secret,
+      issuer: "PTN Connext",
+      algorithm: "SHA1",
+      digits: "6",
+      period: "30",
+    })}`;
+    const qr = await QRCode.toDataURL(uri, { width: 320, margin: 3, errorCorrectionLevel: "M", color: { dark: "#000000", light: "#ffffff" } });
+    return { ok: true, factorId: data.id, qr, secret: data.totp.secret };
   } catch (e) {
     await logError("mfa/startSetup", e);
     return { error: FAILED };
