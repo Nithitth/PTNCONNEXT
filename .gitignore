@@ -45,3 +45,6 @@ next-env.d.ts
 
 # keep the template
 !.env.example
+
+# database backups (hold everyone's data, never commit)
+*.dump

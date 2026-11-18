@@ -154,7 +154,7 @@ The real project must end with **at least 2 real admins** and **no test accounts
 
 **If an admin loses their phone:** another admin opens **ผู้ใช้**, searches for them and clicks **ปิดการยืนยันสองขั้นตอน**; they set it up again at their next log-in. If the *only* admin is locked out, in the Supabase SQL Editor: `delete from auth.mfa_factors where user_id = (select id from public.profiles where email = 'you@example.com');`
 
-**Before the pilot, take a backup** (the free plan has none): Supabase → **Connect** → copy the *Session pooler* connection string, install the PostgreSQL tools (`winget install PostgreSQL.PostgreSQL`), then `pg_dump "<connection string>" -Fc -f ptn-backup.dump`. Keep the file in an encrypted place (e.g. a password-protected zip), never in a shared drive or chat.
+**Before the pilot, take a backup** (the free plan has none): Supabase → **Connect** → copy the *Session pooler* connection string, install the PostgreSQL tools (`winget install PostgreSQL.PostgreSQL.18`; the name needs the version number, and 18 can back up older databases too), then `& "C:\Program Files\PostgreSQL\18\bin\pg_dump.exe" "<connection string>" -Fc -f ptn-backup.dump` (the full path, because the installer doesn't add it to PATH). Keep the file in an encrypted place (e.g. a password-protected zip), never in a shared drive or chat.
 
 **Protect the team's own accounts:** turn on two-step for the Supabase, Vercel, GitHub and school Gmail accounts. Keep the GitHub repository **private**, and turn on **Settings → Code security → Secret scanning** and **Dependabot alerts**.
 
