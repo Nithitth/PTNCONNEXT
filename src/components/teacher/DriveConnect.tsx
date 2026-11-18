@@ -13,7 +13,7 @@ import { driveConnectHref } from "@/lib/driveCore";
 /** One numbered step with a small picture of what the teacher will see. */
 function GuideStep({ n, text, children }: { n: number; text: ReactNode; children: ReactNode }) {
   return (
-    <li className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4 shadow-soft-sm">
+    <li className="flex min-w-0 flex-col gap-3 rounded-2xl border border-line bg-surface p-4 shadow-soft-sm">
       <p className="flex items-start gap-3 text-lg leading-snug text-ink">
         <span aria-hidden className="bg-brand-gradient grid h-9 w-9 shrink-0 place-items-center rounded-full font-display text-lg font-extrabold text-white shadow-brand-glow">
           {n}
@@ -37,8 +37,10 @@ function GuideStep({ n, text, children }: { n: number; text: ReactNode; children
  */
 export function DriveConnectGuide({ next, onLeave }: { next: string; onLeave?: () => void }) {
   return (
-    <div className="space-y-4">
-      <ol className="grid gap-3 lg:grid-cols-3">
+    // Three columns only when the guide's own box is wide (the console banner), not on a wide screen:
+    // inside the narrow account card or the post form the steps stay one under the other.
+    <div className="@container space-y-4">
+      <ol className="grid gap-3 @3xl:grid-cols-3">
         <GuideStep n={1} text={<>กดปุ่มสีแดง <b>“เชื่อมต่อ Google Drive”</b> ด้านล่าง</>}>
           <span className="flex h-11 items-center justify-center gap-2 rounded-xl bg-brand text-base font-bold text-white">
             <CloudUpload className="h-5 w-5" />
@@ -52,7 +54,7 @@ export function DriveConnectGuide({ next, onLeave }: { next: string; onLeave?: (
               <span className="grid h-9 w-9 place-items-center rounded-full bg-brand-soft text-base font-bold text-brand">ก</span>
               <span className="min-w-0 text-sm">
                 <span className="block font-bold text-ink">ชื่อของคุณ</span>
-                <span className="block text-muted">yourname@gmail.com</span>
+                <span className="block break-all text-muted">yourname@gmail.com</span>
               </span>
             </span>
           </span>
