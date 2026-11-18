@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useSyncExternalStore } from "react";
+import Link from "next/link";
 import { ShieldCheck } from "lucide-react";
 
 const KEY = "ptn-guest-privacy-ack";
@@ -36,7 +37,10 @@ export function GuestPrivacyBanner() {
       <div className="mx-auto flex max-w-3xl animate-rise flex-col gap-3 rounded-2xl border border-line bg-surface p-4 shadow-soft-lg sm:flex-row sm:items-center">
         <ShieldCheck aria-hidden className="hidden h-5 w-5 shrink-0 text-brand sm:block" />
         <p className="flex-1 text-sm leading-relaxed text-muted">
-          เว็บไซต์นี้ไม่เก็บข้อมูลส่วนบุคคลของผู้เยี่ยมชม เมื่อคุณเข้าสู่ระบบ เราจะแจ้งรายละเอียดและขอความยินยอมตาม PDPA ก่อนเก็บข้อมูลใด ๆ
+          เว็บไซต์นี้ไม่เก็บข้อมูลส่วนบุคคลของผู้เยี่ยมชม เมื่อคุณเข้าสู่ระบบ เราจะแจ้งรายละเอียดและขอความยินยอมตาม PDPA ก่อนเก็บข้อมูลใด ๆ{" "}
+          <Link href="/privacy" className="font-bold text-brand underline-offset-2 hover:underline">
+            อ่านนโยบายความเป็นส่วนตัว
+          </Link>
         </p>
         <button
           onClick={dismiss}

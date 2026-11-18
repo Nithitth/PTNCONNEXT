@@ -104,6 +104,7 @@ Teachers can keep the PDFs they share in **their own Google Drive** instead of i
    - `https://<the live site>/api/google/callback` (the real Vercel address)
 5. Copy the **Client ID** and **Client secret** into `.env.local` (and later Vercel) as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, and make up a long random `GOOGLE_TOKEN_SECRET` (different in Vercel). Restart `npm run dev`.
 6. Paste migration `0019_google_drive.sql` into the test project, then later into the real one.
+7. **For Google's app verification** (on the live site): in **Branding**, set the home page to `https://<the live site>/`, the privacy policy to `https://<the live site>/privacy` (public, no log-in), and add the live site's domain under **Authorised domains**. Then prove you own the site: <https://search.google.com/search-console> → **Add property → URL prefix** → the live address → **HTML tag**. Copy only the `content="…"` value into Vercel as `GOOGLE_SITE_VERIFICATION`, redeploy, and press **Verify**. Finally, in **Verification Centre**, press **Submit for verification** (Google takes a few working days).
 
 If a teacher's school Google account can't share files with "anyone with the link" (some school Workspace accounts block it), Connext tells them so; they can connect a personal Gmail instead or keep the file in Connext.
 

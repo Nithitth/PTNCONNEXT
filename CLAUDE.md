@@ -326,7 +326,7 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
   - The home page has a third feature card, "Roadmap".
   - On a program page, `RoadmapButton` creates, switches or opens the roadmap.
 - **TCAS tabs:** `src/app/tcas/layout.tsx` renders `TcasTabs` (ค้นหาหลักสูตร | สถิตินักเรียน) for staff only.
-- **PDPA:** `PDPA_VERSION` is 5: the roadmap (3), its proof and room comparison (4), and sign-up names/email/phone (5).
+- **PDPA:** `PDPA_VERSION` is 6: the roadmap (3), its proof and room comparison (4), sign-up names/email/phone (5), Google Drive (6).
 
 **Roadmap levels (migration `0013`; design in `docs/specs/2026-11-13-roadmap-levels-design.md`):**
 - **6 named stages** (สำรวจ → ตั้งเป้า → ปูพื้น → สะสมผลงาน → พร้อมสอบ → พร้อมสมัคร). Each has a **gate checklist**; the stage is the first one whose gate isn't complete. Inside a stage, XP fills **5 steps** (stage sizes 100/150/200/250/300/350). A full bar with an open gate shows "ประตูด่านรออยู่".
@@ -358,7 +358,8 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
 - `tcas_targets` can be read and written only by the student who owns them; admins can't read them either.
 - The limit is 5 per student, enforced by the `tcas_targets_limit` trigger (migration `0008`). `saveTarget` updates an existing target instead of re-inserting it.
 - Programs without a calculator can still be saved, with no scores.
-- `PDPA_VERSION` is 5: TCASter targets (2), the Roadmap (3), Roadmap proof and the room comparison (4), sign-up names, email and phone (5).
+- `PDPA_VERSION` is 6: TCASter targets (2), the Roadmap (3), Roadmap proof and the room comparison (4), sign-up names, email and phone (5), teachers' Google Drive (6).
+- **Public privacy policy** at `/privacy` (no log-in, linked in the footer and the guest banner): `PdpaNotice` plus a Google Drive section and an English summary with the Limited Use statement, because Google's OAuth review reads it. Keep it true to `drive.ts`. `GOOGLE_SITE_VERIFICATION` (Vercel) adds the Search Console meta tag in `layout.tsx`.
 
 **Terms of use:** mytcas.com's terms forbid copying content beyond the service's purpose; the team chose to use the data anyway.
 - Every program page credits "ข้อมูล TCAS70 จาก mytcas.com (ทปอ.)" and links to the original.

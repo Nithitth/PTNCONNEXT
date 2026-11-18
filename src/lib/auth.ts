@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 export type Role = "student" | "teacher" | "admin";
 
 /** Bump this when the PDPA notice text changes — everyone will be asked again. */
-export const PDPA_VERSION = 5; // 2: TCASter targets (2026-11-11) · 3: TCAS Roadmap (2026-11-12) · 4: Roadmap proof + room comparison (2026-11-13) · 5: sign-up (names, email, phone) (2026-11-16)
+export const PDPA_VERSION = 6; // 2: TCASter targets (2026-11-11) · 3: TCAS Roadmap (2026-11-12) · 4: Roadmap proof + room comparison (2026-11-13) · 5: sign-up (names, email, phone) (2026-11-16) · 6: Google Drive for teachers (2026-11-18)
 
 export type Profile = {
   id: string;
