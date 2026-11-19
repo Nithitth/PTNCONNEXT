@@ -51,10 +51,7 @@ async function ProgramPicker({ q, current, currentName }: { q: string; current: 
           </p>
           <ul className="grid gap-2 md:grid-cols-2">
             {results.slice(0, SHOWN).map((p) => (
-              <li
-                key={p.programId}
-                className="flex items-start gap-3 rounded-2xl border border-line bg-surface p-3 shadow-soft-sm"
-              >
+              <li key={p.programId} className="flex items-start gap-3 rounded-2xl border border-line bg-surface p-3 shadow-soft-sm">
                 <UniversityLogo id={p.universityId} size={40} />
                 <div className="min-w-0 flex-1">
                   <Link href={`/tcas/${p.programId}`} className="block text-sm font-bold leading-snug text-ink hover:text-brand">
@@ -81,7 +78,7 @@ async function ProgramPicker({ q, current, currentName }: { q: string; current: 
 
 /** The Roadmap tab: make (or switch) the student's one roadmap, then build it from boxes. */
 export default async function RoadmapPage({ searchParams }: PageProps<"/roadmap">) {
-  const profile = await requireProfile();
+  const profile = await requireProfile({ feature: "roadmap" });
   const params = await searchParams;
   const q = typeof params.q === "string" ? params.q.slice(0, 100).trim() : "";
 

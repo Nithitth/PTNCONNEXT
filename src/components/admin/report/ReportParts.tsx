@@ -5,7 +5,9 @@ import { AlertTriangle, ArrowDownRight, ArrowUpRight, CheckCircle2, Crown, Info,
 import { cx } from "@/components/ui";
 import { change, formatDay, formatValue, roomText, T, type Lang, type ScoredOkr, type Status } from "@/lib/report";
 import { DAYS, DAYS_SHORT, type Finding, type FunnelStep, type Impact, type RoomRank, type Workload } from "@/lib/reportAnalysis";
+import type { Point, Projection } from "@/lib/reportCompare";
 import type { Series } from "@/lib/reportView";
+import { TrendSpark, projectionText } from "./CompareParts";
 
 const num = (v: number, lang: Lang, digits = 0) => v.toLocaleString(lang === "th" ? "th-TH" : "en-US", { maximumFractionDigits: digits });
 
@@ -144,7 +146,20 @@ const STATUS: Record<Status, { bar: string; chip: string }> = {
   none: { bar: "bg-faint", chip: "bg-sunken text-muted" },
 };
 
-export function ObjectiveCard({ o, i, lang, big }: { o: ScoredOkr; i: number; lang: Lang; big?: boolean }) {
+export function ObjectiveCard({
+  o,
+  i,
+  lang,
+  big,
+  trends,
+}: {
+  o: ScoredOkr;
+  i: number;
+  lang: Lang;
+  big?: boolean;
+  /** Per key result: its weekly line and projected finish (goal progress over time). */
+  trends?: { points: Point[]; proj?: Projection }[];
+}) {
   return (
     <article className="break-inside-avoid rounded-2xl border border-line bg-page p-4 sm:p-5">
       <div className="mb-3 flex items-start gap-3">
@@ -189,6 +204,12 @@ export function ObjectiveCard({ o, i, lang, big }: { o: ScoredOkr; i: number; la
                 </div>
                 <span className={cx("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold", s.chip)}>{T[lang].status[k.status]}</span>
               </div>
+              {trends?.[j] && (
+                <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
+                  <TrendSpark points={trends[j].points} target={k.target} unit={k.unit} lower={k.lower} />
+                  <span className="pb-1 text-[11px] text-muted">{projectionText(trends[j].proj, lang)}</span>
+                </div>
+              )}
             </li>
           );
         })}

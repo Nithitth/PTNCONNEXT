@@ -32,17 +32,7 @@ const param = (v: string | string[] | undefined) => (typeof v === "string" ? v :
  * Page links under the list: ← ก่อนหน้า, numbered pages, ถัดไป →. When grouped by faculty, each
  * number also says which university and faculties that page covers (shown on hover/long-press).
  */
-function Pager({
-  pages,
-  page,
-  href,
-  grouped,
-}: {
-  pages: ProgramCard[][];
-  page: number;
-  href: (p: number) => string;
-  grouped: boolean;
-}) {
+function Pager({ pages, page, href, grouped }: { pages: ProgramCard[][]; page: number; href: (p: number) => string; grouped: boolean }) {
   if (pages.length < 2) return null;
   const covers = (list: ProgramCard[]) => {
     const a = list[0];
@@ -88,9 +78,7 @@ function Pager({
             aria-current={on ? "page" : undefined}
             className={cx(
               "grid h-9 min-w-8 place-items-center rounded-xl border px-1.5 text-sm font-bold tabular-nums transition-colors sm:min-w-9 sm:px-2",
-              on
-                ? "border-brand bg-brand text-white shadow-brand-glow"
-                : "border-line bg-surface text-muted hover:border-brand/30 hover:text-brand",
+              on ? "border-brand bg-brand text-white shadow-brand-glow" : "border-line bg-surface text-muted hover:border-brand/30 hover:text-brand",
             )}
           >
             {n}
@@ -103,7 +91,7 @@ function Pager({
 }
 
 export default async function TcasPage({ searchParams }: PageProps<"/tcas">) {
-  const profile = await requireProfile();
+  const profile = await requireProfile({ feature: "tcas" });
   const isStudent = profile.role === "student";
   const params = await searchParams;
   const q = param(params.q).slice(0, 100);
@@ -165,12 +153,7 @@ export default async function TcasPage({ searchParams }: PageProps<"/tcas">) {
       <section id="search" className="scroll-mt-16">
         <Container className="pb-28 pt-10">
           <div data-reveal>
-            <PageHeader
-              as={total > 0 ? "h2" : "h1"}
-              eyebrow="TCAS70"
-              title="TCAS"
-              subtitle="ค้นหาหลักสูตร ดูเกณฑ์รอบ 1 และรอบ 3 แล้วลองคำนวณคะแนนของตัวเอง"
-            />
+            <PageHeader as={total > 0 ? "h2" : "h1"} eyebrow="TCAS70" title="TCAS" subtitle="ค้นหาหลักสูตร ดูเกณฑ์รอบ 1 และรอบ 3 แล้วลองคำนวณคะแนนของตัวเอง" />
           </div>
 
           {profile.role !== "student" && (
@@ -183,11 +166,7 @@ export default async function TcasPage({ searchParams }: PageProps<"/tcas">) {
           )}
 
           {total === 0 ? (
-            <EmptyState
-              icon={<GraduationCap aria-hidden className="h-6 w-6" />}
-              title="ยังไม่มีข้อมูล TCAS"
-              body="ผู้ดูแลระบบกำลังเตรียมข้อมูล"
-            />
+            <EmptyState icon={<GraduationCap aria-hidden className="h-6 w-6" />} title="ยังไม่มีข้อมูล TCAS" body="ผู้ดูแลระบบกำลังเตรียมข้อมูล" />
           ) : (
             <>
               {isStudent && (
@@ -212,9 +191,7 @@ export default async function TcasPage({ searchParams }: PageProps<"/tcas">) {
                               {t.universityName} · {t.faculty}
                             </span>
                             <span className="mt-1 block text-sm font-bold leading-snug text-ink">{t.nameTh}</span>
-                            {!t.active && (
-                              <span className="mt-2 block text-xs font-bold text-danger">หลักสูตรนี้ไม่มีในข้อมูลล่าสุด</span>
-                            )}
+                            {!t.active && <span className="mt-2 block text-xs font-bold text-danger">หลักสูตรนี้ไม่มีในข้อมูลล่าสุด</span>}
                           </Link>
                         </li>
                       ))}
@@ -233,13 +210,7 @@ export default async function TcasPage({ searchParams }: PageProps<"/tcas">) {
                   <label className="sr-only" htmlFor="tcas-q">
                     ค้นหาหลักสูตร
                   </label>
-                  <input
-                    id="tcas-q"
-                    name="q"
-                    defaultValue={q}
-                    placeholder="ค้นหา เช่น วิศวกรรม แพทย์ บัญชี"
-                    className={cx(inputStyles, "h-11 w-full sm:flex-1")}
-                  />
+                  <input id="tcas-q" name="q" defaultValue={q} placeholder="ค้นหา เช่น วิศวกรรม แพทย์ บัญชี" className={cx(inputStyles, "h-11 w-full sm:flex-1")} />
                   <div className="relative grid grid-cols-2 gap-2 sm:contents">
                     <GroupSelect groups={groups} value={g} className="sm:w-60" />
                     <SortSelect value={sort} className="sm:w-56" />
@@ -260,9 +231,7 @@ export default async function TcasPage({ searchParams }: PageProps<"/tcas">) {
                         aria-current={on ? "page" : undefined}
                         className={cx(
                           "rounded-full border px-3.5 py-1.5 text-sm font-bold transition-colors",
-                          on
-                            ? "border-brand bg-brand text-white"
-                            : "border-line bg-surface text-muted hover:border-brand/30 hover:text-brand",
+                          on ? "border-brand bg-brand text-white" : "border-line bg-surface text-muted hover:border-brand/30 hover:text-brand",
                         )}
                       >
                         {x.short}

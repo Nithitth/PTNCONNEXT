@@ -73,6 +73,7 @@ export async function sendSetupEmail(): Promise<TwoStepResult> {
     });
     if (error) throw error;
     await sendEmailCode(me.email, code, "two-step");
+    await logAudit(profile.id, "two-step-email", maskEmail(me.email));
     return { ok: true, sentTo: maskEmail(me.email) };
   } catch (e) {
     await logError("mfa/sendSetupEmail", e);
@@ -91,7 +92,10 @@ export async function checkSetupEmail(raw: string): Promise<TwoStepResult> {
     if (!row || new Date(row.expires_at) < new Date()) return { error: "รหัสหมดอายุแล้ว กด “ส่งรหัสอีกครั้ง”" };
     if (row.attempts >= EMAIL_CODE_TRIES) return { error: "กรอกผิดหลายครั้งเกินไป กด “ส่งรหัสอีกครั้ง”" };
     if (row.code_hash !== hashCode(`email:${slot}:${String(raw ?? "").replace(/\D/g, "")}`)) {
-      await admin.from("signup_email_codes").update({ attempts: row.attempts + 1 }).eq("email", slot);
+      await admin
+        .from("signup_email_codes")
+        .update({ attempts: row.attempts + 1 })
+        .eq("email", slot);
       return { error: "รหัสไม่ถูกต้อง" };
     }
     await admin.from("signup_email_codes").delete().eq("email", slot);
@@ -172,6 +176,8 @@ export async function turnOffTwoStep(raw: string): Promise<TwoStepResult> {
 
 export async function leaveTwoStep(): Promise<void> {
   const supabase = await createClient();
+  const { data } = await supabase.auth.getClaims();
+  if (data?.claims?.sub) await logAudit(data.claims.sub, "two-step-leave");
   await supabase.auth.signOut();
   redirect("/login");
 }

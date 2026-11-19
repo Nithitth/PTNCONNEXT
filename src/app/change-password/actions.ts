@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { loginIdToEmail } from "@/lib/authEmail";
 import { requireProfile } from "@/lib/auth";
-import { logError } from "@/lib/logs";
+import { logAudit, logError } from "@/lib/logs";
 import { newPasswordProblem } from "@/lib/roster";
 import { cleanTotp, verifiedFactor } from "@/lib/twoStep";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -46,12 +46,10 @@ export async function changePassword(_prev: ChangePasswordState, formData: FormD
     }
 
     if (profile.must_change_password) {
-      const { error: flagError } = await createAdminClient()
-        .from("profiles")
-        .update({ must_change_password: false })
-        .eq("id", profile.id);
+      const { error: flagError } = await createAdminClient().from("profiles").update({ must_change_password: false }).eq("id", profile.id);
       if (flagError) throw flagError;
     }
+    await logAudit(profile.id, "password-change", null, { twoStep: profile.twoStepOn });
   } catch (e) {
     await logError("change-password", e);
     return { error: "เปลี่ยนรหัสผ่านไม่สำเร็จ ระบบขัดข้องชั่วคราว ลองใหม่อีกครั้ง" };

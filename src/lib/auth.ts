@@ -3,12 +3,14 @@ import { cache } from "react";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { isSupabaseConfigured } from "@/lib/env";
+import type { FeatureKey } from "@/lib/features";
 import { createClient } from "@/lib/supabase/server";
+import { trackVisit } from "@/lib/tracking";
 
 export type Role = "student" | "teacher" | "admin";
 
 /** Bump this when the PDPA notice text changes — everyone will be asked again. */
-export const PDPA_VERSION = 7; // 2: TCASter targets (2026-11-11) · 3: TCAS Roadmap (2026-11-12) · 4: Roadmap proof + room comparison (2026-11-13) · 5: sign-up (names, email, phone) (2026-11-16) · 6: Google Drive for teachers (2026-11-18) · 7: the school Shared Drive (2026-11-19)
+export const PDPA_VERSION = 8; // 2: TCASter targets (2026-11-11) · 3: TCAS Roadmap (2026-11-12) · 4: Roadmap proof + room comparison (2026-11-13) · 5: sign-up (names, email, phone) (2026-11-16) · 6: Google Drive for teachers (2026-11-18) · 7: the school Shared Drive (2026-11-19) · 8: activity logs (visits, posts and files opened, account changes) (2026-11-19)
 
 export type Profile = {
   id: string;
@@ -64,7 +66,8 @@ export const needsPdpa = (p: Profile) => (p.pdpa_version ?? 0) < PDPA_VERSION;
 /** Admins always, and anyone who turned two-step on, must pass it before using the app. */
 export const needsTwoStep = (p: Profile) => p.aal !== "aal2" && (p.role === "admin" || p.twoStepOn);
 
-type Gate = { roles?: Role[]; skipPdpa?: boolean };
+/** `feature`: count this page visit in the activity log (usage_daily, migration 0020). */
+type Gate = { roles?: Role[]; skipPdpa?: boolean; feature?: FeatureKey };
 
 /**
  * Call at the top of every protected page or action.
@@ -80,5 +83,6 @@ export async function requireProfile(gate: Gate = {}): Promise<Profile> {
   if (needsTwoStep(profile)) redirect("/mfa");
   if (!gate.skipPdpa && needsPdpa(profile)) redirect("/pdpa");
   if (gate.roles && !gate.roles.includes(profile.role)) redirect("/?denied=1");
+  if (gate.feature) trackVisit(profile.id, gate.feature);
   return profile;
 }

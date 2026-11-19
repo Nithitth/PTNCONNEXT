@@ -4,6 +4,7 @@ import { logError } from "@/lib/logs";
 import { FILE_LIFETIME_DAYS, MATERIALS_BUCKET, isUuid } from "@/lib/postForm";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { trackSeen } from "@/lib/tracking";
 
 /**
  * Opens an uploaded PDF. The attachment is looked up as the signed-in user,
@@ -22,11 +23,13 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/files/[id]">
     const supabase = await createClient();
     const { data } = await supabase
       .from("attachments")
-      .select("kind, url, storage_path, file_name, expires_at, expired_at, drive_file_id")
+      .select("post_id, kind, url, storage_path, file_name, expires_at, expired_at, drive_file_id")
       .eq("id", id)
       .maybeSingle();
     if (!data) return text("ไม่พบไฟล์ หรือคุณไม่มีสิทธิ์เปิดไฟล์นี้", 404);
     const expired = Boolean(data.expired_at) || Boolean(data.expires_at && Date.parse(data.expires_at as string) <= Date.now());
+    // Activity log (0020): a student opened this post's file or link (ignored for staff).
+    if (!expired) trackSeen(profile.id, [data.post_id as string], true);
     // A PDF in the teacher's Google Drive (migration 0019): same 180 days, then it opens on Google Drive.
     if (data.drive_file_id) {
       if (expired) return text(`ไฟล์นี้หมดอายุแล้ว ระบบเก็บไฟล์ไว้ ${FILE_LIFETIME_DAYS} วัน ขอไฟล์ใหม่จากครูผู้สอน`, 410);
@@ -50,5 +53,4 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/files/[id]">
   }
 }
 
-const text = (message: string, status: number) =>
-  new NextResponse(message, { status, headers: { "content-type": "text/plain; charset=utf-8" } });
+const text = (message: string, status: number) => new NextResponse(message, { status, headers: { "content-type": "text/plain; charset=utf-8" } });

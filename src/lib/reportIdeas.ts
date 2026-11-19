@@ -147,6 +147,10 @@ export type IdeaContext = {
   storageUse: number;
   /** The school's Shared Drive takes every PDF: no need to get teachers onto their own Drive. */
   schoolDrive?: boolean;
+  /** Feature use from the activity log (reportCompare.featureUsage), most used first. */
+  features?: { key: string; th: string; en: string; pct: number | null; visits: number }[];
+  /** Per subject: how many posts and how many students opened them within 24 h (reportCompare.subjectCompare). */
+  subjects?: { subject: string; posts: number; seen24hPct: number | null }[];
 };
 
 const quote = (m: string) => (m.length > 120 ? `${m.slice(0, 117).trim()}…` : m);
@@ -395,6 +399,61 @@ export function ideaCards(c: IdeaContext): IdeaCard[] {
       evidence: [{ th: `${Math.round(c.storageUse * 100)}% ของพื้นที่ฟรี`, en: `${Math.round(c.storageUse * 100)}% of free storage` }],
       quotes: [],
       metric: "errors_per_week",
+    });
+  }
+
+  // Activity log: a feature hardly anyone uses → improve it or tell people about it.
+  const unused = (c.features ?? []).filter((f) => f.pct !== null && f.pct < 20 && !["admin", "report", "account"].includes(f.key));
+  if (unused.length && (c.features ?? []).some((f) => (f.pct ?? 0) >= 20)) {
+    const names = (lang: Lang) =>
+      unused
+        .slice(0, 3)
+        .map((f) => (lang === "th" ? f.th : f.en))
+        .join(", ");
+    out.push({
+      key: "feature-promote",
+      strength: 72 + unused.length * 2,
+      th: {
+        title: `ปรับหรือแนะนำ: ${names("th")}`,
+        problem: "บางส่วนของระบบมีคนใช้ทุกสัปดาห์ไม่ถึง 20%",
+        step: "ถามนักเรียน 5 คนว่าทำไมไม่ใช้ แล้วเลือก: ทำให้หาเจอง่ายขึ้น แนะนำในคาบ หรือรวม/ตัดออก",
+      },
+      en: {
+        title: `Improve or promote: ${names("en")}`,
+        problem: "Some parts of Connext are used weekly by fewer than 20% of their users",
+        step: "Ask 5 students why they don't use it, then choose: make it easier to find, introduce it in class, or merge/remove it",
+      },
+      evidence: unused.slice(0, 3).map((f) => ({
+        th: `${f.th}: ใช้ทุกสัปดาห์ ${Math.round(f.pct!)}% (${num(f.visits, "th")} ครั้งในช่วงนี้)`,
+        en: `${f.en}: ${Math.round(f.pct!)}% weekly (${num(f.visits, "en")} visits)`,
+      })),
+      quotes: [],
+      metric: `feature_${unused[0].key}_pct`,
+    });
+  }
+
+  // Activity log: one subject's posts are opened late → remind students for that subject.
+  const late = (c.subjects ?? []).filter((x) => x.posts >= 3 && x.seen24hPct !== null && x.seen24hPct < 40);
+  if (late.length) {
+    out.push({
+      key: "subject-seen-late",
+      strength: 74,
+      th: {
+        title: "แจ้งเตือนนักเรียนเมื่อมีโพสต์ใหม่",
+        problem: `โพสต์ของ ${late.map((x) => x.subject).join(", ")} ถูกเปิดภายใน 24 ชม. ไม่ถึง 40%`,
+        step: "ลองให้ครูวิชานั้นบอกในคาบว่า “ดูใน Connext” 2 สัปดาห์ แล้วเทียบตัวเลข ก่อนตัดสินใจทำระบบแจ้งเตือน",
+      },
+      en: {
+        title: "Notify students about new posts",
+        problem: `Under 40% of students open ${late.map((x) => x.subject).join(", ")} posts within 24 hours`,
+        step: "Have that subject's teachers say “check Connext” in class for 2 weeks and compare, before building notifications",
+      },
+      evidence: late.map((x) => ({
+        th: `${x.subject}: เปิดภายใน 24 ชม. ${Math.round(x.seen24hPct!)}% จาก ${x.posts} โพสต์`,
+        en: `${x.subject}: ${Math.round(x.seen24hPct!)}% within 24 h, ${x.posts} posts`,
+      })),
+      quotes: quotesFor(fb, (f) => f.topics.includes("notify")),
+      metric: "seen_24h_pct",
     });
   }
 

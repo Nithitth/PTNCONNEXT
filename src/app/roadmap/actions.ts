@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
 import { dayKey } from "@/lib/calendar";
-import { logError } from "@/lib/logs";
+import { logAudit, logError } from "@/lib/logs";
 import {
   ROADMAP_MAX_BOXES,
   cleanBoxData,
@@ -126,6 +126,7 @@ export async function deleteRoadmap(): Promise<RoadmapResult> {
     if (files?.length) await supabase.storage.from(PROOF_BUCKET).remove(files.map((x) => `${profile.id}/${x.name}`));
     const { error } = await supabase.from("tcas_roadmaps").delete().eq("student_id", profile.id);
     if (error) throw error;
+    await logAudit(profile.id, "roadmap-delete", null, { proofFiles: files?.length ?? 0 });
     revalidatePath(PAGE);
     revalidatePath("/tcas");
     return { ok: true };
@@ -183,10 +184,7 @@ export async function updateBox(id: string, title: unknown, data: unknown): Prom
     const clean = cleanBoxData(box.kind, data);
     if (cleanTitle === null) return { error: "ชื่อกล่องยาวเกิน 60 ตัวอักษร" };
     if (clean === null) return { error: "ข้อมูลในกล่องไม่ถูกต้อง หรือยาว/มากเกินไป" };
-    const { error } = await supabase
-      .from("tcas_roadmap_boxes")
-      .update({ title: cleanTitle, data: clean, updated_at: new Date().toISOString() })
-      .eq("id", id);
+    const { error } = await supabase.from("tcas_roadmap_boxes").update({ title: cleanTitle, data: clean, updated_at: new Date().toISOString() }).eq("id", id);
     if (error) throw error;
     const boxes = snap.roadmap.boxes.map((b) => (b.id === id ? ({ ...b, title: cleanTitle, data: clean } as AnyBox) : b));
     return { ok: true, ...synced(await syncLevel(supabase, profile.id, true, { ...snap, roadmap: { ...snap.roadmap, boxes } })) };
@@ -211,9 +209,7 @@ export async function moveBox(id: string, dir: number): Promise<RoadmapResult> {
     if (j < 0 || j >= ids.length) return { ok: true };
     [ids[i], ids[j]] = [ids[j], ids[i]];
     // Rewrite every sort as its position, so old gaps or ties are cleaned up too.
-    const results = await Promise.all(
-      ids.map((boxId, sort) => supabase.from("tcas_roadmap_boxes").update({ sort }).eq("id", boxId)),
-    );
+    const results = await Promise.all(ids.map((boxId, sort) => supabase.from("tcas_roadmap_boxes").update({ sort }).eq("id", boxId)));
     const failed = results.find((r) => r.error);
     if (failed?.error) throw failed.error;
     return { ok: true };
@@ -253,10 +249,7 @@ export async function fillQuestSuggestions(id: string): Promise<RoadmapResult> {
     const program = toRoadmapProgram(p, roadmap.position);
     const current = cleanBoxData("quests", row.data) ?? { items: [] as QuestItem[] };
     const items = mergeQuests(current.items, suggestedQuests(program, await loadApprovedTemplates(supabase, program.groupField)));
-    const { error } = await supabase
-      .from("tcas_roadmap_boxes")
-      .update({ data: { items }, updated_at: new Date().toISOString() })
-      .eq("id", id);
+    const { error } = await supabase.from("tcas_roadmap_boxes").update({ data: { items }, updated_at: new Date().toISOString() }).eq("id", id);
     if (error) throw error;
     return { ok: true, box: toBox({ ...(row as BoxRow), data: { items } }), ...synced(await syncLevel(supabase, profile.id, true)) };
   } catch (e) {

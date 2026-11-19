@@ -2,8 +2,9 @@ import "server-only";
 import { loadRooms } from "@/lib/accessData";
 import { schoolDriveStatus } from "@/lib/drive";
 import { DEFAULT_ASSUMPTIONS, DEFAULT_OKRS, cleanAssumptions, cleanOkrs, rangeIso, type Assumptions, type Okr } from "@/lib/report";
-import type { PostType, RawDue, RawFeedback, RawLogin, RawPost, ReportRaw, Role } from "@/lib/reportAnalysis";
-import { cleanTags, type Tags } from "@/lib/reportIdeas";
+import type { PostType, RawDue, RawFeedback, RawLogin, RawPerson, RawPost, RawUsage, RawView, ReportRaw, Role } from "@/lib/reportAnalysis";
+import { cleanTags, withTags, type Tags } from "@/lib/reportIdeas";
+import { weekStart } from "@/lib/roadmap";
 import { SUBJECTS } from "@/lib/school";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { FREE_LIMITS } from "@/lib/usage";
@@ -76,6 +77,55 @@ export async function loadReport(current: Span, previous: Span): Promise<ReportB
     db.from("attachments").select("kind, size_bytes, drive_file_id, expired_at").limit(BIG),
     db.from("app_settings").select("key, value").in("key", ["report_okrs", "report_assumptions", "feedback_tags"]),
   ]);
+  // The activity log (migration 0020): summaries only, never raw rows. Missing before 0020 is pasted → empty.
+  const [usageRes, peopleCur, peoplePrev, viewsRes, locked] = await Promise.all([
+    db.rpc("usage_summary", { p_from: previous.from, p_to: current.to }),
+    db.rpc("usage_people", { p_from: current.from, p_to: current.to }),
+    db.rpc("usage_people", { p_from: previous.from, p_to: previous.to }),
+    db.rpc("post_view_summary", { p_from: wide.start, p_to: wide.end }),
+    db.from("login_events").select("created_at").eq("reason", "locked").gte("created_at", wide.start).lte("created_at", wide.end).limit(BIG),
+  ]);
+  type UsageRow = { feature: string | null; week: string; role: Role; classroom_id: string | null; users: number; visits: number };
+  const allUsage: RawUsage[] = (((usageRes.error ? [] : usageRes.data) as UsageRow[] | null) ?? []).map((u) => ({
+    feature: u.feature,
+    week: u.week,
+    role: u.role,
+    classroomId: u.classroom_id,
+    users: u.users,
+    visits: u.visits,
+  }));
+  type PersonRow = { role: Role; classroom_id: string | null; features: number; weeks: number; visits: number };
+  const toPeople = (r: typeof peopleCur): RawPerson[] =>
+    (((r.error ? [] : r.data) as PersonRow[] | null) ?? []).map((p) => ({
+      role: p.role,
+      classroomId: p.classroom_id,
+      features: p.features,
+      weeks: p.weeks,
+      visits: p.visits,
+    }));
+  type ViewRow = {
+    post_id: string;
+    classroom_id: string | null;
+    type: PostType;
+    subject: string | null;
+    created_at: string;
+    targeted: number;
+    seen: number;
+    seen_24h: number;
+    file_openers: number;
+  };
+  const allViews: RawView[] = (((viewsRes.error ? [] : viewsRes.data) as ViewRow[] | null) ?? []).map((v) => ({
+    postId: v.post_id,
+    classroomId: v.classroom_id,
+    type: v.type,
+    subject: subjectName(v.subject ?? undefined),
+    createdAt: v.created_at,
+    targeted: v.targeted,
+    seen: v.seen,
+    seen24h: v.seen_24h,
+    fileOpeners: v.file_openers,
+  }));
+  const lockTimes = (locked.data ?? []).map((l) => l.created_at as string);
   for (const r of [regs, profiles, logins, posts, dues, drive, feedback, targets, roadmaps, files, settings]) if (r.error) throw r.error;
 
   // People: role and room by id. Only students count towards the student percentages.
@@ -93,6 +143,9 @@ export async function loadReport(current: Span, previous: Span): Promise<ReportB
     teachersRegistered: regRows.filter((r) => r.kind === "teacher" && r.claimed_by).length,
   };
   const signupDates = regRows.filter((r) => r.claimed_at).map((r) => r.claimed_at as string);
+  const rosterSignups = regRows
+    .filter((r) => r.claimed_at && (r.kind === "student" || r.kind === "teacher"))
+    .map((r) => ({ kind: r.kind as "student" | "teacher", at: r.claimed_at as string }));
 
   const allLogins: RawLogin[] = (logins.data ?? []).map((l) => {
     const p = l.user_id ? who.get(l.user_id) : undefined;
@@ -163,6 +216,18 @@ export async function loadReport(current: Span, previous: Span): Promise<ReportB
   const studentRoadmaps = (roadmaps.data ?? []).filter((r) => isStudent(r.student_id));
   const roadmapStages: Record<number, number> = {};
   for (const r of studentRoadmaps) roadmapStages[r.stage] = (roadmapStages[r.stage] ?? 0) + 1;
+  // Per room (room vs room): students with a target / a Roadmap; groups under 3 are hidden (null).
+  const perRoom = (ids: string[]) => {
+    const n: Record<string, number> = {};
+    for (const id of new Set(ids)) {
+      const room = who.get(id)?.classroomId;
+      if (room) n[room] = (n[room] ?? 0) + 1;
+    }
+    return Object.fromEntries(rooms.map((r) => [r.classroomId, (n[r.classroomId] ?? 0) >= MIN_GROUP ? n[r.classroomId] : null]));
+  };
+  const roomTargets = perRoom(targetRows.map((t) => t.student_id));
+  const roomRoadmaps = perRoom(studentRoadmaps.map((r) => r.student_id));
+  const roadmapStage3 = studentRoadmaps.filter((r) => r.stage >= 3).length;
 
   const fileRows = files.data ?? [];
   const kept = fileRows.filter((f) => f.kind === "file" && !f.expired_at);
@@ -176,8 +241,17 @@ export async function loadReport(current: Span, previous: Span): Promise<ReportB
   const tagsSaved = cleanTags(setting("feedback_tags") ?? {});
 
   const driveTeachers = (drive.data ?? []).filter((d) => who.get(d.user_id)?.role !== "student").length;
+  // Feedback with its kind (bug, praise…), so the voice goals can count them; hand re-tags win.
+  const tagged: RawFeedback[] = withTags(allFeedback, "tags" in tagsSaved ? tagsSaved.tags : {}).map((f) => ({
+    id: f.id,
+    at: f.at,
+    message: f.message,
+    role: f.role,
+    kind: f.kind,
+  }));
+  const storageUse = Math.min(1, storageBytes / FREE_LIMITS.storageBytes);
 
-  const build = (span: Span, errors: number, lookAhead = false): ReportRaw => {
+  const build = (span: Span, errors: number, people: RawPerson[], lookAhead = false): ReportRaw => {
     const start = Date.parse(rangeIso(span).start);
     const end = Date.parse(rangeIso(span).end);
     const inSpanT = (iso: string | null) => iso !== null && Date.parse(iso) >= start && Date.parse(iso) <= end;
@@ -196,25 +270,34 @@ export async function loadReport(current: Span, previous: Span): Promise<ReportB
       driveFiles: driveFiles,
       driveTeachers,
       errors,
-      feedback: allFeedback.filter((f) => inSpanT(f.at)),
+      feedback: tagged.filter((f) => inSpanT(f.at)),
       studentsWithTarget,
       studentsWithRoadmap: studentRoadmaps.length,
       roadmapStages: Object.fromEntries(Object.entries(roadmapStages).filter(([, n]) => n >= MIN_GROUP)),
       topTargets,
       storageBytes,
+      usage: allUsage.filter((u) => u.week >= weekStart(span.from) && u.week <= span.to),
+      people,
+      views: allViews.filter((v) => inSpanT(v.createdAt)),
+      lockouts: lockTimes.filter(inSpanT).length,
+      rosterSignups,
+      storageUse,
+      roadmapStage3,
+      roomTargets,
+      roomRoadmaps,
     };
   };
 
-  const cur = build(current, errorsCur.count ?? 0, true);
+  const cur = build(current, errorsCur.count ?? 0, toPeople(peopleCur), true);
 
   return {
     current: cur,
-    previous: build(previous, errorsPrev.count ?? 0),
+    previous: build(previous, errorsPrev.count ?? 0, toPeople(peoplePrev)),
     okrs: "okrs" in okrsSaved ? okrsSaved.okrs : DEFAULT_OKRS,
     assumptions: "assumptions" in assumptionsSaved ? assumptionsSaved.assumptions : DEFAULT_ASSUMPTIONS,
     tags: "tags" in tagsSaved ? tagsSaved.tags : {},
     avgFileBytes: sizes.length ? sizes.reduce((a, b) => a + b, 0) / sizes.length : null,
-    storageUse: Math.min(1, storageBytes / FREE_LIMITS.storageBytes),
+    storageUse,
     schoolDrive: (await schoolDriveStatus()).state === "on",
     subjectPosts: SUBJECTS.map((s) => ({ subject: s.name, posts: cur.posts.filter((p) => p.subject === s.name).length })),
     roomLabels: Object.fromEntries(rooms.map((r) => [r.classroomId, r.label])),

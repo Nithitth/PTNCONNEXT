@@ -18,6 +18,7 @@ import {
   WorkloadView,
 } from "@/components/admin/report/ReportParts";
 import { ReportControls, SchoolCalculator } from "@/components/admin/report/ReportClient";
+import { FeatureBars, RoomMatrix, SubjectBars } from "@/components/admin/report/CompareParts";
 import { Brand, Container } from "@/components/ui";
 import { dayKey } from "@/lib/calendar";
 import { formatDay, formatRange, formatValue, T } from "@/lib/report";
@@ -84,7 +85,13 @@ export default async function ReportPage({ searchParams }: PageProps<"/admin/rep
         <ReportSection n={2} title={t.okrs}>
           <div className="grid gap-3 lg:grid-cols-2">
             {v.okrs.map((o, i) => (
-              <ObjectiveCard key={i} o={o} i={i} lang={lang} />
+              <ObjectiveCard
+                key={i}
+                o={o}
+                i={i}
+                lang={lang}
+                trends={o.keyResults.map((k, j) => ({ points: v.series[k.metric] ?? [], proj: v.projections[`${i}-${j}`] }))}
+              />
             ))}
           </div>
         </ReportSection>
@@ -138,6 +145,30 @@ export default async function ReportPage({ searchParams }: PageProps<"/admin/rep
 
         <ReportSection
           n={5}
+          title={th ? "เทียบห้องเรียน" : "Room vs room"}
+          note={th ? "ยิ่งเข้มยิ่งสูง มงกุฎ = ห้องที่ดีที่สุดในคอลัมน์นั้น" : "Darker = higher; crown = best in that column"}
+        >
+          <RoomMatrix rows={v.roomRows} avg={v.roomAvg} lang={lang} />
+        </ReportSection>
+
+        <ReportSection
+          n={6}
+          title={th ? "เทียบรายวิชา" : "Subject vs subject"}
+          note={th ? "สีตามวิชา เปิดดู = นักเรียนที่เปิดโพสต์ของวิชานั้น" : "In each subject's colour; opened = students who opened its posts"}
+        >
+          <SubjectBars rows={v.subjects} lang={lang} />
+        </ReportSection>
+
+        <ReportSection
+          n={7}
+          title={th ? "การใช้ฟีเจอร์" : "Feature use"}
+          note={th ? "เฉลี่ยต่อสัปดาห์ คนที่เปิดแต่ละส่วน ÷ กลุ่มผู้ใช้ของส่วนนั้น" : "Weekly users of each part ÷ its audience"}
+        >
+          <FeatureBars rows={v.features} lang={lang} />
+        </ReportSection>
+
+        <ReportSection
+          n={8}
           title={t.heatmap}
           note={v.peak ? (th ? `ช่วงที่ใช้มากที่สุด: ${peakText(v.peak, "th")}` : `Busiest: ${peakText(v.peak, "en")}`) : undefined}
         >
@@ -150,11 +181,15 @@ export default async function ReportPage({ searchParams }: PageProps<"/admin/rep
           </p>
         </ReportSection>
 
-        <ReportSection n={6} title={t.workload} note={th ? "กำหนดส่งและวันสอบในช่วงนี้ รวมถึง 14 วันข้างหน้า" : "Deadlines and exams in this period and the next 14 days"}>
+        <ReportSection
+          n={9}
+          title={t.workload}
+          note={th ? "กำหนดส่งและวันสอบในช่วงนี้ รวมถึง 14 วันข้างหน้า" : "Deadlines and exams in this period and the next 14 days"}
+        >
           <WorkloadView work={v.work} labels={v.roomLabels} lang={lang} />
         </ReportSection>
 
-        <ReportSection n={7} title={t.teaching}>
+        <ReportSection n={10} title={t.teaching}>
           <div className="grid gap-6 lg:grid-cols-3">
             <div>
               <SparkTitle>{th ? "โพสต์ตามประเภท" : "Posts by type"}</SparkTitle>
@@ -192,7 +227,7 @@ export default async function ReportPage({ searchParams }: PageProps<"/admin/rep
           </p>
         </ReportSection>
 
-        <ReportSection n={8} title={t.voice}>
+        <ReportSection n={11} title={t.voice}>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
             <Stat
               label={th ? "ความคิดเห็น" : "Feedback"}
@@ -215,7 +250,7 @@ export default async function ReportPage({ searchParams }: PageProps<"/admin/rep
         </ReportSection>
 
         <ReportSection
-          n={9}
+          n={12}
           title={t.calculator}
           note={th ? "สำหรับโรงเรียนที่สนใจ: ใส่ขนาดโรงเรียนเพื่อดูประมาณการต่อปี" : "For interested schools: enter your size to see a yearly estimate"}
         >

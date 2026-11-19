@@ -15,7 +15,7 @@ export const metadata: Metadata = { title: "คอนโซลผู้พัฒ
 
 /** The Developer Console's front page: a people search, the sign-up switch, what needs a look, and the box menu. */
 export default async function AdminPage() {
-  await requireProfile({ roles: ["admin"] });
+  await requireProfile({ roles: ["admin"], feature: "admin" });
   const supabase = await createClient();
 
   const head = { count: "exact" as const, head: true };

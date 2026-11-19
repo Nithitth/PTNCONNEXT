@@ -14,7 +14,7 @@ export const metadata: Metadata = { title: "ข้อมูลบัญชี" }
 const ROLE_LABEL = { student: "นักเรียน", teacher: "ครู", admin: "ผู้ดูแลระบบ" } as const;
 
 export default async function AccountPage() {
-  const profile = await requireProfile();
+  const profile = await requireProfile({ feature: "account" });
   const drive = profile.role === "student" ? null : await driveState(profile.id);
 
   const rows: [string, string][] = [

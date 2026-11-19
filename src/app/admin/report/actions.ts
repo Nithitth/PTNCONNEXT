@@ -1,6 +1,7 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
+import { REPORT_CACHE_TAG } from "@/lib/reportCache";
 import { requireProfile } from "@/lib/auth";
 import { logAudit, logError } from "@/lib/logs";
 import { DEFAULT_ASSUMPTIONS, DEFAULT_OKRS, cleanAssumptions, cleanOkrs } from "@/lib/report";
@@ -17,6 +18,7 @@ async function save(key: string, value: unknown, actorId: string) {
   if (error) throw error;
   revalidatePath("/admin/report", "layout");
   revalidatePath("/admin");
+  updateTag(REPORT_CACHE_TAG); // the war room's 5-minute cache
 }
 
 export async function saveOkrs(raw: unknown): Promise<ReportResult> {

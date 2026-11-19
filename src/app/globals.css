@@ -63,6 +63,12 @@
   --color-warning: #7a4b00;
   --color-warning-soft: #fff5de;
 
+  /* Report goal groups (MetricPicker): TCAS & Roadmap (violet) and features (blue). */
+  --color-tcas: #6d3fc4;
+  --color-tcas-soft: #efe7fb;
+  --color-feature: #2563c4;
+  --color-feature-soft: #e5effc;
+
   /* Soft shadows */
   --shadow-soft-sm: 0 1px 2px rgb(20 14 14 / 0.06), 0 1px 3px rgb(20 14 14 / 0.05);
   --shadow-soft: 0 2px 4px rgb(20 14 14 / 0.04), 0 8px 20px -6px rgb(20 14 14 / 0.1);
@@ -621,5 +627,126 @@ body {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;
+  }
+}
+
+/* ─── War room (/admin/report/warroom): a dark, full-screen live display ───
+   Scoped to .warroom so the rest of the app keeps its white-and-red look. No names are ever shown here. */
+.warroom {
+  --wr-bg: #06070a;
+  --wr-panel: rgba(255, 255, 255, 0.035);
+  --wr-line: rgba(255, 255, 255, 0.09);
+  --wr-red: #ff3b43;
+  --wr-amber: #f5b041;
+  --wr-green: #34d399;
+  color-scheme: dark;
+  background:
+    radial-gradient(60rem 40rem at 50% -10%, rgba(255, 59, 67, 0.18), transparent 60%),
+    radial-gradient(40rem 30rem at 100% 100%, rgba(255, 59, 67, 0.08), transparent 60%),
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px) 0 0 / 40px 40px,
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px) 0 0 / 40px 40px,
+    var(--wr-bg);
+  font-variant-numeric: tabular-nums;
+}
+/* A slow scan line across the whole screen. */
+.warroom::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent 0%, rgba(255, 59, 67, 0.06) 50%, transparent 100%);
+  height: 30vh;
+  animation: wr-scan 9s linear infinite;
+  z-index: 0;
+}
+.wr-panel {
+  position: relative;
+  border: 1px solid var(--wr-line);
+  background: var(--wr-panel);
+  border-radius: 1.25rem;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 20px 40px -20px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(6px);
+}
+/* Corner brackets, like a targeting display. */
+.wr-panel::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--wr-red), var(--wr-red)) top left / 14px 1px no-repeat,
+    linear-gradient(var(--wr-red), var(--wr-red)) top left / 1px 14px no-repeat,
+    linear-gradient(var(--wr-red), var(--wr-red)) bottom right / 14px 1px no-repeat,
+    linear-gradient(var(--wr-red), var(--wr-red)) bottom right / 1px 14px no-repeat;
+  opacity: 0.55;
+}
+.wr-glow {
+  text-shadow:
+    0 0 18px rgba(255, 59, 67, 0.55),
+    0 0 2px rgba(255, 255, 255, 0.4);
+}
+.wr-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
+}
+.wr-spin {
+  transform-origin: center;
+  transform-box: fill-box;
+  animation: wr-spin 24s linear infinite;
+}
+.wr-spin-rev {
+  transform-origin: center;
+  transform-box: fill-box;
+  animation: wr-spin 36s linear infinite reverse;
+}
+.wr-pulse {
+  animation: wr-pulse 1.6s ease-in-out infinite;
+}
+.wr-feed-in {
+  animation: wr-feed-in 0.5s ease-out both;
+}
+@keyframes wr-scan {
+  from {
+    transform: translateY(-30vh);
+  }
+  to {
+    transform: translateY(100vh);
+  }
+}
+@keyframes wr-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes wr-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(255, 59, 67, 0.6);
+  }
+  50% {
+    opacity: 0.6;
+    box-shadow: 0 0 0 6px rgba(255, 59, 67, 0);
+  }
+}
+@keyframes wr-feed-in {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .warroom::before,
+  .wr-spin,
+  .wr-spin-rev,
+  .wr-pulse,
+  .wr-feed-in {
+    animation: none;
   }
 }

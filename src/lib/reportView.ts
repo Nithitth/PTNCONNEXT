@@ -22,6 +22,20 @@ import {
   type RoomRank,
   type Workload,
 } from "./reportAnalysis";
+import {
+  featureUsage,
+  projection,
+  roomAverage,
+  roomCompare,
+  subjectCompare,
+  weeklySeries,
+  type FeatureRow,
+  type Point,
+  type Projection,
+  type RoomColumn,
+  type RoomRow,
+  type SubjectRow,
+} from "./reportCompare";
 import { topThemes, withTags, type Tags } from "./reportIdeas";
 
 export type ReportInput = {
@@ -61,12 +75,28 @@ export type ReportView = {
   storageUse: number;
   themes: { th: string; en: string; count: number }[];
   rates: Rates;
+  /** Each key result's goal week by week, and when it will reach its target ("objective-kr" index). */
+  series: Record<string, Point[]>;
+  projections: Record<string, Projection>;
+  roomRows: RoomRow[];
+  roomAvg: Record<RoomColumn, number | null>;
+  subjects: SubjectRow[];
+  features: FeatureRow[];
 };
+
+/**
+ * The weekly line can disagree with the whole-period number: the period has met the target → "reached";
+ * only the latest week has → "latest-week".
+ */
+function settle(p: Projection, status: ScoredOkr["keyResults"][number]["status"]): Projection {
+  if (status === "on") return { state: "reached" };
+  return p.state === "reached" ? { state: "latest-week" } : p;
+}
 
 export function buildView(input: ReportInput, range: Range, lang: Lang): ReportView {
   const { current, previous } = input;
-  const stats = computeStats(current);
-  const prev = computeStats(previous);
+  const stats = computeStats(current, input.assumptions);
+  const prev = computeStats(previous, input.assumptions);
   const okrs = scoreOkrs(input.okrs, stats, prev);
   const prevOkrs = scoreOkrs(input.okrs, prev, null);
   const rooms = roomRanking(current);
@@ -78,6 +108,8 @@ export function buildView(input: ReportInput, range: Range, lang: Lang): ReportV
   const postsByType: Record<string, number> = { assignment: 0, exam: 0, material: 0, event: 0 };
   for (const p of current.posts) postsByType[p.type] = (postsByType[p.type] ?? 0) + 1;
   const peak = peakOf(all);
+  const series = weeklySeries(current, [...new Set(input.okrs.flatMap((o) => o.keyResults.map((k) => k.metric)))], input.assumptions, stats);
+  const roomRows = roomCompare(current);
   return {
     range,
     lang,
@@ -115,5 +147,13 @@ export function buildView(input: ReportInput, range: Range, lang: Lang): ReportV
     storageUse: input.storageUse,
     themes: topThemes(withTags(current.feedback, input.tags)),
     rates: measuredRates(current, stats, input.avgFileBytes),
+    series,
+    projections: Object.fromEntries(
+      okrs.flatMap((o, oi) => o.keyResults.map((k, ki) => [`${oi}-${ki}`, settle(projection(series[k.metric] ?? [], k.target, k.lower), k.status)])),
+    ),
+    roomRows,
+    roomAvg: roomAverage(roomRows),
+    subjects: subjectCompare(current),
+    features: featureUsage(current),
   };
 }

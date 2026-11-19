@@ -148,7 +148,7 @@ function Round3Steps({ option }: { option: Round3Option | null }) {
 }
 
 export default async function ProgramPage({ params }: PageProps<"/tcas/[programId]">) {
-  const profile = await requireProfile();
+  const profile = await requireProfile({ feature: "tcas_program" });
   const { programId } = await params;
   if (!isProgramId(programId)) notFound();
 
@@ -158,7 +158,11 @@ export default async function ProgramPage({ params }: PageProps<"/tcas/[programI
     loadProgram(programId),
     isStudent ? loadMyTargets(supabase) : Promise.resolve([]),
     // Everyone can have a roadmap (students, teachers, admins); RLS returns only your own.
-    supabase.from("tcas_roadmaps").select("program_id, program:tcas_programs(name_th)").maybeSingle().then((r) => r.data),
+    supabase
+      .from("tcas_roadmaps")
+      .select("program_id, program:tcas_programs(name_th)")
+      .maybeSingle()
+      .then((r) => r.data),
   ]);
   if (!program) notFound();
   const saved = targets.find((t) => t.programId === programId) ?? null;
@@ -233,11 +237,7 @@ export default async function ProgramPage({ params }: PageProps<"/tcas/[programI
       </div>
 
       {program.round1.length > 0 && (
-        <section
-          id="round1"
-          aria-labelledby="round1-title"
-          className="animate-rise mb-6 scroll-mt-20 rounded-2xl border border-line bg-surface p-5 sm:p-7"
-        >
+        <section id="round1" aria-labelledby="round1-title" className="animate-rise mb-6 scroll-mt-20 rounded-2xl border border-line bg-surface p-5 sm:p-7">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h2 id="round1-title" className="flex items-center gap-2.5 font-display text-lg font-bold text-ink">
               <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-soft text-brand">
@@ -252,12 +252,8 @@ export default async function ProgramPage({ params }: PageProps<"/tcas/[programI
           <ul className={cx("grid gap-3", program.round1.length > 1 && "md:grid-cols-2")}>
             {program.round1.map((p, i) => (
               <li key={i} className="rounded-xl border border-line bg-page p-4">
-                <p className="font-display text-base font-bold leading-snug text-ink">
-                  {p.projectName ?? "โครงการรอบ 1"}
-                </p>
-                {p.seats !== null && (
-                  <p className="mt-1 inline-flex rounded-md bg-brand-soft px-2 py-0.5 text-xs font-bold text-brand">{seats(p.seats)}</p>
-                )}
+                <p className="font-display text-base font-bold leading-snug text-ink">{p.projectName ?? "โครงการรอบ 1"}</p>
+                {p.seats !== null && <p className="mt-1 inline-flex rounded-md bg-brand-soft px-2 py-0.5 text-xs font-bold text-brand">{seats(p.seats)}</p>}
                 {p.portfolio && (
                   <details className="mt-3 text-sm">
                     <summary className="cursor-pointer font-bold text-brand">
@@ -281,12 +277,7 @@ export default async function ProgramPage({ params }: PageProps<"/tcas/[programI
 
       {(program.active || roadmapState === "this") && (
         <div className="mb-5">
-          <RoadmapButton
-            programId={program.programId}
-            position={saved?.position ?? usable[0]?.position ?? 0}
-            state={roadmapState}
-            currentName={roadmapName}
-          />
+          <RoadmapButton programId={program.programId} position={saved?.position ?? usable[0]?.position ?? 0} state={roadmapState} currentName={roadmapName} />
         </div>
       )}
 
@@ -330,9 +321,7 @@ export default async function ProgramPage({ params }: PageProps<"/tcas/[programI
                 <h2 id="round3-title" className="font-display text-2xl font-extrabold">
                   รอบ 3 Admission
                 </h2>
-                {program.round3Seats !== null && (
-                  <span className="rounded-xl bg-white/15 px-3 py-1.5 text-sm font-bold">{seats(program.round3Seats)}</span>
-                )}
+                {program.round3Seats !== null && <span className="rounded-xl bg-white/15 px-3 py-1.5 text-sm font-bold">{seats(program.round3Seats)}</span>}
               </div>
               <p className="mt-2 max-w-xl text-sm leading-relaxed text-white/85">
                 หลักสูตรนำคะแนนแต่ละวิชามาคิดตามสัดส่วนด้านล่าง เป็นคะแนนรวมเต็ม 100 แล้วเรียงคนที่ได้คะแนนสูงสุดจนครบจำนวนที่รับ
@@ -355,8 +344,7 @@ export default async function ProgramPage({ params }: PageProps<"/tcas/[programI
                     <div key={o.position} className={cx(program.round3.length > 1 && "border-t border-line pt-5")}>
                       {program.round3.length > 1 && (
                         <p className="mb-3 font-display text-base font-bold text-ink">
-                          {o.projectName ?? `แบบที่ ${o.position + 1}`}{" "}
-                          <span className="text-sm font-normal text-muted">{seats(o.seats)}</span>
+                          {o.projectName ?? `แบบที่ ${o.position + 1}`} <span className="text-sm font-normal text-muted">{seats(o.seats)}</span>
                         </p>
                       )}
                       <Round3Table option={o} programId={program.programId} />

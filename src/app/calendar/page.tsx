@@ -12,7 +12,7 @@ import { createClient } from "@/lib/supabase/server";
 export const metadata: Metadata = { title: "ปฏิทิน" };
 
 export default async function CalendarPage({ searchParams }: PageProps<"/calendar">) {
-  const profile = await requireProfile();
+  const profile = await requireProfile({ feature: "calendar" });
   const { m } = await searchParams;
   const now = new Date();
   const month = parseMonth(typeof m === "string" ? m : undefined, now);
@@ -25,10 +25,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
   const to = days[41] > soonEnd ? days[41] : soonEnd;
 
   const supabase = await createClient();
-  const [items, materials] = await Promise.all([
-    loadDatedItems(supabase, profile, from, to),
-    loadMaterials(supabase, profile),
-  ]);
+  const [items, materials] = await Promise.all([loadDatedItems(supabase, profile, from, to), loadMaterials(supabase, profile)]);
 
   const isStaff = profile.role !== "student";
 

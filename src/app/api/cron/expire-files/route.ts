@@ -8,11 +8,21 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * Daily clean-up (Vercel Cron, see vercel.json): deletes teachers' PDFs whose 180 days are over
  * (migration 0014). The attachment row stays with expired_at set, so the post can say "ไฟล์หมดอายุแล้ว".
  * Downloads are already blocked by /files/[id] the moment a file expires; this frees the storage.
- * It also deletes log rows older than a year (log-ins, unlocks, sign-up events, admin actions), so we
+ * It also deletes log rows older than a year (log-ins, unlocks, sign-up events, admin and account actions,
+ * feature visits, posts/files opened and post history from migration 0020), so we
  * keep personal data only as long as needed (PDPA).
  * Vercel calls it with "Authorization: Bearer <CRON_SECRET>"; anything else gets 401.
  */
-const LOG_TABLES = ["login_events", "login_unlocks", "signup_events", "audit_events"];
+/** Each log table and the column that dates its rows. */
+const LOG_TABLES: [table: string, column: string][] = [
+  ["login_events", "created_at"],
+  ["login_unlocks", "created_at"],
+  ["signup_events", "created_at"],
+  ["audit_events", "created_at"],
+  ["usage_daily", "day"],
+  ["post_views", "last_seen_at"],
+  ["post_history", "created_at"],
+];
 const LOG_DAYS = 365;
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET;
@@ -23,8 +33,11 @@ export async function GET(request: NextRequest) {
   try {
     const admin = createAdminClient();
     const oldLogs = new Date(Date.now() - LOG_DAYS * 86_400_000).toISOString();
-    for (const table of LOG_TABLES) {
-      const { error: logsError } = await admin.from(table).delete().lt("created_at", oldLogs);
+    for (const [table, column] of LOG_TABLES) {
+      const { error: logsError } = await admin
+        .from(table)
+        .delete()
+        .lt(column, column === "day" ? oldLogs.slice(0, 10) : oldLogs);
       if (logsError) await logError(`cron/expire-logs/${table}`, logsError);
     }
     const now = new Date().toISOString();

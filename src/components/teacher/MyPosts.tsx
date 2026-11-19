@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { CalendarClock, ExternalLink, FileText, Link2, Pencil, UserRound } from "lucide-react";
+import { CalendarClock, ExternalLink, Eye, FileText, Link2, Pencil, UserRound } from "lucide-react";
 import { dayKey, formatDayShort, formatTime } from "@/lib/calendar";
 import { EXAM_KIND_LABEL, EXAM_LEAD_DAYS, KIND_LABEL } from "@/lib/postForm";
 import type { MyPost } from "@/lib/posts";
+import { seenLabel } from "@/lib/seen";
 import { ExpiryChip, isExpired } from "@/components/FileExpiry";
 import { EmptyState, cx, smallButtonStyles } from "@/components/ui";
 import { DeletePostButton } from "./DeletePostButton";
@@ -21,17 +22,24 @@ function whenLabel(post: MyPost, t: MyPost["targets"][number]) {
 }
 
 /** The console list. Admins get every post; teachers their own plus their subjects' posts. */
-export function MyPosts({ posts, meId, isAdmin }: { posts: MyPost[]; meId: string; isAdmin: boolean }) {
+export function MyPosts({
+  posts,
+  meId,
+  isAdmin,
+  seen = {},
+}: {
+  posts: MyPost[];
+  meId: string;
+  isAdmin: boolean;
+  /** "เปิดดูแล้ว 28/40" per post id (activity log, migration 0020). */
+  seen?: Record<string, { seen: number; total: number }>;
+}) {
   if (posts.length === 0) {
     return (
       <EmptyState
         icon={<FileText aria-hidden className="h-6 w-6" />}
         title="ยังไม่มีโพสต์"
-        body={
-          isAdmin
-            ? "ทุกโพสต์ในระบบจะแสดงที่นี่ ผู้ดูแลระบบแก้ไขหรือลบได้ทุกโพสต์"
-            : "งาน เอกสาร และวันสอบในวิชาที่คุณสอนจะแสดงที่นี่ รวมถึงของครูท่านอื่นในวิชาเดียวกัน แก้ไขหรือลบได้ตลอด"
-        }
+        body={isAdmin ? "ทุกโพสต์ในระบบจะแสดงที่นี่ ผู้ดูแลระบบแก้ไขหรือลบได้ทุกโพสต์" : "งาน เอกสาร และวันสอบในวิชาที่คุณสอนจะแสดงที่นี่ รวมถึงของครูท่านอื่นในวิชาเดียวกัน แก้ไขหรือลบได้ตลอด"}
       />
     );
   }
@@ -53,10 +61,7 @@ export function MyPosts({ posts, meId, isAdmin }: { posts: MyPost[]; meId: strin
               <div className="min-w-0 flex-1 basis-64">
                 <div className="flex flex-wrap items-center gap-2 text-xs">
                   <span
-                    className={cx(
-                      "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 font-bold",
-                      isMajor ? "bg-major-soft text-urgent" : style.chip,
-                    )}
+                    className={cx("inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 font-bold", isMajor ? "bg-major-soft text-urgent" : style.chip)}
                   >
                     <style.Icon aria-hidden className="h-3.5 w-3.5" />
                     {post.type === "exam" ? EXAM_KIND_LABEL[post.examKind] : KIND_LABEL[post.type]}
@@ -73,11 +78,21 @@ export function MyPosts({ posts, meId, isAdmin }: { posts: MyPost[]; meId: strin
                       {post.authorName ? `โดย ${post.authorName}` : "โดยครูท่านอื่น"}
                     </span>
                   )}
+                  {seen[post.id] && seen[post.id].total > 0 && (
+                    <Link
+                      href={`/teacher/posts/${post.id}#seen`}
+                      className={cx(
+                        "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 font-bold tabular-nums transition-colors hover:bg-brand-soft hover:text-brand",
+                        seen[post.id].seen >= seen[post.id].total * 0.8 ? "bg-success-soft text-success" : "bg-sunken text-ink",
+                      )}
+                    >
+                      <Eye aria-hidden className="h-3.5 w-3.5" />
+                      {seenLabel(seen[post.id].seen, seen[post.id].total)}
+                    </Link>
+                  )}
                 </div>
                 <h3 className="mt-2 font-display text-lg font-bold leading-snug text-ink">{post.title}</h3>
-                {post.description && (
-                  <p className="mt-1 line-clamp-2 whitespace-pre-line text-sm leading-relaxed text-muted">{post.description}</p>
-                )}
+                {post.description && <p className="mt-1 line-clamp-2 whitespace-pre-line text-sm leading-relaxed text-muted">{post.description}</p>}
               </div>
               <div className="flex shrink-0 items-start gap-1.5">
                 <Link href={`/teacher/posts/${post.id}`} className={smallButtonStyles}>

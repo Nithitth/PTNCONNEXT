@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import { TwoStepResetButton } from "@/components/admin/AccessControls";
 import { AdminBack } from "@/components/admin/AdminBack";
 import { ResetPasswordButton } from "@/components/admin/ResetPasswordButton";
-import { Button, Card, Container, PageHeader } from "@/components/ui";
+import Link from "next/link";
+import { History } from "lucide-react";
+import { Button, Card, Container, PageHeader, smallButtonStyles } from "@/components/ui";
 import { PROFILE_CLASSROOM, requireProfile } from "@/lib/auth";
 import { formatClassroom } from "@/lib/roster";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -47,7 +49,10 @@ export default async function UsersPage({ searchParams }: PageProps<"/admin/user
       .filter((u) => u.role !== "student")
       .map(async (u) => {
         const { data } = await admin.auth.admin.mfa.listFactors({ userId: u.id });
-        twoStep.set(u.id, (data?.factors ?? []).some((f) => f.status === "verified"));
+        twoStep.set(
+          u.id,
+          (data?.factors ?? []).some((f) => f.status === "verified"),
+        );
       }),
   );
 
@@ -84,6 +89,10 @@ export default async function UsersPage({ searchParams }: PageProps<"/admin/user
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-2">
+                    <Link href={`/admin/users/${u.id}/activity`} className={smallButtonStyles}>
+                      <History aria-hidden className="h-4 w-4" />
+                      ประวัติการใช้งาน
+                    </Link>
                     <ResetPasswordButton userId={u.id} name={u.display_name} />
                     {twoStep.get(u.id) && <TwoStepResetButton userId={u.id} />}
                   </div>

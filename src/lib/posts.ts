@@ -1,15 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Profile } from "@/lib/auth";
-import {
-  addDays,
-  bangkokInputToIso,
-  compareRoomLabels,
-  mergeRooms,
-  type Attachment,
-  type CalendarItem,
-  type DayKey,
-} from "@/lib/calendar";
+import { addDays, bangkokInputToIso, compareRoomLabels, mergeRooms, type Attachment, type CalendarItem, type DayKey } from "@/lib/calendar";
 import { logError } from "@/lib/logs";
 import { EXPIRY_WARN_DAYS, type ExamKind, type PostKind } from "@/lib/postForm";
 import { formatClassroom } from "@/lib/roster";
@@ -50,8 +42,7 @@ type PostRow = {
   attachments: AttachmentRow[];
 };
 
-const POST_FIELDS =
-  `id, type, title, description, content_order, exam_kind, created_at, subject:subjects(code, name_th, color), ${ATTACHMENT_FIELDS}`;
+const POST_FIELDS = `id, type, title, description, content_order, exam_kind, created_at, subject:subjects(code, name_th, color), ${ATTACHMENT_FIELDS}`;
 
 const toSubject = (s: SubjectRow) => (s ? { code: s.code, name: s.name_th, color: s.color } : null);
 
@@ -100,12 +91,7 @@ function toItem(post: PostRow, key: string, target?: TargetRow, room: string | n
  * The range is widened so exam lead-ups and long events that start outside
  * the visible weeks still show.
  */
-export async function loadDatedItems(
-  supabase: SupabaseClient,
-  profile: Profile,
-  from: DayKey,
-  to: DayKey,
-): Promise<CalendarItem[]> {
+export async function loadDatedItems(supabase: SupabaseClient, profile: Profile, from: DayKey, to: DayKey): Promise<CalendarItem[]> {
   let query = supabase
     .from("post_targets")
     .select(`id, classroom_id, due_at, ends_at, classroom:classrooms(grade, room), post:posts!inner(${POST_FIELDS})`)
@@ -116,9 +102,7 @@ export async function loadDatedItems(
     .limit(1000);
   // Students: only their own room's row of a multi-room post (plus whole-school posts).
   if (profile.role === "student") {
-    query = profile.classroom
-      ? query.or(`classroom_id.is.null,classroom_id.eq.${profile.classroom.id}`)
-      : query.is("classroom_id", null);
+    query = profile.classroom ? query.or(`classroom_id.is.null,classroom_id.eq.${profile.classroom.id}`) : query.is("classroom_id", null);
   }
   const { data, error } = await query;
   if (error) throw error;
@@ -171,16 +155,12 @@ export type MyPost = {
  * Posts this person may edit and delete, newest first — for the console list and the edit page.
  * Admins: every post. Teachers: their own, plus every post in a subject they teach.
  */
-export async function loadManagedPosts(
-  supabase: SupabaseClient,
-  profile: Profile,
-  opts: { id?: string; limit?: number } = {},
-): Promise<MyPost[]> {
+export async function loadManagedPosts(supabase: SupabaseClient, profile: Profile, opts: { id?: string; limit?: number } = {}): Promise<MyPost[]> {
   let query = supabase
     .from("posts")
     .select(
       `id, type, title, description, content_order, exam_kind, subject_id, author_id,
-       author:profiles(display_name),
+       author:profiles!posts_author_id_fkey(display_name),
        subject:subjects(code, name_th, color), ${ATTACHMENT_FIELDS},
        post_targets(classroom_id, due_at, ends_at, classroom:classrooms(grade, room))`,
     )
@@ -188,10 +168,7 @@ export async function loadManagedPosts(
     .order("created_at", { ascending: false })
     .limit(opts.limit ?? 200);
   if (profile.role !== "admin") {
-    const { data: taught, error } = await supabase
-      .from("teaching_assignments")
-      .select("subject_id")
-      .eq("teacher_id", profile.id);
+    const { data: taught, error } = await supabase.from("teaching_assignments").select("subject_id").eq("teacher_id", profile.id);
     if (error) throw error;
     const ids = [...new Set((taught ?? []).map((t) => t.subject_id as string))];
     query = query.or(ids.length ? `author_id.eq.${profile.id},subject_id.in.(${ids.join(",")})` : `author_id.eq.${profile.id}`);

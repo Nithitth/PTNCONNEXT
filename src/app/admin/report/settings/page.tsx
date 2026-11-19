@@ -6,13 +6,17 @@ import { Container, PageHeader } from "@/components/ui";
 import { requireProfile } from "@/lib/auth";
 import { DEFAULT_ASSUMPTIONS, DEFAULT_OKRS, cleanAssumptions, cleanOkrs } from "@/lib/report";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { metricsNow } from "../load";
 
 export const metadata: Metadata = { title: "แก้ไข OKR และสมมติฐาน · คอนโซลผู้พัฒนา" };
 
 /** Edit the report's OKRs and the assumptions behind the impact estimates (saved in app_settings). */
 export default async function ReportSettingsPage() {
   await requireProfile({ roles: ["admin"] });
-  const { data } = await createAdminClient().from("app_settings").select("key, value").in("key", ["report_okrs", "report_assumptions"]);
+  const [{ data }, now] = await Promise.all([
+    createAdminClient().from("app_settings").select("key, value").in("key", ["report_okrs", "report_assumptions"]),
+    metricsNow(),
+  ]);
   const get = (k: string) => (data ?? []).find((r) => r.key === k)?.value;
   const okrs = cleanOkrs(get("report_okrs"));
   const assumptions = cleanAssumptions(get("report_assumptions"));
@@ -27,7 +31,7 @@ export default async function ReportSettingsPage() {
         <Target aria-hidden className="h-5 w-5 text-brand" />
         OKR
       </h2>
-      <OkrEditor initial={"okrs" in okrs ? okrs.okrs : DEFAULT_OKRS} />
+      <OkrEditor initial={"okrs" in okrs ? okrs.okrs : DEFAULT_OKRS} now={now} />
       <h2 className="mb-3 mt-10 flex items-center gap-2 font-display text-xl font-bold text-ink">
         <Calculator aria-hidden className="h-5 w-5 text-brand" />
         สมมติฐานของการประมาณการ

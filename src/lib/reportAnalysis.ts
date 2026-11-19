@@ -4,7 +4,19 @@
 
 import { addDays, dayKey, type DayKey } from "./calendar";
 import { weekStart } from "./roadmap";
-import { change, formatDay, formatValue, rangeWeeks, roomText, type Assumptions, type Lang, type ReportStats, type ScoredOkr } from "./report";
+import { type Audience, FEATURES } from "./features";
+import {
+  DEFAULT_ASSUMPTIONS,
+  change,
+  formatDay,
+  formatValue,
+  rangeWeeks,
+  roomText,
+  type Assumptions,
+  type Lang,
+  type ReportStats,
+  type ScoredOkr,
+} from "./report";
 
 // ─── What the server loads for one period ─────────────────────
 
@@ -26,7 +38,24 @@ export type RawPost = {
 /** A deadline or exam that falls inside the period (whenever it was posted). */
 export type RawDue = { type: PostType; examKind: "quiz" | "major" | null; subject: string | null; classroomId: string; dueAt: string; createdAt: string };
 export type RawRoom = { classroomId: string; label: string; total: number; registered: number };
-export type RawFeedback = { id: string; at: string; message: string; role: Role | null };
+export type RawFeedback = { id: string; at: string; message: string; role: Role | null; kind?: string };
+
+/** Feature use per week (usage_summary, migration 0020). feature null = any feature. */
+export type RawUsage = { feature: string | null; week: DayKey; role: Role; classroomId: string | null; users: number; visits: number };
+/** One person who used Connext in the period, without their id (usage_people). */
+export type RawPerson = { role: Role; classroomId: string | null; features: number; weeks: number; visits: number };
+/** One post × targeted room: who it reached and who opened it (post_view_summary). */
+export type RawView = {
+  postId: string;
+  classroomId: string | null;
+  type: PostType;
+  subject: string | null;
+  createdAt: string;
+  targeted: number;
+  seen: number;
+  seen24h: number;
+  fileOpeners: number;
+};
 
 export type ReportRaw = {
   range: { from: DayKey; to: DayKey };
@@ -49,6 +78,21 @@ export type ReportRaw = {
   /** Most-chosen faculties (groups of 3+ students only). */
   topTargets: { label: string; students: number }[];
   storageBytes: number;
+  // Added with the activity log (migration 0020). Optional so older data and tests still work.
+  usage?: RawUsage[];
+  people?: RawPerson[];
+  views?: RawView[];
+  /** Log-ins refused because the account was locked. */
+  lockouts?: number;
+  /** Every sign-up ever (kind + time), for the sign-up goals drawn week by week. */
+  rosterSignups?: { kind: "student" | "teacher"; at: string }[];
+  /** 0–1 of the free storage. */
+  storageUse?: number;
+  /** Students whose Roadmap reached stage 3 or higher. */
+  roadmapStage3?: number;
+  /** Per room: students with a TCAS target / a Roadmap (null under 3 students, for privacy). */
+  roomTargets?: Record<string, number | null>;
+  roomRoadmaps?: Record<string, number | null>;
 };
 
 const DAY = 86_400_000;
@@ -81,13 +125,34 @@ export function weekDistinct(rows: { at: string; id: string }[], r: { from: DayK
   return [...sets].map(([week, s]) => ({ week, count: s.size }));
 }
 
+// ─── Feature use (activity log) ──────────────────────────────
+
+const inAudience = (role: Role, a: Audience) => a === "all" || (a === "student" ? role === "student" : role !== "student");
+
+/**
+ * Weekly users % of one feature (null = any feature): the average over the weeks the log has data of the
+ * people who used it that week, against its audience (students, staff or everyone).
+ */
+export function weeklyUsePct(usage: RawUsage[], feature: string | null, audience: Audience, audienceSize: number, roomId?: string): number | null {
+  if (!usage.length || audienceSize <= 0) return null;
+  const weeks = [...new Set(usage.map((u) => u.week))];
+  const perWeek = weeks.map((w) =>
+    usage
+      .filter((u) => u.week === w && u.feature === feature && inAudience(u.role, audience) && (roomId === undefined || u.classroomId === roomId))
+      .reduce((n, u) => n + u.users, 0),
+  );
+  const a = avg(perWeek);
+  return a === null ? null : Math.min(100, (a / audienceSize) * 100);
+}
+
 // ─── The headline numbers ────────────────────────────────────
 
-export function computeStats(raw: ReportRaw): ReportStats {
+export function computeStats(raw: ReportRaw, a: Assumptions = DEFAULT_ASSUMPTIONS): ReportStats {
   const weeks = rangeWeeks(raw.range);
   const ok = raw.logins.filter((l) => l.ok && l.userId);
   const activeUsers = new Set(ok.map((l) => l.userId!)).size;
   const activeStudents = new Set(ok.filter((l) => l.role === "student").map((l) => l.userId!)).size;
+  const activeTeachers = new Set(ok.filter((l) => l.role === "teacher" || l.role === "admin").map((l) => l.userId!)).size;
   const accounts = raw.accounts.students + raw.accounts.teachers + raw.accounts.admins;
   const staff = raw.accounts.teachers + raw.accounts.admins;
   const perWeek = weekDistinct(
@@ -102,6 +167,20 @@ export function computeStats(raw: ReportRaw): ReportStats {
   );
   const stages = Object.entries(raw.roadmapStages).flatMap(([stage, n]) => Array<number>(n).fill(Number(stage)));
   const teachersPosting = new Set(raw.posts.map((p) => p.authorId)).size;
+  const work = workload(raw.dues.filter((d) => dayKey(d.dueAt) >= raw.range.from && dayKey(d.dueAt) <= raw.range.to));
+  const heaviest = work.heaviest[0];
+  const imp = impact(raw, a);
+  const targetCount = raw.posts.reduce((n, p) => n + p.targets.length, 0);
+
+  const usage = raw.usage ?? [];
+  const people = raw.people ?? [];
+  const views = raw.views ?? [];
+  const targeted = views.reduce((n, v) => n + v.targeted, 0);
+  const size = { student: raw.accounts.students, staff, all: accounts };
+  const featureWeekly: Record<string, number | null> = {};
+  for (const f of FEATURES) featureWeekly[f.key] = weeklyUsePct(usage, f.key, f.audience, size[f.audience]);
+  const firstWeek = usage.map((u) => u.week).sort()[0] ?? null;
+
   return {
     studentsTotal: raw.roster.studentsTotal,
     studentsRegistered: raw.roster.studentsRegistered,
@@ -111,11 +190,18 @@ export function computeStats(raw: ReportRaw): ReportStats {
     studentAccounts: raw.accounts.students,
     teacherAccounts: staff,
     signups: raw.signups.length,
+    signupsPerWeek: raw.signups.length / weeks,
+    roomsFull: raw.rooms.filter((r) => r.total > 0 && r.registered >= r.total).length,
     activeUsers,
     activeStudents,
+    activeStudentsPct: pctOf(activeStudents, raw.accounts.students),
+    activeTeachers,
+    activeTeachersPct: pctOf(activeTeachers, staff),
     weeklyActivePct: weeklyActive === null ? null : pctOf(weeklyActive, accounts),
     logins: raw.logins.length,
     loginSuccessPct: pctOf(raw.logins.filter((l) => l.ok).length, raw.logins.length),
+    failedLoginPct: pctOf(raw.logins.filter((l) => !l.ok).length, raw.logins.length),
+    lockouts: raw.lockouts ?? 0,
     posts: raw.posts.length,
     postsPerWeek: raw.posts.length / weeks,
     teachersPosting,
@@ -123,17 +209,48 @@ export function computeStats(raw: ReportRaw): ReportStats {
     materials: raw.posts.filter((p) => p.type === "material").length,
     files: raw.files,
     driveFiles: raw.driveFiles,
+    postsWithFilePct: pctOf(raw.posts.filter((p) => p.hasFile).length, raw.posts.length),
+    subjectsCovered: new Set(raw.posts.map((p) => p.subject).filter(Boolean)).size,
+    roomsPerPost: raw.posts.length ? targetCount / raw.posts.length : null,
     leadTimeDays: avg(lead),
+    notice3Pct: pctOf(lead.filter((d) => d >= 3).length, lead.length),
+    clashDays: work.clashes.length,
+    heaviestWeekItems: heaviest ? heaviest.assignments + heaviest.exams : 0,
     studentsWithTarget: raw.studentsWithTarget,
     studentsWithTargetPct: pctOf(raw.studentsWithTarget, raw.accounts.students),
     studentsWithRoadmap: raw.studentsWithRoadmap,
     studentsWithRoadmapPct: pctOf(raw.studentsWithRoadmap, raw.accounts.students),
     avgRoadmapStage: avg(stages),
+    roadmapStage3Pct: raw.roadmapStage3 === undefined ? null : pctOf(raw.roadmapStage3, raw.accounts.students),
     errors: raw.errors,
     errorsPerWeek: raw.errors / weeks,
     feedback: raw.feedback.length,
+    bugReports: raw.feedback.filter((f) => f.kind === "bug").length,
+    praisePct: pctOf(raw.feedback.filter((f) => f.kind === "praise").length, raw.feedback.length),
     driveTeachers: raw.driveTeachers,
     driveTeachersPct: pctOf(raw.driveTeachers, staff),
+    storageUsePct: raw.storageUse === undefined ? null : raw.storageUse * 100,
+    hoursSaved: imp.hoursSaved,
+    pagesSaved: imp.pagesSaved,
+    bahtSaved: imp.bahtSaved,
+    usageWeeklyPct: weeklyUsePct(usage, null, "all", accounts),
+    seenPct: targeted
+      ? pctOf(
+          views.reduce((n, v) => n + v.seen, 0),
+          targeted,
+        )
+      : null,
+    seen24hPct: targeted
+      ? pctOf(
+          views.reduce((n, v) => n + v.seen24h, 0),
+          targeted,
+        )
+      : null,
+    fileOpensPerStudent: views.length && raw.accounts.students ? views.reduce((n, v) => n + v.fileOpeners, 0) / raw.accounts.students : null,
+    returningPct: people.length ? pctOf(people.filter((p) => p.weeks >= 2).length, people.length) : null,
+    featuresPerPerson: avg(people.map((p) => p.features)),
+    featureWeekly,
+    trackingSince: firstWeek,
   };
 }
 

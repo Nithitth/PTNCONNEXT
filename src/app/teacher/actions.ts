@@ -7,9 +7,51 @@ import { logError } from "@/lib/logs";
 import { MATERIALS_BUCKET, MAX_FILE_BYTES, isUuid, validatePost, type CleanPost, type PostInput } from "@/lib/postForm";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { postDiff, type PostSnapshot } from "@/lib/postHistory";
 import { loadCurrentRooms, loadTeachingOptions } from "@/lib/teaching";
+import { logPostHistory } from "@/lib/tracking";
 
 export type SaveResult = { ok?: true; error?: string };
+
+type Db = Awaited<ReturnType<typeof createClient>>;
+
+/** A post as it is in the database now, for the post history (migration 0020). */
+async function loadSnapshot(db: Db, postId: string): Promise<PostSnapshot | null> {
+  const { data } = await db
+    .from("posts")
+    .select("title, description, subject_id, exam_kind, content_order, post_targets(classroom_id, due_at), attachments(file_name)")
+    .eq("id", postId)
+    .maybeSingle();
+  if (!data) return null;
+  const d = data as unknown as Omit<PostSnapshot, "targets" | "file"> & {
+    post_targets: PostSnapshot["targets"] | null;
+    attachments: { file_name: string | null }[] | null;
+  };
+  return {
+    title: d.title,
+    description: d.description || null,
+    subject_id: d.subject_id ?? null,
+    exam_kind: d.exam_kind ?? null,
+    content_order: d.content_order || null,
+    targets: d.post_targets ?? [],
+    file: d.attachments?.[0]?.file_name ?? null,
+  };
+}
+
+/** The post as just saved, built from the checked form (the file is kept unless a new one was picked). */
+function snapshotOf(post: CleanPost, keptFile: string | null): PostSnapshot {
+  const a = post.attachment;
+  const file = a.mode === "keep" ? keptFile : a.mode === "link" ? shortLinkName(a.url) : a.mode === "file" || a.mode === "drive" ? a.fileName : null;
+  return {
+    title: post.title,
+    description: post.description || null,
+    subject_id: post.subject_id,
+    exam_kind: post.exam_kind ?? null,
+    content_order: post.content_order || null,
+    targets: post.targets.map((t) => ({ classroom_id: t.classroom_id, due_at: t.due_at })),
+    file,
+  };
+}
 
 /** Teachers may post a subject they teach, to any of the 8 rooms. Whole-school and events are admin-only. */
 async function checkAllowed(supabase: Awaited<ReturnType<typeof createClient>>, profile: Profile, post: CleanPost) {
@@ -18,10 +60,7 @@ async function checkAllowed(supabase: Awaited<ReturnType<typeof createClient>>, 
     if (post.type === "event") return "เฉพาะผู้ดูแลระบบที่สร้างกิจกรรมโรงเรียนได้";
     if (schoolWide) return "เฉพาะผู้ดูแลระบบที่โพสต์ถึงทั้งโรงเรียนได้";
   }
-  const [subjects, rooms] = await Promise.all([
-    post.type === "event" ? null : loadTeachingOptions(supabase, profile),
-    loadCurrentRooms(supabase),
-  ]);
+  const [subjects, rooms] = await Promise.all([post.type === "event" ? null : loadTeachingOptions(supabase, profile), loadCurrentRooms(supabase)]);
   if (subjects && !subjects.some((s) => s.id === post.subject_id)) return "คุณไม่ได้สอนวิชานี้";
   // Any of the 8 Phase 1 classrooms.
   const ok = new Set(rooms.map((r) => r.id));
@@ -32,11 +71,7 @@ async function checkAllowed(supabase: Awaited<ReturnType<typeof createClient>>, 
 }
 
 /** Admins manage every post; teachers their own, or one in a subject they teach. */
-async function canManage(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  profile: Profile,
-  post: { author_id: string; subject_id: string | null },
-) {
+async function canManage(supabase: Awaited<ReturnType<typeof createClient>>, profile: Profile, post: { author_id: string; subject_id: string | null }) {
   if (profile.role === "admin" || post.author_id === profile.id) return true;
   if (!post.subject_id) return false;
   const subjects = await loadTeachingOptions(supabase, profile);
@@ -120,17 +155,15 @@ export async function savePost(postId: string | null, input: PostInput): Promise
     };
 
     let id: string;
+    let before: PostSnapshot | null = null;
     if (postId) {
       // Admins: any post. Teachers: their own, or one in a subject they teach. The kind can't change.
-      const { data: existing } = await supabase
-        .from("posts")
-        .select("id, type, author_id, subject_id")
-        .eq("id", postId)
-        .maybeSingle();
+      const { data: existing } = await supabase.from("posts").select("id, type, author_id, subject_id").eq("id", postId).maybeSingle();
       if (!existing || !(await canManage(supabase, profile, existing))) {
         return { error: "ไม่พบโพสต์นี้ หรือคุณไม่มีสิทธิ์แก้ไข" };
       }
       if (existing.type !== post.type) return { error: "เปลี่ยนประเภทโพสต์ไม่ได้" };
+      before = await loadSnapshot(supabase, postId);
       const { error } = await supabase
         .from("posts")
         .update({ ...fields, updated_at: new Date().toISOString() })
@@ -155,9 +188,7 @@ export async function savePost(postId: string | null, input: PostInput): Promise
       throw e;
     };
 
-    const { error: targetErr } = await supabase
-      .from("post_targets")
-      .insert(post.targets.map((t) => ({ ...t, post_id: id })));
+    const { error: targetErr } = await supabase.from("post_targets").insert(post.targets.map((t) => ({ ...t, post_id: id })));
     if (targetErr) await failed(targetErr);
 
     if (post.attachment.mode !== "keep") {
@@ -181,6 +212,13 @@ export async function savePost(postId: string | null, input: PostInput): Promise
         if (attErr) await failed(attErr);
       }
     }
+    // Post history (0020): what was created, or what this edit changed.
+    const saved = snapshotOf(post, before?.file ?? null);
+    if (!postId) logPostHistory(profile.id, id, "create", post.title, { post: saved });
+    else {
+      const changes = before ? postDiff(before, saved) : [];
+      if (changes.length) logPostHistory(profile.id, id, "edit", post.title, { changes });
+    }
     return { ok: true };
   } catch (e) {
     await logError("teacher/savePost", e);
@@ -197,19 +235,26 @@ export async function deletePost(postId: string): Promise<SaveResult> {
   if (!isUuid(postId)) return { error: "ไม่พบโพสต์นี้" };
   try {
     const supabase = await createClient();
-    const { data: existing } = await supabase
-      .from("posts")
-      .select("id, author_id, subject_id")
-      .eq("id", postId)
-      .maybeSingle();
+    const { data: existing } = await supabase.from("posts").select("id, author_id, subject_id").eq("id", postId).maybeSingle();
     if (!existing || !(await canManage(supabase, profile, existing))) {
       return { error: "ไม่พบโพสต์นี้ หรือคุณไม่มีสิทธิ์ลบ" };
     }
-    const { data: files } = await supabase.from("attachments").select(FILE_COLUMNS).eq("post_id", postId);
+    const [{ data: files }, snapshot, { data: views }] = await Promise.all([
+      supabase.from("attachments").select(FILE_COLUMNS).eq("post_id", postId),
+      loadSnapshot(supabase, postId),
+      createAdminClient().from("post_views").select("classroom_id").eq("post_id", postId),
+    ]);
     // RLS checks the same rule again.
     const { data, error } = await supabase.from("posts").delete().eq("id", postId).select("id");
     if (error) throw error;
     if (!data?.length) return { error: "ไม่พบโพสต์นี้ หรือคุณไม่มีสิทธิ์ลบ" };
+    // Post history (0020): keep what was deleted and how many students had opened it, per room.
+    const seen: Record<string, number> = {};
+    for (const v of (views ?? []) as { classroom_id: string | null }[]) {
+      const k = v.classroom_id ?? "school";
+      seen[k] = (seen[k] ?? 0) + 1;
+    }
+    logPostHistory(profile.id, postId, "delete", snapshot?.title ?? "", { post: snapshot, seen });
     await removeFiles(files);
     return { ok: true };
   } catch (e) {

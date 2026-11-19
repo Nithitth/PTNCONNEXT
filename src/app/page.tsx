@@ -20,7 +20,8 @@ import { LoginForm } from "@/components/LoginForm";
 import { ExpiringFilesWindow } from "@/components/teacher/ExpiringFilesWindow";
 import { GuideButton } from "@/components/teacher/TeacherGuide";
 import { Brand, Container, Eyebrow, Notice, buttonStyles, cx } from "@/components/ui";
-import { getCurrentProfile } from "@/lib/auth";
+import { getCurrentProfile, needsPdpa } from "@/lib/auth";
+import { trackVisit } from "@/lib/tracking";
 import { loadExpiringFiles } from "@/lib/posts";
 import { createClient } from "@/lib/supabase/server";
 import { SUBJECTS } from "@/lib/school";
@@ -82,6 +83,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
   const { denied, pdpa } = await searchParams;
   const isStaff = profile?.role === "teacher" || profile?.role === "admin";
   const expiring = isStaff && profile ? await loadExpiringFiles(await createClient(), profile) : [];
+  if (profile && !needsPdpa(profile)) trackVisit(profile.id, "home");
   const links = profile?.role === "student" ? STUDENT_LINKS : STAFF_LINKS;
 
   return (
@@ -90,11 +92,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
       {(denied || pdpa === "declined") && (
         <Container className="pt-6">
           {denied && <Notice tone="warning">บัญชีของคุณไม่มีสิทธิ์เข้าหน้านั้น</Notice>}
-          {pdpa === "declined" && (
-            <Notice tone="info">
-              คุณยังไม่ได้ยอมรับนโยบายข้อมูลส่วนบุคคล ระบบจึงออกจากระบบให้แล้ว เข้าสู่ระบบใหม่ได้ทุกเมื่อเมื่อพร้อม
-            </Notice>
-          )}
+          {pdpa === "declined" && <Notice tone="info">คุณยังไม่ได้ยอมรับนโยบายข้อมูลส่วนบุคคล ระบบจึงออกจากระบบให้แล้ว เข้าสู่ระบบใหม่ได้ทุกเมื่อเมื่อพร้อม</Notice>}
         </Container>
       )}
 
@@ -120,10 +118,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
               งาน วันสอบ และ<span className="whitespace-nowrap">สื่อการสอน</span>
               <br />
               <span className="whitespace-nowrap">
-                รวมไว้ใน{" "}
-                <span className="relative inline-block border border-white bg-white px-3 text-brand shadow-soft">
-                  ที่เดียว
-                </span>
+                รวมไว้ใน <span className="relative inline-block border border-white bg-white px-3 text-brand shadow-soft">ที่เดียว</span>
               </span>
             </h1>
             <p className="animate-rise delay-2 mt-7 max-w-xl text-base leading-relaxed text-white/90 sm:text-lg">
@@ -131,9 +126,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
             </p>
             {profile ? (
               <div className="animate-rise delay-3 mt-8">
-                <p className="mb-3 text-base font-bold text-white">
-                  สวัสดี {profile.display_name} เริ่มจากตรงนี้ได้เลย
-                </p>
+                <p className="mb-3 text-base font-bold text-white">สวัสดี {profile.display_name} เริ่มจากตรงนี้ได้เลย</p>
                 <ul className={cx("grid max-w-2xl gap-3", links.length === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
                   {links.map(({ href, label, hint, Icon }, i) => (
                     <li key={href}>
@@ -165,9 +158,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
                     </li>
                   ))}
                 </ul>
-                {profile.role !== "student" && (
-                  <GuideButton onRed className="mt-4" />
-                )}
+                {profile.role !== "student" && <GuideButton onRed className="mt-4" />}
               </div>
             ) : (
               <div className="animate-rise delay-3 mt-8 flex flex-wrap gap-3">
@@ -328,9 +319,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
               </p>
             )}
             <p className="mt-4 max-w-md leading-relaxed text-white/85">
-              {profile
-                ? "ไปต่อได้เลย เลือกสิ่งที่อยากทำวันนี้"
-                : "นักเรียนใช้เลขประจำตัว ครูใช้ชื่อผู้ใช้ที่ได้รับจากโรงเรียน เข้าครั้งแรกใช้วันเกิดเป็นรหัสผ่าน"}
+              {profile ? "ไปต่อได้เลย เลือกสิ่งที่อยากทำวันนี้" : "นักเรียนใช้เลขประจำตัว ครูใช้ชื่อผู้ใช้ที่ได้รับจากโรงเรียน เข้าครั้งแรกใช้วันเกิดเป็นรหัสผ่าน"}
             </p>
             {profile && (
               <ul className={`mt-7 grid max-w-md gap-2.5 ${profile.role === "student" ? "sm:grid-cols-3" : "grid-cols-2"}`}>
@@ -385,11 +374,14 @@ function RoleCard({ icon, title, points }: { icon: ReactNode; title: string; poi
 function HeroVisual() {
   const color = (code: string) => SUBJECTS.find((s) => s.code === code)!.color;
   const dots: Record<number, string[]> = {
-    3: [color("english")], 6: [color("math")], 11: [color("science"), color("thai")],
-    13: [color("pat")], 17: [color("math")], 24: [color("social")],
+    3: [color("english")],
+    6: [color("math")],
+    11: [color("science"), color("thai")],
+    13: [color("pat")],
+    17: [color("math")],
+    24: [color("social")],
   };
-  const band = (d: number) =>
-    d === 20 ? "bg-exam-soft" : d >= 16 && d <= 19 ? "bg-exam-tint" : d === 26 || d === 27 ? "bg-event-stripes" : "bg-surface";
+  const band = (d: number) => (d === 20 ? "bg-exam-soft" : d >= 16 && d <= 19 ? "bg-exam-tint" : d === 26 || d === 27 ? "bg-event-stripes" : "bg-surface");
 
   return (
     <div aria-hidden className="relative text-ink">

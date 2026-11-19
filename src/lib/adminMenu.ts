@@ -188,7 +188,7 @@ export function buildMenu(c: MenuCounts): MenuGroup[] {
           icon: "report",
           big: true,
           stat: "เลือกช่วงเวลาได้ · เทียบกับช่วงก่อน",
-          action: { href: "/admin/report/present", label: "โหมดนำเสนอ" },
+          action: { href: "/admin/report/warroom", label: "ห้องบัญชาการ" },
         }),
         box({
           href: "/admin/report/ideas",

@@ -82,11 +82,7 @@ async function main() {
 
   console.log("\nTeacher");
   const teacherId = (await t.auth.getUser()).data.user!.id;
-  const post = await t
-    .from("posts")
-    .insert({ type: "assignment", title: "[security check] การบ้านทดสอบ", author_id: teacherId })
-    .select("id")
-    .single();
+  const post = await t.from("posts").insert({ type: "assignment", title: "[security check] การบ้านทดสอบ", author_id: teacherId }).select("id").single();
   check("teacher can create a post", !post.error, post.error?.message);
   const postId = post.data?.id as string;
   const okTarget = await t.from("post_targets").insert({ post_id: postId, classroom_id: room51, due_at: new Date().toISOString() });
@@ -138,11 +134,13 @@ async function main() {
     .insert({ post_id: postId, kind: "file", storage_path: ownPath, file_name: "late.pdf", size_bytes: 20, expires_at: "2100-01-01T00:00:00Z" })
     .select("id")
     .single();
-  const stored = forgedExpiry.data
-    ? await admin.from("attachments").select("expires_at").eq("id", forgedExpiry.data.id).single()
-    : null;
+  const stored = forgedExpiry.data ? await admin.from("attachments").select("expires_at").eq("id", forgedExpiry.data.id).single() : null;
   const days = stored?.data?.expires_at ? (Date.parse(stored.data.expires_at) - Date.now()) / 86400000 : NaN;
-  check("a new PDF expires in 180 days, whatever date the teacher sends", Math.abs(days - 180) < 1, forgedExpiry.error?.message ?? `got ${days.toFixed(1)} days`);
+  check(
+    "a new PDF expires in 180 days, whatever date the teacher sends",
+    Math.abs(days - 180) < 1,
+    forgedExpiry.error?.message ?? `got ${days.toFixed(1)} days`,
+  );
   if (forgedExpiry.data) {
     const extend = await t.from("attachments").update({ expires_at: "2100-01-01T00:00:00Z" }).eq("id", forgedExpiry.data.id).select("id");
     check("teacher can't push a file's expiry date later", (extend.data ?? []).length === 0);
@@ -158,10 +156,7 @@ async function main() {
   const tFb = await t.from("feedback").select("id");
   const tErr = await t.from("error_logs").select("id");
   const tLog = await t.from("login_events").select("id");
-  check(
-    "teacher can't read feedback, error log or login report",
-    (tFb.data ?? []).length + (tErr.data ?? []).length + (tLog.data ?? []).length === 0,
-  );
+  check("teacher can't read feedback, error log or login report", (tFb.data ?? []).length + (tErr.data ?? []).length + (tLog.data ?? []).length === 0);
   const sErr = await s1.from("error_logs").select("id");
   check("student can't read the error log", (sErr.data ?? []).length === 0);
   const aOne = await signIn("admin.test", "01011990"); // password only (aal1)
@@ -181,8 +176,7 @@ async function main() {
   check("admin can post to a classroom like a teacher", !aPost.error && !aTarget.error, aPost.error?.message ?? aTarget.error?.message);
 
   console.log("\nWho can edit and delete posts");
-  const subjectId = async (code: string) =>
-    (await admin.from("subjects").select("id").eq("code", code).single()).data!.id as string;
+  const subjectId = async (code: string) => (await admin.from("subjects").select("id").eq("code", code).single()).data!.id as string;
   const [math, science] = await Promise.all([subjectId("math"), subjectId("science")]); // teacher.test teaches math only
   const adminId = (await a.auth.getUser()).data.user!.id;
   const otherPost = async (subject: string) => {
@@ -227,7 +221,11 @@ async function main() {
   const dummyIds = Array.from({ length: 6 }, (_, i) => `TEST00000000${i}A`);
   await admin.from("tcas_programs").upsert(
     dummyIds.map((program_id) => ({
-      program_id, university_id: "000", university_name: "[security check]", name_th: "[security check]", tcas_year: 2570,
+      program_id,
+      university_id: "000",
+      university_name: "[security check]",
+      name_th: "[security check]",
+      tcas_year: 2570,
     })),
   );
   const s2Id = (await s2.auth.getUser()).data.user!.id;
@@ -323,7 +321,10 @@ async function main() {
     .single();
   check("admin can write a template", !aTemplate.error, aTemplate.error?.message);
   const hidden = await s1.from("tcas_roadmap_templates").select("id").eq("title", "[security check]");
-  await a.from("tcas_roadmap_templates").update({ approved: true }).eq("id", aTemplate.data?.id ?? 0);
+  await a
+    .from("tcas_roadmap_templates")
+    .update({ approved: true })
+    .eq("id", aTemplate.data?.id ?? 0);
   const shown = await s1.from("tcas_roadmap_templates").select("id").eq("title", "[security check]");
   check("students see a template only once it's approved", (hidden.data ?? []).length === 0 && (shown.data ?? []).length === 1);
   await admin.from("tcas_roadmap_templates").delete().eq("title", "[security check]");
@@ -332,9 +333,7 @@ async function main() {
   check(
     "only staff read roadmap totals, and groups under 3 are hidden",
     // The two test roadmaps point at dummy programs (no field group), so that group must be hidden.
-    Boolean(sRoadmapTotals.error) &&
-      !aRoadmapTotals.error &&
-      !(aRoadmapTotals.data ?? []).some((r: { group_field: string }) => r.group_field === ""),
+    Boolean(sRoadmapTotals.error) && !aRoadmapTotals.error && !(aRoadmapTotals.data ?? []).some((r: { group_field: string }) => r.group_field === ""),
     aRoadmapTotals.error?.message,
   );
 
@@ -354,14 +353,20 @@ async function main() {
   const badPath = await s1.from("tcas_roadmap_proofs").insert({ owner_id: studentId, step: "gpax", kind: "file", file_path: `${s2Id}/x.pdf` });
   check("a proof file must sit in the owner's own folder", Boolean(badPath.error));
   const proofPeeks = await Promise.all([s2, t, a].map((c) => c.from("tcas_roadmap_proofs").select("id").eq("owner_id", studentId)));
-  check("nobody else (not even admins) can read a student's proof", proofPeeks.every((r) => (r.data ?? []).length === 0));
+  check(
+    "nobody else (not even admins) can read a student's proof",
+    proofPeeks.every((r) => (r.data ?? []).length === 0),
+  );
   const proofPath = `${studentId}/security-check.pdf`;
   await admin.storage.from("roadmap-proofs").remove([proofPath, `${s2Id}/x.pdf`]);
   const proofUp = await s1.storage.from("roadmap-proofs").upload(proofPath, pdf, { contentType: "application/pdf" });
   const proofOther = await s1.storage.from("roadmap-proofs").upload(`${s2Id}/x.pdf`, pdf, { contentType: "application/pdf" });
   check("proof files go only into the owner's own folder", !proofUp.error && Boolean(proofOther.error), proofUp.error?.message);
   const proofOpen = await Promise.all([s2, a].map((c) => c.storage.from("roadmap-proofs").createSignedUrl(proofPath, 60)));
-  check("other users (even admins) can't open someone's proof file", proofOpen.every((r) => Boolean(r.error) || !r.data?.signedUrl));
+  check(
+    "other users (even admins) can't open someone's proof file",
+    proofOpen.every((r) => Boolean(r.error) || !r.data?.signedUrl),
+  );
   await admin.storage.from("roadmap-proofs").remove([proofPath, `${s2Id}/x.pdf`]);
   const tStats = await t.rpc("roadmap_class_stats");
   const sStats = await s1.rpc("roadmap_class_stats");
@@ -385,7 +390,11 @@ async function main() {
   const sUsage = await s1.rpc("admin_usage");
   const tUsage = await t.rpc("admin_usage");
   const aUsage = await a.rpc("admin_usage");
-  check("only admins can read the usage numbers", Boolean(sUsage.error) && Boolean(tUsage.error) && !aUsage.error && typeof aUsage.data?.db_bytes === "number", aUsage.error?.message);
+  check(
+    "only admins can read the usage numbers",
+    Boolean(sUsage.error) && Boolean(tUsage.error) && !aUsage.error && typeof aUsage.data?.db_bytes === "number",
+    aUsage.error?.message,
+  );
 
   // Security (0017/0018): admin powers need two-step; the hidden log-in emails can't be guessed.
   console.log("\nSecurity");
@@ -403,12 +412,44 @@ async function main() {
     { name: "an admin (in the browser)", c: a },
   ]) {
     const reads = await Promise.all(secTables.map((tbl) => who.c.from(tbl).select("*").limit(1)));
-    check(`${who.name} can't read the audit log or unlocks`, reads.every((r) => (r.data ?? []).length === 0));
+    check(
+      `${who.name} can't read the audit log or unlocks`,
+      reads.every((r) => (r.data ?? []).length === 0),
+    );
   }
   const guessed = createClient(url, anon, opts);
   const old = await guessed.auth.signInWithPassword({ email: `90001@${LOGIN_EMAIL_DOMAIN}`, password: "05052009" });
   check("the old guessable hidden email no longer signs in", Boolean(old.error));
   await aOne.auth.signOut();
+
+  // Activity logs (0020): visits, posts/files opened and post history are server-only; so are their functions.
+  console.log("\nActivity logs");
+  const logTables = ["usage_daily", "post_views", "post_history"];
+  for (const who of [
+    { name: "a student", c: s1 },
+    { name: "a teacher", c: t },
+    { name: "an admin (in the browser)", c: a },
+  ]) {
+    const reads = await Promise.all(logTables.map((tbl) => who.c.from(tbl).select("*").limit(1)));
+    check(
+      `${who.name} can't read the activity logs`,
+      reads.every((r) => (r.data ?? []).length === 0),
+    );
+    const calls = await Promise.all([
+      who.c.rpc("track_usage", { p_user: teacherId, p_feature: "calendar" }),
+      who.c.rpc("mark_seen", { p_user: teacherId, p_posts: [], p_file: false }),
+      who.c.rpc("usage_summary", { p_from: "2026-01-01", p_to: "2026-12-31" }),
+      who.c.rpc("post_view_summary", { p_from: "2026-01-01T00:00:00Z", p_to: "2026-12-31T00:00:00Z" }),
+      who.c.rpc("report_live"),
+    ]);
+    check(
+      `${who.name} can't call the activity-log functions`,
+      calls.every((r) => Boolean(r.error)),
+      calls.find((r) => !r.error) ? "paste migration 0020" : "",
+    );
+  }
+  const fakeHistory = await t.from("post_history").insert({ post_id: teacherId, actor_id: teacherId, action: "edit", title: "fake" });
+  check("nobody can write post history from the browser", Boolean(fakeHistory.error));
 
   // Google Drive (0019): teachers' Google keys are server-only; a Drive PDF always belongs to whoever added it.
   console.log("\nGoogle Drive");
@@ -424,11 +465,7 @@ async function main() {
   check("nobody can save a Google Drive key from the browser", Boolean(fakeKey.error));
   const DRIVE_ID = "security-check-drive-file-id-0001";
   await admin.from("attachments").delete().eq("drive_file_id", DRIVE_ID); // leftover from an interrupted run
-  const drivePost = await t
-    .from("posts")
-    .insert({ type: "material", title: "[security check] Drive", author_id: teacherId })
-    .select("id")
-    .single();
+  const drivePost = await t.from("posts").insert({ type: "material", title: "[security check] Drive", author_id: teacherId }).select("id").single();
   const driveAtt = await t
     .from("attachments")
     .insert({
@@ -443,7 +480,11 @@ async function main() {
     .select("id")
     .single();
   check("teacher can attach a Google Drive PDF (up to 50 MB) to their post", !driveAtt.error, driveAtt.error?.message);
-  const driveRow = await admin.from("attachments").select("drive_owner_id, expires_at").eq("id", driveAtt.data?.id ?? "").maybeSingle();
+  const driveRow = await admin
+    .from("attachments")
+    .select("drive_owner_id, expires_at")
+    .eq("id", driveAtt.data?.id ?? "")
+    .maybeSingle();
   check("a Drive PDF always belongs to the teacher who added it", driveRow.data?.drive_owner_id === teacherId);
   check("a Drive PDF gets the 180-day expiry too", Boolean(driveRow.data?.expires_at));
   const bigLink = await t
@@ -463,20 +504,39 @@ async function main() {
     { name: "an admin (in the browser)", c: a },
   ]) {
     const reads = await Promise.all(signupTables.map((tbl) => who.c.from(tbl).select("*").limit(1)));
-    check(`${who.name} can't read any sign-up table`, reads.every((r) => (r.data ?? []).length === 0));
+    check(
+      `${who.name} can't read any sign-up table`,
+      reads.every((r) => (r.data ?? []).length === 0),
+    );
   }
   const forgedReg = await guest
     .from("registrations")
     .insert({ kind: "student", login_id: "99999", first_name: "x", last_name: "y", name_key: "x y", classroom_id: room51 });
-  const forgedSlot = await s1.from("signup_rooms").insert({ classroom_id: room51, code: "HACKED", starts_at: new Date().toISOString(), ends_at: new Date(Date.now() + 3_600_000).toISOString() });
+  const forgedSlot = await s1
+    .from("signup_rooms")
+    .insert({ classroom_id: room51, code: "HACKED", starts_at: new Date().toISOString(), ends_at: new Date(Date.now() + 3_600_000).toISOString() });
   const flipped = await t.from("app_settings").update({ value: false }).eq("key", "signup_open").select("key");
   check(
     "nobody can pre-register, open a room or flip the switch from the browser",
     Boolean(forgedReg.error) && Boolean(forgedSlot.error) && (flipped.data ?? []).length === 0,
   );
   const s1Id = (await s1.auth.getUser()).data.user!.id;
-  const guestClaim = await guest.rpc("claim_registration", { p_registration: s1Id, p_user: s1Id, p_login_id: "x", p_display_name: "x", p_email: null, p_phone: null });
-  const studentClaim = await s1.rpc("claim_registration", { p_registration: s1Id, p_user: s1Id, p_login_id: "x", p_display_name: "x", p_email: null, p_phone: null });
+  const guestClaim = await guest.rpc("claim_registration", {
+    p_registration: s1Id,
+    p_user: s1Id,
+    p_login_id: "x",
+    p_display_name: "x",
+    p_email: null,
+    p_phone: null,
+  });
+  const studentClaim = await s1.rpc("claim_registration", {
+    p_registration: s1Id,
+    p_user: s1Id,
+    p_login_id: "x",
+    p_display_name: "x",
+    p_email: null,
+    p_phone: null,
+  });
   check("only the server can claim a registration", Boolean(guestClaim.error) && Boolean(studentClaim.error));
   const claimed = await admin.from("registrations").select("id").eq("login_id", "90001").maybeSingle();
   if (claimed.data) {

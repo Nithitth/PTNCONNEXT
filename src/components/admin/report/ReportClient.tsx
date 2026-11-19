@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarRange, Languages, Lightbulb, Presentation, Printer, Settings2 } from "lucide-react";
+import { CalendarRange, Languages, Lightbulb, MonitorDot, Presentation, Printer, Settings2 } from "lucide-react";
 import { DatePicker } from "@/components/DatePicker";
 import { buttonStyles, cx, inputStyles } from "@/components/ui";
 import { PRESETS, T, type Assumptions, type Lang, type Range } from "@/lib/report";
@@ -103,6 +103,10 @@ export function ReportControls({ range, lang }: { range: Range; lang: Lang }) {
         <Link href={`/admin/report/present${qs({ ...keep, lang: en })}`} className={buttonStyles.secondary}>
           <Presentation aria-hidden className="h-4 w-4" />
           {t.present}
+        </Link>
+        <Link href={`/admin/report/warroom${qs({ preset: keep.preset })}`} className={buttonStyles.secondary}>
+          <MonitorDot aria-hidden className="h-4 w-4" />
+          {lang === "th" ? "ห้องบัญชาการ" : "War room"}
         </Link>
         <Link href="/admin/report/ideas" className={buttonStyles.secondary}>
           <Lightbulb aria-hidden className="h-4 w-4" />

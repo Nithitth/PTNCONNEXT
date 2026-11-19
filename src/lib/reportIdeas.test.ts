@@ -1,3 +1,4 @@
+import { MORE_STATS } from "./testStats";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { ReportStats } from "./report";
@@ -53,6 +54,7 @@ test("themeSummary counts by role and against last period; topThemes hides text"
 });
 
 const STATS: ReportStats = {
+  ...MORE_STATS,
   studentsTotal: 100,
   studentsRegistered: 80,
   teachersTotal: 10,
@@ -140,4 +142,27 @@ test("idea rules stay quiet without signal, and cards are sorted", () => {
 test("no 'get teachers onto Drive' idea once the school drive is connected", () => {
   assert.ok(ideaCards(ctx()).some((i) => i.key === "drive-drive"));
   assert.ok(!ideaCards(ctx({ schoolDrive: true })).some((i) => i.key === "drive-drive"));
+});
+
+test("activity-log ideas: little-used feature and late-opened subject fire only with signal", () => {
+  const base = ctx();
+  assert.ok(!ideaCards(base).some((i) => i.key === "feature-promote" || i.key === "subject-seen-late"));
+  const cards = ideaCards(
+    ctx({
+      features: [
+        { key: "calendar", th: "ปฏิทินอัจฉริยะ", en: "Calendar", pct: 70, visits: 900 },
+        { key: "tcas_compare", th: "เทียบหลักสูตร", en: "Compare", pct: 8, visits: 30 },
+        { key: "admin", th: "คอนโซลผู้พัฒนา", en: "Console", pct: 5, visits: 10 },
+      ],
+      subjects: [
+        { subject: "คณิตศาสตร์", posts: 5, seen24hPct: 30 },
+        { subject: "PAT", posts: 1, seen24hPct: 0 },
+      ],
+    }),
+  );
+  const promote = cards.find((i) => i.key === "feature-promote");
+  assert.ok(promote && promote.th.title.includes("เทียบหลักสูตร") && !promote.th.title.includes("คอนโซล"));
+  assert.equal(promote.metric, "feature_tcas_compare_pct");
+  const late = cards.find((i) => i.key === "subject-seen-late");
+  assert.ok(late && late.th.problem.includes("คณิตศาสตร์") && !late.th.problem.includes("PAT"));
 });

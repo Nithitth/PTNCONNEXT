@@ -27,6 +27,7 @@ import {
 } from "@/lib/calendar";
 import { SUBJECTS } from "@/lib/school";
 import { cx, iconButtonStyles, smallButtonStyles } from "@/components/ui";
+import { markSeen } from "@/app/calendar/actions";
 import { BLINK, DayDrawer, AttachmentLinks, DueDot, EXAM_LOOK } from "./DayDrawer";
 
 type Props = {
@@ -54,14 +55,15 @@ export function CalendarView({ month, days, items, materials, nowIso }: Props) {
   const openDrawer = (key: DayKey) => {
     setOpenDay(key);
     if (!dialog.current?.open) dialog.current?.showModal();
+    // Activity log: the student has now seen these posts (teachers see who opened theirs). Staff are ignored.
+    const info = placed.get(key);
+    const ids = info ? [...info.due, ...info.exams, ...info.leadUp.map((l) => l.item), ...info.events].map((i) => i.postId) : [];
+    if (ids.length) markSeen(ids).catch(() => {});
   };
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
-      <section
-        aria-label={`ปฏิทินเดือน${monthLabel}`}
-        className="animate-rise overflow-hidden rounded-3xl border border-line bg-surface shadow-soft-lg"
-      >
+      <section aria-label={`ปฏิทินเดือน${monthLabel}`} className="animate-rise overflow-hidden rounded-3xl border border-line bg-surface shadow-soft-lg">
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-4 sm:px-6">
           <h2 className="font-display text-2xl font-extrabold tracking-tight text-ink sm:text-3xl">{monthLabel}</h2>
           <div className="flex items-center gap-1.5">
@@ -111,13 +113,7 @@ export function CalendarView({ month, days, items, materials, nowIso }: Props) {
         <MaterialsCard items={materials} />
       </aside>
 
-      <DayDrawer
-        ref={dialog}
-        day={openDay}
-        info={openDay ? placed.get(openDay) : undefined}
-        now={now}
-        onClose={() => setOpenDay(null)}
-      />
+      <DayDrawer ref={dialog} day={openDay} info={openDay ? placed.get(openDay) : undefined} now={now} onClose={() => setOpenDay(null)} />
     </div>
   );
 }
@@ -149,19 +145,9 @@ function DayCell({
   const exam = info.exams.find((e) => e.examKind === "major") ?? info.exams[0];
   const leadUpLook = EXAM_LOOK[info.leadUp.some((l) => l.item.examKind === "major") ? "major" : "quiz"];
   // Day color: exam day > school activity (striped) > days before an exam > plain.
-  const background = exam
-    ? EXAM_LOOK[exam.examKind].day
-    : event
-      ? "bg-event-stripes"
-      : isLeadUp
-        ? leadUpLook.tint
-        : inMonth
-          ? "bg-surface"
-          : "bg-page";
+  const background = exam ? EXAM_LOOK[exam.examKind].day : event ? "bg-event-stripes" : isLeadUp ? leadUpLook.tint : inMonth ? "bg-surface" : "bg-page";
   // Show the event name on its first day, and again at the start of each week.
-  const eventLabelHere =
-    event &&
-    (dayKey(event.dueAt!) === dayKeyValue || new Date(`${dayKeyValue}T00:00:00Z`).getUTCDay() === 0);
+  const eventLabelHere = event && (dayKey(event.dueAt!) === dayKeyValue || new Date(`${dayKeyValue}T00:00:00Z`).getUTCDay() === 0);
 
   const summary = [
     info.events.length && `กิจกรรม ${info.events.map((e) => e.title).join(", ")}`,
@@ -187,7 +173,6 @@ function DayCell({
         isSelected && "z-10 ring-2 ring-inset ring-brand",
       )}
     >
-
       <span className="flex items-center justify-between gap-1">
         <span
           className={cx(
@@ -197,23 +182,13 @@ function DayCell({
         >
           {dayNumber}
         </span>
-        {exam && (
-          <span className={cx("hidden truncate rounded-md px-1.5 py-0.5 text-[11px] font-bold sm:inline", EXAM_LOOK[exam.examKind].chip)}>
-            สอบ
-          </span>
-        )}
+        {exam && <span className={cx("hidden truncate rounded-md px-1.5 py-0.5 text-[11px] font-bold sm:inline", EXAM_LOOK[exam.examKind].chip)}>สอบ</span>}
       </span>
 
       {/* Tablet/desktop: short labels */}
       <span className={cx("hidden min-w-0 flex-col gap-0.5 sm:flex", !inMonth && "opacity-60")}>
-        {eventLabelHere && (
-          <span className="truncate rounded-md bg-surface/85 px-1.5 py-0.5 text-[11px] font-bold text-event-ink">{event.title}</span>
-        )}
-        {exam && (
-          <span className={cx("truncate text-[11px] font-bold", EXAM_LOOK[exam.examKind].text)}>
-            {exam.subject?.name ?? exam.title}
-          </span>
-        )}
+        {eventLabelHere && <span className="truncate rounded-md bg-surface/85 px-1.5 py-0.5 text-[11px] font-bold text-event-ink">{event.title}</span>}
+        {exam && <span className={cx("truncate text-[11px] font-bold", EXAM_LOOK[exam.examKind].text)}>{exam.subject?.name ?? exam.title}</span>}
         {info.due.slice(0, MAX_ROWS_DESKTOP).map((d) => (
           <span key={d.key} className="flex min-w-0 items-center gap-1 text-[11px] leading-tight text-ink">
             <DueDot item={d} now={now} />
@@ -246,10 +221,7 @@ function Legend() {
       {/* Subject colors: each deadline dot uses its subject's color */}
       <ul aria-label="สีของแต่ละวิชา" className="flex flex-wrap gap-1.5">
         {SUBJECTS.map((s) => (
-          <li
-            key={s.code}
-            className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface py-0.5 pl-1.5 pr-2.5 font-bold text-ink"
-          >
+          <li key={s.code} className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface py-0.5 pl-1.5 pr-2.5 font-bold text-ink">
             <span aria-hidden className="h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />
             {s.name}
           </li>
@@ -288,17 +260,7 @@ function relativeDay(today: DayKey, key: DayKey) {
   return `อีก ${n} วัน`;
 }
 
-function UpcomingCard({
-  items,
-  today,
-  now,
-  onOpenDay,
-}: {
-  items: CalendarItem[];
-  today: DayKey;
-  now: Date;
-  onOpenDay: (k: DayKey) => void;
-}) {
+function UpcomingCard({ items, today, now, onOpenDay }: { items: CalendarItem[]; today: DayKey; now: Date; onOpenDay: (k: DayKey) => void }) {
   return (
     <section className="animate-rise delay-1 overflow-hidden rounded-2xl border border-line bg-surface shadow-soft">
       <h2 className="flex items-center justify-between gap-2 border-b border-line px-5 py-4">
@@ -329,11 +291,7 @@ function UpcomingCard({
                   <span
                     className={cx(
                       "grid h-12 w-12 shrink-0 place-items-center rounded-xl leading-none",
-                      isExam
-                        ? cx(EXAM_LOOK[item.examKind].day, EXAM_LOOK[item.examKind].text)
-                        : hot
-                          ? "bg-urgent text-white"
-                          : "bg-sunken text-ink",
+                      isExam ? cx(EXAM_LOOK[item.examKind].day, EXAM_LOOK[item.examKind].text) : hot ? "bg-urgent text-white" : "bg-sunken text-ink",
                     )}
                   >
                     <span className="text-center">
@@ -343,17 +301,11 @@ function UpcomingCard({
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-bold text-ink">
-                      {isExam && (
-                        <span className={EXAM_LOOK[item.examKind].text}>
-                          {item.examKind === "major" ? "สอบกลางภาค/ปลายภาค" : "สอบ"} ·{" "}
-                        </span>
-                      )}
+                      {isExam && <span className={EXAM_LOOK[item.examKind].text}>{item.examKind === "major" ? "สอบกลางภาค/ปลายภาค" : "สอบ"} · </span>}
                       {item.title}
                     </span>
                     <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted">
-                      {item.subject && (
-                        <span aria-hidden className="h-2 w-2 shrink-0 rounded-full" style={{ background: item.subject.color }} />
-                      )}
+                      {item.subject && <span aria-hidden className="h-2 w-2 shrink-0 rounded-full" style={{ background: item.subject.color }} />}
                       <span className="truncate">
                         {[item.subject?.name, !isExam && `ส่ง ${formatTime(item.dueAt!)}`, item.rooms.length > 0 && roomsSummary(item.rooms)]
                           .filter(Boolean)
@@ -361,9 +313,7 @@ function UpcomingCard({
                       </span>
                     </span>
                   </span>
-                  <span className={cx("shrink-0 text-xs font-bold", hot ? "text-urgent" : "text-muted")}>
-                    {relativeDay(today, key)}
-                  </span>
+                  <span className={cx("shrink-0 text-xs font-bold", hot ? "text-urgent" : "text-muted")}>{relativeDay(today, key)}</span>
                 </button>
               </li>
             );
@@ -431,9 +381,7 @@ function MaterialsCard({ items }: { items: CalendarItem[] }) {
                 <div className="px-5 py-3">
                   <p className="text-sm font-bold leading-snug text-ink">{m.title}</p>
                   <p className="mt-0.5 text-xs text-muted">
-                    {[sort !== "subject" && m.subject?.name, m.contentOrder > 0 && `ลำดับ ${m.contentOrder}`, m.room]
-                      .filter(Boolean)
-                      .join(" · ")}
+                    {[sort !== "subject" && m.subject?.name, m.contentOrder > 0 && `ลำดับ ${m.contentOrder}`, m.room].filter(Boolean).join(" · ")}
                   </p>
                   {m.description && <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted">{m.description}</p>}
                   <AttachmentLinks attachments={m.attachments} compact />

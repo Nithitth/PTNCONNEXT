@@ -1,3 +1,4 @@
+import { MORE_STATS } from "./testStats";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
@@ -58,6 +59,7 @@ test("krProgress for higher- and lower-is-better", () => {
 });
 
 const STATS: ReportStats = {
+  ...MORE_STATS,
   studentsTotal: 100,
   studentsRegistered: 90,
   teachersTotal: 10,

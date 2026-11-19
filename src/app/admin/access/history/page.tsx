@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { LogIn, ScrollText, ShieldAlert, UserPlus } from "lucide-react";
+import { LogIn, PenLine, ScrollText, ShieldAlert, UserCog, UserPlus } from "lucide-react";
 import { UnlockButton } from "@/components/admin/AccessControls";
 import { AdminBack } from "@/components/admin/AdminBack";
 import { AdminSection } from "@/components/admin/AdminMenu";
+import { PostHistoryList } from "@/components/admin/PostHistoryList";
 import { Container, EmptyState, Notice, PageHeader, cx } from "@/components/ui";
+import { loadPostHistory } from "@/lib/activityData";
+import { ACCOUNT_ACTIONS, actionLabel } from "@/lib/auditLabels";
 import { requireProfile } from "@/lib/auth";
 import { formatDateTime, hoursAgo } from "@/lib/calendar";
 import { countedFailures, LOCK_MINUTES, type LockEvent } from "@/lib/signup";
@@ -44,30 +47,6 @@ const REASON: Record<string, string> = {
   "two-step": "ผ่านสองขั้นตอน",
 };
 
-/** Thai names for audit actions (logAudit calls). */
-const ACTION: Record<string, string> = {
-  "reset-password": "รีเซ็ตรหัสผ่าน",
-  "report-settings": "แก้ไขการตั้งค่ารายงาน",
-  "feedback-tag": "แก้หมวดความคิดเห็น",
-  "import-students": "นำเข้ารายชื่อนักเรียน",
-  "import-teachers": "นำเข้ารายชื่อครู",
-  "personal-code": "สร้างรหัสส่วนตัว",
-  "room-code": "สร้างรหัสลงทะเบียนห้อง",
-  "drive-connect": "เชื่อมต่อ Google Drive",
-  "drive-disconnect": "ยกเลิกการเชื่อมต่อ Google Drive",
-  "school-drive-connect": "ลงชื่อเข้าใช้ Drive ของโรงเรียน",
-  "school-drive-choose": "เลือก Shared Drive ของโรงเรียน",
-  "school-drive-disconnect": "ยกเลิกการเชื่อมต่อ Drive ของโรงเรียน",
-  "release-registration": "ยกเลิกการลงทะเบียน",
-  "signup-open": "เปิดรับลงทะเบียน",
-  "signup-close": "ปิดรับลงทะเบียน",
-  "unlock-login": "ปลดล็อกการเข้าสู่ระบบ",
-  "two-step-on": "เปิดการยืนยันสองขั้นตอน",
-  "two-step-off": "ปิดการยืนยันสองขั้นตอน (ตัวเอง)",
-  "two-step-reset": "ปิดการยืนยันสองขั้นตอนให้ผู้อื่น",
-  "tcas-publish": "เผยแพร่ข้อมูล TCAS",
-  "roadmap-template": "แก้แม่แบบ Roadmap",
-};
 type SignupRow = {
   id: number;
   kind: string;
@@ -126,7 +105,7 @@ export default async function AccessHistoryPage({ searchParams }: PageProps<"/ad
 
   const db = createAdminClient();
   const sinceLock = hoursAgo(LOCK_MINUTES / 60);
-  const [rows, today, signups, recent, unlocks, audit] = await Promise.all([
+  const [rows, today, signups, recent, unlocks, audit, postHistory] = await Promise.all([
     list,
     supabase.from("login_events").select("login_id, success, reason").gte("created_at", since24h).limit(5000),
     signupList,
@@ -138,9 +117,12 @@ export default async function AccessHistoryPage({ searchParams }: PageProps<"/ad
       .order("created_at", { ascending: false })
       .limit(2000),
     db.from("login_unlocks").select("identifier, created_at").gte("created_at", sinceLock),
-    db.from("audit_events").select("id, action, target, detail, created_at, actor:profiles(display_name)").order("created_at", { ascending: false }).limit(100),
+    db.from("audit_events").select("id, action, target, detail, created_at, actor:profiles(display_name)").order("created_at", { ascending: false }).limit(300),
+    loadPostHistory(100),
   ]);
   const auditRows = (audit.data ?? []) as unknown as AuditRow[];
+  const adminRows = auditRows.filter((r) => !ACCOUNT_ACTIONS.has(r.action));
+  const accountRows = auditRows.filter((r) => ACCOUNT_ACTIONS.has(r.action));
 
   // Locked (or about to be) right now: 5+ wrong tries in the lock window since the last success/unlock.
   const byKey = new Map<string, { loginId: string; events: LockEvent[] }>();
@@ -265,32 +247,16 @@ export default async function AccessHistoryPage({ searchParams }: PageProps<"/ad
         )}
       </AdminSection>
 
-      <AdminSection title="การกระทำของผู้ดูแล" icon={ScrollText} count={auditRows.length}>
-        {auditRows.length === 0 ? (
-          <p className="text-sm text-muted">ยังไม่มีรายการ</p>
-        ) : (
-          <div className="-mx-4 -my-4 sm:-mx-5">
-            <ul className="divide-y divide-line text-sm">
-              {auditRows.map((a) => (
-                <li key={a.id} className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-0.5 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_11rem] sm:px-5">
-                  <span className="min-w-0">
-                    <span className="font-bold text-ink">{ACTION[a.action] ?? a.action}</span>
-                    {a.target && <span className="ml-1.5 text-ink">{a.target}</span>}
-                    <span className="ml-2 text-muted">โดย {a.actor?.display_name ?? "—"}</span>
-                    {a.detail && (
-                      <span className="block truncate text-xs text-muted">
-                        {Object.entries(a.detail)
-                          .map(([k, v]) => `${k}: ${String(v)}`)
-                          .join(" · ")}
-                      </span>
-                    )}
-                  </span>
-                  <span className="text-xs text-muted sm:text-right">{formatDateTime(a.created_at)}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+      <AdminSection title="การกระทำของผู้ดูแล" icon={ScrollText} count={adminRows.length}>
+        <AuditList rows={adminRows} />
+      </AdminSection>
+
+      <AdminSection title="การกระทำในบัญชีผู้ใช้" icon={UserCog} count={accountRows.length}>
+        <AuditList rows={accountRows} />
+      </AdminSection>
+
+      <AdminSection title="ประวัติโพสต์ (สร้าง แก้ไข ลบ)" icon={PenLine} count={postHistory.length}>
+        <PostHistoryList rows={postHistory} />
       </AdminSection>
 
       {/* Opens by itself when coming from "เข้าสู่ระบบไม่สำเร็จ" (?show=failed). */}
@@ -326,5 +292,33 @@ export default async function AccessHistoryPage({ searchParams }: PageProps<"/ad
         )}
       </AdminSection>
     </Container>
+  );
+}
+
+/** Audit rows: what, on what, by whom, when. */
+function AuditList({ rows }: { rows: AuditRow[] }) {
+  if (rows.length === 0) return <p className="text-sm text-muted">ยังไม่มีรายการ</p>;
+  return (
+    <div className="-mx-4 -my-4 sm:-mx-5">
+      <ul className="divide-y divide-line text-sm">
+        {rows.map((a) => (
+          <li key={a.id} className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-0.5 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_11rem] sm:px-5">
+            <span className="min-w-0">
+              <span className="font-bold text-ink">{actionLabel(a.action)}</span>
+              {a.target && <span className="ml-1.5 text-ink">{a.target}</span>}
+              <span className="ml-2 text-muted">โดย {a.actor?.display_name ?? "—"}</span>
+              {a.detail && (
+                <span className="block truncate text-xs text-muted">
+                  {Object.entries(a.detail)
+                    .map(([k, v]) => `${k}: ${String(v)}`)
+                    .join(" · ")}
+                </span>
+              )}
+            </span>
+            <span className="text-xs text-muted sm:text-right">{formatDateTime(a.created_at)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

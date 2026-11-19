@@ -9,6 +9,8 @@ import { driveState } from "@/lib/drive";
 import { isoToBangkokInput } from "@/lib/calendar";
 import { KIND_LABEL, SCHOOL, isUuid } from "@/lib/postForm";
 import { loadManagedPosts, type MyPost } from "@/lib/posts";
+import { loadSeenBy } from "@/lib/postViews";
+import { SeenBy } from "@/components/teacher/SeenBy";
 import { createClient } from "@/lib/supabase/server";
 import { loadCurrentRooms, loadTeachingOptions } from "@/lib/teaching";
 
@@ -34,7 +36,7 @@ function toInitial(post: MyPost): FormInitial {
 }
 
 export default async function EditPostPage({ params }: PageProps<"/teacher/posts/[id]">) {
-  const profile = await requireProfile({ roles: ["teacher", "admin"] });
+  const profile = await requireProfile({ roles: ["teacher", "admin"], feature: "teacher_form" });
   const { id } = await params;
   if (!isUuid(id)) notFound();
 
@@ -48,6 +50,11 @@ export default async function EditPostPage({ params }: PageProps<"/teacher/posts
   ]);
   if (!post) notFound();
   const kind = post.type;
+  // Only posts this user may manage reach here (loadManagedPosts), so names of their students are fine to show.
+  const seenRooms = await loadSeenBy(
+    post.id,
+    post.targets.map((t) => ({ id: t.classroomId, label: t.room })),
+  );
 
   return (
     <Container className="py-10">
@@ -76,6 +83,7 @@ export default async function EditPostPage({ params }: PageProps<"/teacher/posts
           drive={drive}
         />
       </Card>
+      <SeenBy rooms={seenRooms} />
     </Container>
   );
 }

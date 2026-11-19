@@ -3,6 +3,7 @@
 // The numbers come from reportData.ts (server) via computeStats() in reportAnalysis.ts.
 
 import { addDays, dayKey, type DayKey } from "./calendar";
+import { FEATURES } from "./features";
 
 export type Lang = "th" | "en";
 
@@ -97,11 +98,18 @@ export type ReportStats = {
   studentAccounts: number;
   teacherAccounts: number;
   signups: number;
+  signupsPerWeek: number;
+  roomsFull: number;
   activeUsers: number;
   activeStudents: number;
+  activeStudentsPct: number | null;
+  activeTeachers: number;
+  activeTeachersPct: number | null;
   weeklyActivePct: number | null;
   logins: number;
   loginSuccessPct: number | null;
+  failedLoginPct: number | null;
+  lockouts: number;
   posts: number;
   postsPerWeek: number;
   teachersPosting: number;
@@ -109,50 +117,435 @@ export type ReportStats = {
   materials: number;
   files: number;
   driveFiles: number;
+  postsWithFilePct: number | null;
+  subjectsCovered: number;
+  roomsPerPost: number | null;
   leadTimeDays: number | null;
+  notice3Pct: number | null;
+  clashDays: number;
+  heaviestWeekItems: number;
   studentsWithTarget: number;
   studentsWithTargetPct: number | null;
   studentsWithRoadmap: number;
   studentsWithRoadmapPct: number | null;
   avgRoadmapStage: number | null;
+  roadmapStage3Pct: number | null;
   errors: number;
   errorsPerWeek: number;
   feedback: number;
+  bugReports: number;
+  praisePct: number | null;
   driveTeachers: number;
   driveTeachersPct: number | null;
+  storageUsePct: number | null;
+  hoursSaved: number;
+  pagesSaved: number;
+  bahtSaved: number;
+  // From the activity log (migration 0020); null until it has data.
+  usageWeeklyPct: number | null;
+  seenPct: number | null;
+  seen24hPct: number | null;
+  fileOpensPerStudent: number | null;
+  returningPct: number | null;
+  featuresPerPerson: number | null;
+  /** Weekly users % of each feature (features.ts), against its audience. */
+  featureWeekly: Record<string, number | null>;
+  /** The first day the activity log has data, or null. */
+  trackingSince: string | null;
 };
 
-export type Unit = "pct" | "count" | "perWeek" | "days" | "stage";
+export type Unit = "pct" | "count" | "perWeek" | "days" | "stage" | "hours" | "baht";
+
+/** The groups the goal picker shows. */
+export type MetricCategory = "adoption" | "reach" | "teaching" | "workload" | "tcas" | "features" | "reliability" | "voice" | "impact";
+export const CATEGORIES: { key: MetricCategory; th: string; en: string }[] = [
+  { key: "adoption", th: "การใช้งาน", en: "Adoption" },
+  { key: "reach", th: "นักเรียนเห็นงาน", en: "Students see the work" },
+  { key: "teaching", th: "การสอน", en: "Teaching" },
+  { key: "workload", th: "ภาระนักเรียน", en: "Student workload" },
+  { key: "tcas", th: "TCAS & Roadmap", en: "TCAS & Roadmap" },
+  { key: "features", th: "ฟีเจอร์", en: "Features" },
+  { key: "reliability", th: "ความน่าเชื่อถือ & ปลอดภัย", en: "Reliability & security" },
+  { key: "voice", th: "เสียงผู้ใช้", en: "User voice" },
+  { key: "impact", th: "ผลกระทบ (ประมาณการ)", en: "Impact (estimates)" },
+];
+
+/**
+ * How a goal is drawn week by week: flow = counted inside each week; stock = a running total up to each week's
+ * end (sign-ups); snapshot = only "now" is known (TCAS targets, Roadmaps, storage).
+ */
+export type MetricKind = "flow" | "stock" | "snapshot";
 
 export type Metric = {
   key: string;
   th: string;
   en: string;
+  /** One line for the goal picker: what is measured and how. */
+  desc: string;
+  cat: MetricCategory;
   unit: Unit;
+  kind: MetricKind;
+  /** A sensible starting target. */
+  suggest: number;
   /** Lower is better (errors). */
   lower?: boolean;
+  /** Needs the activity log (migration 0020). */
+  fresh?: boolean;
   value: (s: ReportStats) => number | null;
 };
 
 const pct = (part: number, whole: number) => (whole > 0 ? (part / whole) * 100 : null);
 
-/** Every number a key result can point at. Add one here (and its count in reportData.ts if new). */
+const M = (
+  key: string,
+  cat: MetricCategory,
+  th: string,
+  en: string,
+  desc: string,
+  unit: Unit,
+  kind: MetricKind,
+  suggest: number,
+  value: Metric["value"],
+  opts: { lower?: boolean; fresh?: boolean } = {},
+): Metric => ({ key, cat, th, en, desc, unit, kind, suggest, value, ...opts });
+
+const AUDIENCE = { student: "นักเรียนที่มีบัญชี", staff: "บัญชีครูและผู้ดูแล", all: "บัญชีทั้งหมด" } as const;
+
+/** Every number a key result can point at. Add one here (and its count in computeStats/reportData.ts if new). */
 export const METRICS: Metric[] = [
-  { key: "students_signed_up_pct", th: "นักเรียนลงทะเบียนแล้ว", en: "Students signed up", unit: "pct", value: (s) => pct(s.studentsRegistered, s.studentsTotal) },
-  { key: "teachers_signed_up_pct", th: "ครูลงทะเบียนแล้ว", en: "Teachers signed up", unit: "pct", value: (s) => pct(s.teachersRegistered, s.teachersTotal) },
-  { key: "weekly_active_pct", th: "ผู้ใช้งานต่อสัปดาห์ (จากบัญชีทั้งหมด)", en: "Weekly active users (of all accounts)", unit: "pct", value: (s) => s.weeklyActivePct },
-  { key: "active_users", th: "ผู้ใช้งานในช่วงนี้", en: "Active users in the period", unit: "count", value: (s) => s.activeUsers },
-  { key: "teachers_posting_pct", th: "ครูที่โพสต์ในช่วงนี้", en: "Teachers who posted", unit: "pct", value: (s) => s.teachersPostingPct },
-  { key: "posts_per_week", th: "โพสต์ต่อสัปดาห์", en: "Posts per week", unit: "perWeek", value: (s) => s.postsPerWeek },
-  { key: "lead_time_days", th: "แจ้งงานและสอบล่วงหน้าเฉลี่ย", en: "Average notice before deadlines/exams", unit: "days", value: (s) => s.leadTimeDays },
-  { key: "materials_shared", th: "เอกสารและสื่อที่แชร์", en: "Materials shared", unit: "count", value: (s) => s.materials },
-  { key: "students_with_target_pct", th: "นักเรียนที่ตั้งเป้าหมาย TCAS", en: "Students with a TCAS target", unit: "pct", value: (s) => s.studentsWithTargetPct },
-  { key: "students_with_roadmap_pct", th: "นักเรียนที่มี Roadmap", en: "Students with a Roadmap", unit: "pct", value: (s) => s.studentsWithRoadmapPct },
-  { key: "avg_roadmap_stage", th: "ด่าน Roadmap เฉลี่ย", en: "Average Roadmap stage", unit: "stage", value: (s) => s.avgRoadmapStage },
-  { key: "login_success_pct", th: "เข้าสู่ระบบสำเร็จ", en: "Log-in success rate", unit: "pct", value: (s) => s.loginSuccessPct },
-  { key: "errors_per_week", th: "ข้อผิดพลาดต่อสัปดาห์", en: "Errors per week", unit: "perWeek", lower: true, value: (s) => s.errorsPerWeek },
-  { key: "feedback_count", th: "ความคิดเห็นจากผู้ใช้", en: "Feedback messages", unit: "count", value: (s) => s.feedback },
-  { key: "drive_teachers_pct", th: "ครูที่เชื่อมต่อ Google Drive", en: "Teachers on Google Drive", unit: "pct", value: (s) => s.driveTeachersPct },
+  // การใช้งาน
+  M("students_signed_up_pct", "adoption", "นักเรียนลงทะเบียนแล้ว", "Students signed up", "นักเรียนที่ลงทะเบียนแล้ว จากรายชื่อทั้งหมด", "pct", "stock", 90, (s) =>
+    pct(s.studentsRegistered, s.studentsTotal),
+  ),
+  M("teachers_signed_up_pct", "adoption", "ครูลงทะเบียนแล้ว", "Teachers signed up", "ครูที่ลงทะเบียนแล้ว จากรายชื่อทั้งหมด", "pct", "stock", 90, (s) =>
+    pct(s.teachersRegistered, s.teachersTotal),
+  ),
+  M(
+    "weekly_active_pct",
+    "adoption",
+    "ผู้ใช้งานต่อสัปดาห์ (จากบัญชีทั้งหมด)",
+    "Weekly active users (of all accounts)",
+    "เฉลี่ยต่อสัปดาห์ คนที่เข้าสู่ระบบ ÷ บัญชีทั้งหมด",
+    "pct",
+    "flow",
+    60,
+    (s) => s.weeklyActivePct,
+  ),
+  M(
+    "active_users",
+    "adoption",
+    "ผู้ใช้งานในช่วงนี้",
+    "Active users in the period",
+    "จำนวนคนที่เข้าสู่ระบบอย่างน้อย 1 ครั้งในช่วงที่เลือก",
+    "count",
+    "flow",
+    300,
+    (s) => s.activeUsers,
+  ),
+  M(
+    "active_students_pct",
+    "adoption",
+    "นักเรียนที่เข้าใช้ในช่วงนี้",
+    "Students active in the period",
+    "นักเรียนที่เข้าสู่ระบบในช่วงนี้ ÷ นักเรียนที่มีบัญชี",
+    "pct",
+    "flow",
+    80,
+    (s) => s.activeStudentsPct,
+  ),
+  M(
+    "active_teachers_pct",
+    "adoption",
+    "ครูที่เข้าใช้ในช่วงนี้",
+    "Teachers active in the period",
+    "ครูและผู้ดูแลที่เข้าสู่ระบบในช่วงนี้ ÷ บัญชีครูทั้งหมด",
+    "pct",
+    "flow",
+    90,
+    (s) => s.activeTeachersPct,
+  ),
+  M("returning_pct", "adoption", "ผู้ใช้ที่กลับมาใช้ซ้ำ", "Returning users", "คนที่ใช้งาน 2 สัปดาห์ขึ้นไป ÷ คนที่ใช้งานทั้งหมดในช่วงนี้", "pct", "flow", 70, (s) => s.returningPct, {
+    fresh: true,
+  }),
+  M("signups_per_week", "adoption", "ลงทะเบียนใหม่ต่อสัปดาห์", "Sign-ups per week", "บัญชีที่ลงทะเบียนใหม่ เฉลี่ยต่อสัปดาห์", "perWeek", "flow", 50, (s) => s.signupsPerWeek),
+  M("rooms_full", "adoption", "ห้องที่ลงทะเบียนครบ", "Rooms fully signed up", "จำนวนห้องที่นักเรียนลงทะเบียนครบทุกคน", "count", "snapshot", 8, (s) => s.roomsFull),
+  // นักเรียนเห็นงาน
+  M("seen_pct", "reach", "นักเรียนเปิดดูโพสต์", "Students who opened posts", "ทุกโพสต์ในช่วงนี้: นักเรียนที่เปิดดู ÷ นักเรียนที่ได้รับ", "pct", "flow", 80, (s) => s.seenPct, {
+    fresh: true,
+  }),
+  M(
+    "seen_24h_pct",
+    "reach",
+    "เปิดดูภายใน 24 ชั่วโมง",
+    "Opened within 24 hours",
+    "นักเรียนที่เปิดดูภายใน 1 วันหลังครูโพสต์ ÷ นักเรียนที่ได้รับ",
+    "pct",
+    "flow",
+    60,
+    (s) => s.seen24hPct,
+    { fresh: true },
+  ),
+  M(
+    "file_opens_per_student",
+    "reach",
+    "ไฟล์ที่เปิดต่อนักเรียน",
+    "Files opened per student",
+    "โพสต์ที่นักเรียนเปิดไฟล์ ÷ นักเรียนที่มีบัญชี",
+    "count",
+    "flow",
+    5,
+    (s) => s.fileOpensPerStudent,
+    { fresh: true },
+  ),
+  M(
+    "calendar_weekly_pct",
+    "reach",
+    "นักเรียนเปิดปฏิทินทุกสัปดาห์",
+    "Students opening the calendar weekly",
+    "เฉลี่ยต่อสัปดาห์ นักเรียนที่เปิดปฏิทิน ÷ นักเรียนที่มีบัญชี",
+    "pct",
+    "flow",
+    70,
+    (s) => s.featureWeekly.calendar ?? null,
+    { fresh: true },
+  ),
+  // การสอน
+  M(
+    "teachers_posting_pct",
+    "teaching",
+    "ครูที่โพสต์ในช่วงนี้",
+    "Teachers who posted",
+    "ครูที่โพสต์อย่างน้อย 1 ครั้ง ÷ บัญชีครูทั้งหมด",
+    "pct",
+    "flow",
+    80,
+    (s) => s.teachersPostingPct,
+  ),
+  M("posts_per_week", "teaching", "โพสต์ต่อสัปดาห์", "Posts per week", "งาน สอบ เอกสาร และกิจกรรมที่โพสต์ เฉลี่ยต่อสัปดาห์", "perWeek", "flow", 20, (s) => s.postsPerWeek),
+  M(
+    "lead_time_days",
+    "teaching",
+    "แจ้งงานและสอบล่วงหน้าเฉลี่ย",
+    "Average notice before deadlines/exams",
+    "จากวันที่โพสต์ถึงวันส่งงานหรือวันสอบ เฉลี่ย",
+    "days",
+    "flow",
+    3,
+    (s) => s.leadTimeDays,
+  ),
+  M(
+    "notice_3days_pct",
+    "teaching",
+    "แจ้งล่วงหน้า 3 วันขึ้นไป",
+    "Notice of 3+ days",
+    "งานและสอบที่แจ้งล่วงหน้าอย่างน้อย 3 วัน ÷ ทั้งหมด",
+    "pct",
+    "flow",
+    80,
+    (s) => s.notice3Pct,
+  ),
+  M("materials_shared", "teaching", "เอกสารและสื่อที่แชร์", "Materials shared", "จำนวนโพสต์ประเภทเอกสารในช่วงนี้", "count", "flow", 30, (s) => s.materials),
+  M(
+    "posts_with_file_pct",
+    "teaching",
+    "โพสต์ที่แนบไฟล์",
+    "Posts with a file",
+    "โพสต์ที่มี PDF หรือไฟล์ใน Drive ÷ โพสต์ทั้งหมด",
+    "pct",
+    "flow",
+    50,
+    (s) => s.postsWithFilePct,
+  ),
+  M("subjects_covered", "teaching", "วิชาที่ใช้ Connext", "Subjects using Connext", "จำนวนวิชา (จาก 6) ที่มีโพสต์ในช่วงนี้", "count", "flow", 6, (s) => s.subjectsCovered),
+  M("rooms_per_post", "teaching", "ห้องต่อโพสต์", "Rooms per post", "โพสต์หนึ่งครั้งถึงกี่ห้องโดยเฉลี่ย (ครูไม่ต้องบอกซ้ำทีละห้อง)", "count", "flow", 2, (s) => s.roomsPerPost),
+  M(
+    "drive_teachers_pct",
+    "teaching",
+    "ครูที่เชื่อมต่อ Google Drive",
+    "Teachers on Google Drive",
+    "ครูที่เชื่อม Drive ของตัวเอง ÷ บัญชีครูทั้งหมด",
+    "pct",
+    "snapshot",
+    50,
+    (s) => s.driveTeachersPct,
+  ),
+  // ภาระนักเรียน
+  M(
+    "clash_days",
+    "workload",
+    "วันที่สอบชนกัน",
+    "Exam-clash days",
+    "วันที่ห้องเดียวมีสอบ 3 วิชาขึ้นไป หรือสอบกลางภาค/ปลายภาค 2 วิชาขึ้นไป",
+    "count",
+    "flow",
+    0,
+    (s) => s.clashDays,
+    { lower: true },
+  ),
+  M(
+    "heaviest_week_items",
+    "workload",
+    "งานและสอบในสัปดาห์ที่หนักที่สุด",
+    "Items in the heaviest week",
+    "งานและสอบของห้องที่หนักที่สุดในสัปดาห์เดียว",
+    "count",
+    "flow",
+    8,
+    (s) => s.heaviestWeekItems,
+    { lower: true },
+  ),
+  // TCAS & Roadmap
+  M(
+    "students_with_target_pct",
+    "tcas",
+    "นักเรียนที่ตั้งเป้าหมาย TCAS",
+    "Students with a TCAS target",
+    "นักเรียนที่บันทึกหลักสูตรเป้าหมาย ÷ นักเรียนที่มีบัญชี",
+    "pct",
+    "snapshot",
+    60,
+    (s) => s.studentsWithTargetPct,
+  ),
+  M(
+    "students_with_roadmap_pct",
+    "tcas",
+    "นักเรียนที่มี Roadmap",
+    "Students with a Roadmap",
+    "นักเรียนที่สร้าง Roadmap ÷ นักเรียนที่มีบัญชี",
+    "pct",
+    "snapshot",
+    50,
+    (s) => s.studentsWithRoadmapPct,
+  ),
+  M(
+    "avg_roadmap_stage",
+    "tcas",
+    "ด่าน Roadmap เฉลี่ย",
+    "Average Roadmap stage",
+    "ด่านเฉลี่ยของนักเรียนที่มี Roadmap (1–6)",
+    "stage",
+    "snapshot",
+    2,
+    (s) => s.avgRoadmapStage,
+  ),
+  M(
+    "roadmap_stage3_pct",
+    "tcas",
+    "นักเรียนถึงด่าน 3 ขึ้นไป",
+    "Students at Roadmap stage 3+",
+    "นักเรียนที่ Roadmap ถึงด่าน “ปูพื้น” ขึ้นไป ÷ นักเรียนที่มีบัญชี",
+    "pct",
+    "snapshot",
+    30,
+    (s) => s.roadmapStage3Pct,
+  ),
+  M(
+    "tcas_weekly_pct",
+    "tcas",
+    "นักเรียนใช้ TCAS ทุกสัปดาห์",
+    "Students using TCAS weekly",
+    "เฉลี่ยต่อสัปดาห์ นักเรียนที่เปิดค้นหาหลักสูตร ÷ นักเรียนที่มีบัญชี",
+    "pct",
+    "flow",
+    40,
+    (s) => s.featureWeekly.tcas ?? null,
+    { fresh: true },
+  ),
+  M(
+    "roadmap_weekly_pct",
+    "tcas",
+    "นักเรียนเปิด Roadmap ทุกสัปดาห์",
+    "Students opening Roadmap weekly",
+    "เฉลี่ยต่อสัปดาห์ นักเรียนที่เปิด Roadmap ÷ นักเรียนที่มีบัญชี",
+    "pct",
+    "flow",
+    30,
+    (s) => s.featureWeekly.roadmap ?? null,
+    { fresh: true },
+  ),
+  // ฟีเจอร์ (one goal per feature is added at the end)
+  M(
+    "usage_weekly_pct",
+    "features",
+    "ใช้ Connext ทุกสัปดาห์ (ทุกส่วน)",
+    "Weekly users of any part",
+    "เฉลี่ยต่อสัปดาห์ คนที่เปิดส่วนใดก็ได้ของระบบ ÷ บัญชีทั้งหมด",
+    "pct",
+    "flow",
+    60,
+    (s) => s.usageWeeklyPct,
+    { fresh: true },
+  ),
+  M(
+    "features_per_person",
+    "features",
+    "ฟีเจอร์ที่ใช้ต่อคน",
+    "Features used per person",
+    "เฉลี่ยแต่ละคนใช้กี่ส่วนของระบบในช่วงนี้",
+    "count",
+    "flow",
+    3,
+    (s) => s.featuresPerPerson,
+    { fresh: true },
+  ),
+  // ความน่าเชื่อถือ & ปลอดภัย
+  M("login_success_pct", "reliability", "เข้าสู่ระบบสำเร็จ", "Log-in success rate", "การเข้าสู่ระบบที่สำเร็จ ÷ ทุกครั้งที่ลอง", "pct", "flow", 95, (s) => s.loginSuccessPct),
+  M("failed_login_pct", "reliability", "เข้าสู่ระบบไม่สำเร็จ", "Failed log-ins", "การเข้าสู่ระบบที่ไม่สำเร็จ ÷ ทุกครั้งที่ลอง", "pct", "flow", 5, (s) => s.failedLoginPct, {
+    lower: true,
+  }),
+  M("lockouts", "reliability", "บัญชีถูกล็อกชั่วคราว", "Temporary lock-outs", "ครั้งที่ระบบล็อกเพราะใส่รหัสผิดหลายครั้ง", "count", "flow", 0, (s) => s.lockouts, {
+    lower: true,
+  }),
+  M(
+    "errors_per_week",
+    "reliability",
+    "ข้อผิดพลาดต่อสัปดาห์",
+    "Errors per week",
+    "ข้อผิดพลาดของระบบที่บันทึกไว้ เฉลี่ยต่อสัปดาห์",
+    "perWeek",
+    "flow",
+    5,
+    (s) => s.errorsPerWeek,
+    { lower: true },
+  ),
+  M("storage_use_pct", "reliability", "พื้นที่เก็บไฟล์ที่ใช้", "Storage used", "ไฟล์ PDF ที่เก็บใน Connext ÷ พื้นที่ฟรี 1 GB", "pct", "snapshot", 70, (s) => s.storageUsePct, {
+    lower: true,
+  }),
+  // เสียงผู้ใช้
+  M("feedback_count", "voice", "ความคิดเห็นจากผู้ใช้", "Feedback messages", "ข้อความที่ส่งผ่านกล่องความคิดเห็นในช่วงนี้", "count", "flow", 20, (s) => s.feedback),
+  M("bug_reports", "voice", "แจ้งปัญหา/บั๊ก", "Bug reports", "ความคิดเห็นที่จัดเป็น “ปัญหา/บั๊ก” (แก้หมวดได้ในหน้าไอเดีย)", "count", "flow", 3, (s) => s.bugReports, {
+    lower: true,
+  }),
+  M("praise_pct", "voice", "คำชมจากผู้ใช้", "Praise share", "ความคิดเห็นที่เป็นคำชม ÷ ความคิดเห็นทั้งหมด", "pct", "flow", 30, (s) => s.praisePct),
+  // ผลกระทบ
+  M(
+    "hours_saved",
+    "impact",
+    "เวลาครูที่ประหยัดได้",
+    "Teacher hours saved",
+    "ห้องที่โพสต์ถึง × นาทีที่ครูต้องบอกเองต่อห้อง (แก้สมมติฐานได้)",
+    "hours",
+    "flow",
+    20,
+    (s) => s.hoursSaved,
+  ),
+  M("pages_saved", "impact", "กระดาษที่ไม่ต้องพิมพ์", "Pages not printed", "นักเรียนที่ได้รับไฟล์ × หน้าต่อไฟล์ (แก้สมมติฐานได้)", "count", "flow", 2000, (s) => s.pagesSaved),
+  M("baht_saved", "impact", "ค่ากระดาษที่ประหยัดได้", "Printing cost saved", "หน้าที่ไม่ต้องพิมพ์ × บาทต่อหน้า (แก้สมมติฐานได้)", "baht", "flow", 1000, (s) => s.bahtSaved),
+  // Every feature's weekly users (features.ts).
+  ...FEATURES.map((f) =>
+    M(
+      `feature_${f.key}_pct`,
+      "features",
+      `ใช้ “${f.th}” ทุกสัปดาห์`,
+      `Weekly users of “${f.en}”`,
+      `เฉลี่ยต่อสัปดาห์ คนที่เปิด${f.th} ÷ ${AUDIENCE[f.audience]}`,
+      "pct",
+      "flow",
+      f.audience === "staff" ? 70 : 40,
+      (s) => s.featureWeekly[f.key] ?? null,
+      { fresh: true },
+    ),
+  ),
 ];
 export const metricOf = (key: string) => METRICS.find((m) => m.key === key);
 
@@ -171,6 +564,10 @@ export function formatValue(v: number | null, unit: Unit, lang: Lang): string {
       return lang === "th" ? `${one(v)} วัน` : `${one(v)} days`;
     case "stage":
       return lang === "th" ? `ด่าน ${one(v)}` : `stage ${one(v)}`;
+    case "hours":
+      return lang === "th" ? `${one(v)} ชม.` : `${one(v)} h`;
+    case "baht":
+      return lang === "th" ? `${Math.round(v).toLocaleString("th-TH")} บาท` : `฿${Math.round(v).toLocaleString("en-US")}`;
   }
 }
 
@@ -205,6 +602,40 @@ export const DEFAULT_OKRS: Okr[] = [
     objective: "ระบบเชื่อถือได้และปลอดภัย",
     objectiveEn: "Reliable and secure",
     keyResults: [kr("login_success_pct", 95), kr("errors_per_week", 5)],
+  },
+];
+
+/** Ready-made objectives the editor adds with one tap (targets are each goal's suggestion). */
+export const OKR_TEMPLATES: Okr[] = [
+  {
+    objective: "นักเรียนเห็นงานทุกชิ้นทันเวลา",
+    objectiveEn: "Students see every piece of work in time",
+    keyResults: [kr("seen_pct", 80), kr("seen_24h_pct", 60), kr("notice_3days_pct", 80)],
+  },
+  {
+    objective: "ฟีเจอร์ใหม่ถูกใช้จริง",
+    objectiveEn: "New features are really used",
+    keyResults: [kr("feature_calendar_pct", 60), kr("tcas_weekly_pct", 40), kr("roadmap_weekly_pct", 30), kr("features_per_person", 3)],
+  },
+  {
+    objective: "ลดภาระสอบชนกัน",
+    objectiveEn: "Fewer exam clashes",
+    keyResults: [kr("clash_days", 0), kr("heaviest_week_items", 8), kr("lead_time_days", 5)],
+  },
+  {
+    objective: "ครูทุกวิชาใช้ Connext",
+    objectiveEn: "Every subject's teachers use Connext",
+    keyResults: [kr("teachers_signed_up_pct", 100), kr("teachers_posting_pct", 80), kr("subjects_covered", 6), kr("posts_with_file_pct", 50)],
+  },
+  {
+    objective: "ผู้ใช้กลับมาใช้ทุกสัปดาห์",
+    objectiveEn: "People come back every week",
+    keyResults: [kr("usage_weekly_pct", 60), kr("returning_pct", 70), kr("active_students_pct", 80)],
+  },
+  {
+    objective: "ประหยัดเวลาและกระดาษให้โรงเรียน",
+    objectiveEn: "Save the school time and paper",
+    keyResults: [kr("hours_saved", 20), kr("pages_saved", 2000), kr("baht_saved", 1000)],
   },
 ];
 

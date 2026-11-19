@@ -17,7 +17,7 @@ const fmt = (n: number | null | undefined) => (n == null ? "–" : fmtNum(n));
 
 /** Side-by-side comparison of up to 3 programs (ids from the compare tray). */
 export default async function ComparePage({ searchParams }: PageProps<"/tcas/compare">) {
-  await requireProfile();
+  await requireProfile({ feature: "tcas_compare" });
   const raw = (await searchParams).ids;
   const ids = [...new Set((typeof raw === "string" ? raw : "").split(",").filter(isProgramId))].slice(0, 3);
   const programs = ids.length ? await loadPrograms(ids) : [];
@@ -71,11 +71,7 @@ export default async function ComparePage({ searchParams }: PageProps<"/tcas/com
       <PageHeader eyebrow="TCAS70" title="เปรียบเทียบหลักสูตร" subtitle="เทียบเกณฑ์รอบ 3 คะแนนปีที่แล้ว และการแข่งขัน แบบเคียงข้างกัน" />
 
       {programs.length < 2 ? (
-        <EmptyState
-          icon={<Columns3 aria-hidden className="h-6 w-6" />}
-          title="เลือกอย่างน้อย 2 หลักสูตร"
-          body="ติ๊ก “เปรียบเทียบ” ที่หลักสูตรในหน้า TCAS ได้สูงสุด 3 หลักสูตร"
-        />
+        <EmptyState icon={<Columns3 aria-hidden className="h-6 w-6" />} title="เลือกอย่างน้อย 2 หลักสูตร" body="ติ๊ก “เปรียบเทียบ” ที่หลักสูตรในหน้า TCAS ได้สูงสุด 3 หลักสูตร" />
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-line bg-surface shadow-soft-sm">
           {/* Fixed layout: equal program columns that fit the box; on phones it scrolls and the label column stays pinned. */}
@@ -128,8 +124,7 @@ export default async function ComparePage({ searchParams }: PageProps<"/tcas/com
         </div>
       )}
       <p className="mt-4 text-xs text-muted">
-        สัดส่วนคะแนนแสดงจากโครงการแรกของแต่ละหลักสูตร · คะแนนปี {LAST_YEAR_LABEL} คิดจากเกณฑ์ปีนั้น ใช้เป็นแนวทาง · ข้อมูลจาก
-        mytcas.com (ทปอ.)
+        สัดส่วนคะแนนแสดงจากโครงการแรกของแต่ละหลักสูตร · คะแนนปี {LAST_YEAR_LABEL} คิดจากเกณฑ์ปีนั้น ใช้เป็นแนวทาง · ข้อมูลจาก mytcas.com (ทปอ.)
       </p>
       <CompareTray />
     </Container>

@@ -12,6 +12,7 @@ import { requireProfile } from "@/lib/auth";
 import { driveState } from "@/lib/drive";
 import type { PostKind } from "@/lib/postForm";
 import { loadExpiringFiles, loadManagedPosts } from "@/lib/posts";
+import { loadSeenCounts } from "@/lib/postViews";
 import { createClient } from "@/lib/supabase/server";
 import { loadCurrentRooms, loadTeachingOptions } from "@/lib/teaching";
 
@@ -47,10 +48,7 @@ const TIPS: Record<PostKind, string[]> = {
     "สอบกลางภาค / ปลายภาค: วันสอบสีแดงเข้ม และไฮไลต์สีแดงอ่อน 5 วันก่อนสอบ",
     "แต่ละห้องสอบคนละวันได้",
   ],
-  event: [
-    "กิจกรรมจะแสดงเป็นสีเหลืองอำพันอ่อนลายเส้นทแยงในปฏิทิน",
-    "เลือก “ทั้งโรงเรียน” เพื่อให้ทุกคนเห็น หรือเลือกเฉพาะบางห้อง",
-  ],
+  event: ["กิจกรรมจะแสดงเป็นสีเหลืองอำพันอ่อนลายเส้นทแยงในปฏิทิน", "เลือก “ทั้งโรงเรียน” เพื่อให้ทุกคนเห็น หรือเลือกเฉพาะบางห้อง"],
 };
 
 const SAVED: Record<string, string> = {
@@ -62,12 +60,10 @@ const SAVED: Record<string, string> = {
 };
 
 export default async function TeacherConsolePage({ searchParams }: PageProps<"/teacher">) {
-  const profile = await requireProfile({ roles: ["teacher", "admin"] });
+  const profile = await requireProfile({ roles: ["teacher", "admin"], feature: "teacher" });
   const isAdmin = profile.role === "admin";
   const params = await searchParams;
-  const tabs = TABS.filter((t) => !t.adminOnly || isAdmin).map((t) =>
-    t.id === "mine" && isAdmin ? { ...t, label: "โพสต์ทั้งหมด" } : t,
-  );
+  const tabs = TABS.filter((t) => !t.adminOnly || isAdmin).map((t) => (t.id === "mine" && isAdmin ? { ...t, label: "โพสต์ทั้งหมด" } : t));
   const tab = tabs.find((t) => t.id === params.tab) ?? tabs[0];
   const saved = typeof params.saved === "string" ? SAVED[params.saved] : undefined;
 
@@ -132,7 +128,7 @@ export default async function TeacherConsolePage({ searchParams }: PageProps<"/t
       )}
 
       {!tab.kind ? (
-        <MyPosts posts={myPosts} meId={profile.id} isAdmin={isAdmin} />
+        <MyPosts posts={myPosts} meId={profile.id} isAdmin={isAdmin} seen={await loadSeenCounts(myPosts.map((p) => p.id))} />
       ) : (
         <div className="grid items-start gap-5 lg:grid-cols-[1.65fr_1fr]">
           <Card bold className="animate-rise">
@@ -160,9 +156,7 @@ export default async function TeacherConsolePage({ searchParams }: PageProps<"/t
                 {isAdmin ? "วิชาในระบบ" : "วิชาที่คุณสอน"}
               </h2>
               {subjects.length === 0 ? (
-                <p className="mt-3 text-sm leading-relaxed text-muted">
-                  ยังไม่มีข้อมูล ผู้ดูแลระบบจะนำเข้าจากรายชื่อครูของโรงเรียน
-                </p>
+                <p className="mt-3 text-sm leading-relaxed text-muted">ยังไม่มีข้อมูล ผู้ดูแลระบบจะนำเข้าจากรายชื่อครูของโรงเรียน</p>
               ) : (
                 <ul className="mt-3 divide-y divide-line text-sm">
                   {subjects.map((s) => (

@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { lockKey, loginIdToEmail } from "@/lib/authEmail";
 import { isSupabaseConfigured, NOT_CONFIGURED_MESSAGE } from "@/lib/env";
 import { failuresFor, LOCKED_MESSAGE } from "@/lib/lockout";
-import { logError, logLogin } from "@/lib/logs";
+import { logAudit, logError, logLogin } from "@/lib/logs";
 import { normalizeLoginId } from "@/lib/roster";
 import { classifyLoginIdentifier, lockoutLimit } from "@/lib/signup";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -75,9 +75,7 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
       await supabase.auth.signOut();
       await logLogin(loginId, false, data.user.id, { identifier: key, reason: "wrong-tab" });
       return {
-        error: isStaff
-          ? "บัญชีนี้เป็นบัญชีครู เลือก “ครู” ด้านบนแล้วลองอีกครั้ง"
-          : "บัญชีนี้เป็นบัญชีนักเรียน เลือก “นักเรียน” ด้านบนแล้วลองอีกครั้ง",
+        error: isStaff ? "บัญชีนี้เป็นบัญชีครู เลือก “ครู” ด้านบนแล้วลองอีกครั้ง" : "บัญชีนี้เป็นบัญชีนักเรียน เลือก “นักเรียน” ด้านบนแล้วลองอีกครั้ง",
         ...keep,
       };
     }
@@ -98,6 +96,8 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
 export async function logout() {
   if (isSupabaseConfigured) {
     const supabase = await createClient();
+    const { data } = await supabase.auth.getClaims();
+    if (data?.claims?.sub) await logAudit(data.claims.sub, "logout");
     await supabase.auth.signOut();
   }
   redirect("/");
