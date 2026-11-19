@@ -19,24 +19,25 @@ const DRIVE = [
   {
     title: "ขอสิทธิ์อะไร",
     items: [
-      "ขอเพียงสิทธิ์ “ไฟล์ที่แอปนี้สร้างเท่านั้น” (drive.file) Connext จึงเห็นและแก้ได้เฉพาะไฟล์ PDF ที่ครูอัปโหลดผ่าน Connext และโฟลเดอร์ “PTN Connext” ที่สร้างให้",
-      "Connext ไม่เห็น ไม่อ่าน และไม่แก้ไฟล์อื่นใดใน Google Drive ของครู",
+      "Drive ของโรงเรียน: ผู้ดูแลระบบลงชื่อเข้าใช้ครั้งเดียวด้วยบัญชี Google ของโรงเรียน และเลือก Shared Drive ของโรงเรียน Connext ใช้สิทธิ์นี้เฉพาะกับ Shared Drive ที่เลือก เพื่อเก็บ แชร์ ย้าย และลบ PDF ที่อัปโหลดผ่าน Connext",
+      "Drive ของครูเอง (เมื่อโรงเรียนยังไม่ได้เชื่อมต่อ Drive ของโรงเรียน): ขอเพียงสิทธิ์ “ไฟล์ที่แอปนี้สร้างเท่านั้น” (drive.file) จึงไม่เห็นไฟล์อื่นใดใน Drive ของครู",
     ],
   },
   {
     title: "ใช้ทำอะไร",
     items: [
-      "อัปโหลด PDF ที่ครูเลือกเองลงในโฟลเดอร์ “PTN Connext” ใน Drive ของครู",
+      "อัปโหลด PDF ที่ครูเลือกเอง ลงในโฟลเดอร์ ภาคเรียน / วิชา ใน Shared Drive ของโรงเรียน (หรือโฟลเดอร์ “PTN Connext” ใน Drive ของครู)",
       "ตั้งค่าแชร์ไฟล์นั้นเป็น “ทุกคนที่มีลิงก์ดูได้” เพื่อให้นักเรียนในห้องที่ครูเลือกเปิดได้",
-      "เมื่อไฟล์ครบ 180 วัน หรือครูลบหรือเปลี่ยนไฟล์ในโพสต์ Connext จะปิดการแชร์และย้ายไฟล์ไปถังขยะของ Drive ครู (ครูกู้คืนได้ภายใน 30 วัน)",
+      "เมื่อไฟล์ครบ 180 วัน Connext ปิดการแชร์ ไฟล์ใน Drive ของโรงเรียนย้ายไปโฟลเดอร์ “หมดอายุ” เก็บไว้เป็นคลังของโรงเรียน ไฟล์ใน Drive ของครูย้ายไปถังขยะ",
+      "เมื่อครูลบหรือเปลี่ยนไฟล์ในโพสต์ Connext ปิดการแชร์และย้ายไฟล์ไปถังขยะ (กู้คืนได้ภายใน 30 วัน)",
     ],
   },
   {
     title: "เก็บอะไรไว้",
     items: [
       "กุญแจเชื่อมต่อที่ Google ให้ เก็บแบบเข้ารหัส (AES-256) บนเซิร์ฟเวอร์ ไม่มีใครอ่านได้จากหน้าเว็บ",
-      "รหัสโฟลเดอร์และรหัสไฟล์ที่ Connext สร้าง เพื่อเปิด ปิดการแชร์ และลบไฟล์เหล่านั้นได้",
-      "ไม่เก็บอีเมล Google ชื่อบัญชี รูปโปรไฟล์ หรือข้อมูลอื่นจากบัญชี Google",
+      "รหัสของ Shared Drive โฟลเดอร์ และไฟล์ที่ Connext สร้าง เพื่อเปิด ปิดการแชร์ ย้าย และลบไฟล์เหล่านั้นได้",
+      "ไม่เก็บอีเมล Google รูปโปรไฟล์ หรือข้อมูลอื่นจากบัญชี Google (เก็บเพียงชื่อในระบบ Connext ของผู้ดูแลที่เชื่อมต่อ Drive ของโรงเรียน)",
     ],
   },
   {
@@ -44,15 +45,14 @@ const DRIVE = [
     items: [
       "ไม่ขาย ไม่ส่งต่อ และไม่ให้บุคคลภายนอกใช้ข้อมูลจาก Google",
       "ไม่ใช้ข้อมูลจาก Google เพื่อโฆษณา หรือเพื่อฝึกปัญญาประดิษฐ์ (AI)",
-      "ไม่ให้คนในทีมอ่านไฟล์ของครู เว้นแต่ครูขอให้ช่วยแก้ปัญหา หรือกฎหมายกำหนด",
+      "ไม่เปิดอ่านไฟล์อื่นใน Drive และไม่ให้คนในทีมอ่านไฟล์ของครู เว้นแต่ครูขอให้ช่วยแก้ปัญหา หรือกฎหมายกำหนด",
     ],
   },
   {
     title: "ยกเลิกได้ทุกเมื่อ",
     items: [
-      "กด “ยกเลิกการเชื่อมต่อ” ที่หน้า “บัญชีของฉัน” Connext จะแจ้ง Google ให้ยกเลิกกุญแจและลบกุญแจที่เก็บไว้ทันที",
-      "หรือยกเลิกจากฝั่ง Google ที่ myaccount.google.com/permissions",
-      "ไฟล์ที่อยู่ใน Drive แล้วยังเป็นของครูเสมอ ครูลบเองได้ตามต้องการ",
+      "Drive ของโรงเรียน: ผู้ดูแลระบบกด “ยกเลิกการเชื่อมต่อ” ในคอนโซลผู้พัฒนา Connext จะแจ้ง Google ให้ยกเลิกกุญแจและลบกุญแจที่เก็บไว้ ไฟล์ยังเป็นของ Shared Drive ของโรงเรียน",
+      "Drive ของครูเอง: กด “ยกเลิกการเชื่อมต่อ” ที่หน้า “บัญชีของฉัน” หรือยกเลิกที่ myaccount.google.com/permissions ไฟล์ที่อยู่ใน Drive แล้วยังเป็นของครู",
     ],
   },
 ];
@@ -80,8 +80,8 @@ export default function PrivacyPage() {
           </span>
           <h1 className="mt-5 font-display text-2xl font-extrabold leading-tight sm:text-3xl">นโยบายความเป็นส่วนตัว</h1>
           <p className="mt-2 max-w-xl text-sm leading-relaxed text-white/80">
-            <Brand className="whitespace-nowrap">PTN Connext</Brand> คือเว็บไซต์ของโรงเรียนที่รวมงาน วันสอบ สื่อการสอน และข้อมูลเรียนต่อมหาวิทยาลัย
-            สำหรับครูและนักเรียนของโรงเรียน หน้านี้อธิบายว่าเราเก็บและใช้ข้อมูลอย่างไร ตามพระราชบัญญัติคุ้มครองข้อมูลส่วนบุคคล (PDPA)
+            <Brand className="whitespace-nowrap">PTN Connext</Brand> คือเว็บไซต์ของโรงเรียนที่รวมงาน วันสอบ สื่อการสอน และข้อมูลเรียนต่อมหาวิทยาลัย สำหรับครูและนักเรียนของโรงเรียน
+            หน้านี้อธิบายว่าเราเก็บและใช้ข้อมูลอย่างไร ตามพระราชบัญญัติคุ้มครองข้อมูลส่วนบุคคล (PDPA)
           </p>
           <p className="mt-3 text-xs text-white/70">ปรับปรุงล่าสุด {UPDATED}</p>
         </header>
@@ -102,11 +102,11 @@ export default function PrivacyPage() {
               <span className="grid h-8 w-8 place-items-center rounded-lg border border-line bg-brand-soft text-brand">
                 <HardDrive aria-hidden className="h-4 w-4" />
               </span>
-              การใช้ Google Drive (เฉพาะครูที่เลือกเชื่อมต่อ)
+              การใช้ Google Drive
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-muted">
-              ครูเลือกได้ว่าจะเก็บ PDF ที่แชร์ให้นักเรียนไว้ใน Google Drive ของตัวเองแทนการเก็บใน Connext การเชื่อมต่อทำได้เฉพาะเมื่อครูกดยินยอมในหน้าของ
-              Google เอง นักเรียนไม่ต้องใช้บัญชี Google
+              PDF ที่ครูแชร์ให้นักเรียนเก็บใน Shared Drive ของโรงเรียน (Google Workspace ของโรงเรียน) เมื่อผู้ดูแลระบบเชื่อมต่อไว้ หรือใน Google Drive ของครูเองถ้าครูเลือกเชื่อมต่อ
+              การเชื่อมต่อทำได้เฉพาะเมื่อกดยินยอมในหน้าของ Google เอง นักเรียนไม่ต้องใช้บัญชี Google
             </p>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               {DRIVE.map((s) => (
@@ -131,7 +131,7 @@ export default function PrivacyPage() {
               items={[
                 "ข้อมูลเก็บในฐานข้อมูลที่กำหนดสิทธิ์ทุกตาราง แต่ละคนเห็นได้เฉพาะข้อมูลที่ตนมีสิทธิ์ และรับส่งผ่านการเชื่อมต่อที่เข้ารหัส (HTTPS)",
                 "ผู้ดูแลระบบต้องยืนยันตัวตนสองขั้นตอนทุกครั้ง",
-                "ไฟล์ PDF ของครูเปิดได้ 180 วันแล้วถูกลบ บันทึกการใช้งานเก็บไว้ไม่เกิน 365 วัน",
+                "ไฟล์ PDF ของครูเปิดได้ 180 วัน แล้วปิดลิงก์หรือลบ บันทึกการใช้งานเก็บไว้ไม่เกิน 365 วัน",
               ]}
             />
           </section>
@@ -151,26 +151,29 @@ export default function PrivacyPage() {
             <h2 className="font-display font-bold text-ink">English summary: Google user data</h2>
             <div className="mt-2 space-y-2 text-sm leading-relaxed text-muted">
               <p>
-                PTN Connext is a school website for the teachers and students of one school. Teachers may choose to connect their own Google Drive so the PDFs
-                they share with their classes are stored in their Drive instead of on our servers.
+                PTN Connext is a school website for the teachers and students of one school. The PDFs teachers share with their classes are stored in the
+                school&apos;s Google Workspace Shared Drive, connected once by a school administrator, or, where the school hasn&apos;t connected one, in a
+                teacher&apos;s own Google Drive if they choose to connect it.
               </p>
               <p>
-                We request only the <code>drive.file</code> scope, so we can access only the files and the &quot;PTN Connext&quot; folder that the app creates.
-                We use it to upload the PDF the teacher picks, share that file as &quot;anyone with the link can view&quot; so their students can open it, and,
-                after 180 days or when the teacher deletes or replaces it, turn sharing off and move it to the teacher&apos;s Drive trash.
+                For the school connection (an internal app of the school&apos;s Google Workspace) we request the <code>drive</code> scope and use it only on the
+                Shared Drive the administrator chooses. For teachers&apos; own Drives we request only the <code>drive.file</code> scope. We use them to upload
+                the PDF the teacher picks, share it as &quot;anyone with the link can view&quot; so their students can open it, and turn sharing off after 180
+                days (school files are then kept in an &quot;expired&quot; folder as the school&apos;s archive) or move it to the trash when the teacher deletes
+                or replaces it.
               </p>
               <p>
-                We store only an encrypted (AES-256) refresh token and the IDs of the files and folder we created. We do not store the Google email address or
-                any other account data. We do not sell or transfer Google user data, use it for advertising, or use it to train AI models, and no person reads it
-                except at the teacher&apos;s request or where the law requires.
+                We store only an encrypted (AES-256) refresh token and the IDs of the Shared Drive, folders and files we use. We do not store the Google email
+                address or any other account data. We do not sell or transfer Google user data, use it for advertising, or use it to train AI models, and no
+                person reads it except at the teacher&apos;s request or where the law requires.
               </p>
               <p>
-                Teachers can disconnect at any time on their account page, which revokes the token with Google and deletes it from our database, or at
-                myaccount.google.com/permissions.
+                Administrators can disconnect the school drive, and teachers their own Drive, at any time; this revokes the token with Google and deletes it
+                from our database. Access can also be removed at myaccount.google.com/permissions.
               </p>
               <p>
-                PTN Connext&apos;s use and transfer of information received from Google APIs will adhere to the Google API Services User Data Policy, including the
-                Limited Use requirements.
+                PTN Connext&apos;s use and transfer of information received from Google APIs will adhere to the Google API Services User Data Policy, including
+                the Limited Use requirements.
               </p>
             </div>
           </section>

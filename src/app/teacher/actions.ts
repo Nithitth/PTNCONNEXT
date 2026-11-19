@@ -73,11 +73,11 @@ async function removeFiles(rows: FileRow[] | null) {
   for (const r of rows ?? []) if (r.drive_file_id) await trashDriveFile(r.drive_owner_id ?? null, r.drive_file_id);
 }
 
-/** The PDF the browser sent to this teacher's Google Drive: check it, then share it "anyone with the link". */
+/** The PDF the browser sent to Google Drive (the school's or the teacher's own): check it, then share it "anyone with the link". */
 async function prepareDriveFile(profile: Profile, fileId: string): Promise<string | null> {
   try {
-    const { token } = await checkUploaded(profile.id, fileId);
-    await shareWithLink(token, fileId);
+    const { token, shared } = await checkUploaded(profile.id, fileId);
+    await shareWithLink(token, fileId, shared);
     return null;
   } catch (e) {
     if (e instanceof DriveError) return e.message;

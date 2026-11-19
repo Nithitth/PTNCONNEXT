@@ -53,7 +53,7 @@ type Props = {
   allowSchoolWide: boolean;
   editing?: { postId: string; initial: FormInitial; current: Attachment | null };
   /** Google Drive (migration 0019): set up by the school, and connected by this teacher? */
-  drive?: { configured: boolean; connected: boolean };
+  drive?: { configured: boolean; connected: boolean; school?: boolean };
 };
 
 /** What the teacher typed, kept for a few minutes while they connect Google Drive (sessionStorage). */
@@ -293,7 +293,8 @@ export function PostForm({ kind, userId, subjects, rooms: classrooms, allowSchoo
     let sentToDrive: string | null = null;
     if (upload && toDrive) {
       setDrivePct(0);
-      const start = await startDriveUpload(upload.name, upload.size).catch(() => ({ error: driveProblem(0), url: undefined, reconnect: false }));
+      const about = { subjectId: kind === "event" ? null : subjectId || null, title, classroomIds: checkedIds.map((id) => (id === SCHOOL ? null : id)) };
+      const start = await startDriveUpload(upload.name, upload.size, about).catch(() => ({ error: driveProblem(0), url: undefined, reconnect: false }));
       const sent = start.url ? await sendToDrive(start.url, upload, setDrivePct) : null;
       // Keep 100% ("ส่งเรียบร้อย ✓") on screen while the post is saved.
       setDrivePct(sent?.id ? 100 : null);
@@ -610,7 +611,7 @@ export function PostForm({ kind, userId, subjects, rooms: classrooms, allowSchoo
                 {driveOn && (
                   <p className="mb-3 flex items-center gap-2.5 rounded-xl bg-success-soft px-4 py-3 text-lg font-bold text-success">
                     <Cloud aria-hidden className="h-6 w-6 shrink-0" />
-                    PDF จะเก็บใน Google Drive ของคุณ
+                    {drive?.school ? "PDF จะเก็บใน Drive ของโรงเรียนให้อัตโนมัติ" : "PDF จะเก็บใน Google Drive ของคุณ"}
                   </p>
                 )}
                 <input
@@ -654,7 +655,7 @@ export function PostForm({ kind, userId, subjects, rooms: classrooms, allowSchoo
                     {pending && driveOn && (
                       <div className="mt-4 rounded-xl bg-brand-soft/60 p-4" aria-live="polite">
                         <p className="text-lg font-bold text-ink">
-                          {drivePct === 100 ? "ส่งเรียบร้อย ✓ กำลังบันทึก…" : `กำลังส่งไป Google Drive…${drivePct ? ` ${drivePct}%` : ""}`}
+                          {drivePct === 100 ? "ส่งเรียบร้อย ✓ กำลังบันทึก…" : `กำลังส่งไป${drive?.school ? "ที่ Drive ของโรงเรียน" : " Google Drive"}…${drivePct ? ` ${drivePct}%` : ""}`}
                         </p>
                         <div className="mt-2 h-3 overflow-hidden rounded-full bg-surface">
                           <div className="bg-brand-gradient h-full rounded-full transition-[width] duration-200" style={{ width: `${drivePct ?? 0}%` }} />
@@ -680,7 +681,9 @@ export function PostForm({ kind, userId, subjects, rooms: classrooms, allowSchoo
                     </span>
                     <span className="text-xs text-muted">
                       {driveOn
-                        ? `นักเรียนเปิดได้ ${FILE_LIFETIME_DAYS} วัน แล้วระบบจะย้ายไฟล์ไปถังขยะใน Google Drive ของคุณ`
+                        ? drive?.school
+                          ? `นักเรียนเปิดได้ ${FILE_LIFETIME_DAYS} วัน แล้วระบบจะปิดลิงก์และเก็บไฟล์ไว้ในคลังของโรงเรียน`
+                          : `นักเรียนเปิดได้ ${FILE_LIFETIME_DAYS} วัน แล้วระบบจะย้ายไฟล์ไปถังขยะใน Google Drive ของคุณ`
                         : `นักเรียนดาวน์โหลดได้ ${FILE_LIFETIME_DAYS} วัน แล้วระบบจะลบไฟล์อัตโนมัติ`}
                     </span>
                   </label>
@@ -744,7 +747,7 @@ export function PostForm({ kind, userId, subjects, rooms: classrooms, allowSchoo
           {mode === "file" && progress
             ? "กำลังย่อขนาดไฟล์…"
             : pending && driveOn && mode === "file" && chosen
-              ? `กำลังส่งไป Google Drive…${drivePct ? ` ${drivePct}%` : ""}`
+              ? `กำลังส่งไป${drive?.school ? "ที่ Drive ของโรงเรียน" : " Google Drive"}…${drivePct ? ` ${drivePct}%` : ""}`
               : pending
                 ? mode === "file" && chosen
                   ? "กำลังอัปโหลด…"

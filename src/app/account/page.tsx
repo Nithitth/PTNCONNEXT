@@ -57,10 +57,10 @@ export default async function AccountPage() {
               <Cloud aria-hidden className="h-7 w-7 text-brand" />
               Google Drive
             </h2>
-            <p className="mb-5 mt-2 text-lg leading-relaxed text-muted">
-              เก็บไฟล์ PDF ที่คุณแชร์ไว้ใน Google Drive ของคุณเอง ช่วยประหยัดพื้นที่ของโรงเรียน
-            </p>
-            <DriveAccountCard connected={drive.connected} />
+            {!drive.school && (
+              <p className="mb-5 mt-2 text-lg leading-relaxed text-muted">เก็บไฟล์ PDF ที่คุณแชร์ไว้ใน Google Drive ของคุณเอง ช่วยประหยัดพื้นที่ของโรงเรียน</p>
+            )}
+            <DriveAccountCard connected={drive.connected} school={drive.school} />
           </Card>
         )}
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">

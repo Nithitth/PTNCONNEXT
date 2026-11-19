@@ -34,6 +34,7 @@ export default async function IdeasPage({ searchParams }: PageProps<"/admin/repo
     feedback: fb,
     subjectPosts: bundle.subjectPosts,
     storageUse: bundle.storageUse,
+    schoolDrive: bundle.schoolDrive,
   });
   const maxTopic = Math.max(1, ...themes.topics.map((t) => t.count));
 

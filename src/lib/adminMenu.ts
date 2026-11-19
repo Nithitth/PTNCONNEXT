@@ -18,10 +18,13 @@ export type MenuCounts = {
   errors24: number;
   failedLogins24: number;
   lockedToday: number;
+  /** Drive ของโรงเรียน: unset = Google keys not set up · off · pick (Shared Drive not chosen) · on · broken */
+  schoolDrive: "unset" | "off" | "pick" | "on" | "broken";
+  schoolDriveName: string | null;
 };
 
 export type MenuIcon =
-  "qr" | "tcas" | "roadmap" | "teacherCode" | "users" | "roster" | "overview" | "history" | "feedback" | "errors" | "limits" | "report" | "ideas";
+  "qr" | "tcas" | "roadmap" | "teacherCode" | "users" | "roster" | "overview" | "history" | "feedback" | "errors" | "limits" | "report" | "ideas" | "drive";
 
 export type MenuBox = {
   href: string;
@@ -92,7 +95,7 @@ export function buildMenu(c: MenuCounts): MenuGroup[] {
     },
     {
       title: "ครู",
-      note: "รหัสส่วนตัวสำหรับลงทะเบียนครู",
+      note: "การลงทะเบียนครู และที่เก็บ PDF ของครู",
       boxes: [
         box({
           href: "/admin/access/teachers",
@@ -100,6 +103,21 @@ export function buildMenu(c: MenuCounts): MenuGroup[] {
           hint: "สร้างรหัสส่วนตัว 9 ตัวให้ครูแต่ละคน และดูว่าใครลงทะเบียนแล้ว",
           icon: "teacherCode",
           stat: progress(c.teachersRegistered, c.teachersTotal),
+        }),
+        box({
+          href: "/admin/drive",
+          label: "Drive ของโรงเรียน",
+          hint: "เก็บ PDF ของครูทุกคนใน Shared Drive ของโรงเรียน เชื่อมต่อครั้งเดียว ครูไม่ต้องทำอะไร",
+          icon: "drive",
+          stat:
+            c.schoolDrive === "on"
+              ? `เชื่อมต่อแล้ว · ${c.schoolDriveName ?? ""}`
+              : c.schoolDrive === "unset"
+                ? "ยังไม่ได้ตั้งค่ากุญแจ Google"
+                : c.schoolDrive === "off"
+                  ? "ยังไม่ได้เชื่อมต่อ"
+                  : null,
+          badge: c.schoolDrive === "broken" ? "หลุดการเชื่อมต่อ" : c.schoolDrive === "pick" ? "เลือก Shared Drive" : null,
         }),
       ],
     },
@@ -201,5 +219,6 @@ export function alertItems(c: MenuCounts): AlertItem[] {
       count: c.failedLogins24,
     },
     { href: "/admin/access/history", label: "ถูกล็อกวันนี้", count: c.lockedToday },
+    { href: "/admin/drive", label: "Drive ของโรงเรียนหลุดการเชื่อมต่อ", count: c.schoolDrive === "broken" ? 1 : 0 },
   ].filter((a) => a.count > 0);
 }

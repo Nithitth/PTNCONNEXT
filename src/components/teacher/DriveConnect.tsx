@@ -186,12 +186,23 @@ export function DriveOffer({ next, onLeave }: { next: string; onLeave: () => voi
 }
 
 /** "Google Drive" on the account page: connected or not, and disconnect (two taps). */
-export function DriveAccountCard({ connected }: { connected: boolean }) {
+export function DriveAccountCard({ connected, school = false }: { connected: boolean; school?: boolean }) {
   const router = useRouter();
   const [armed, setArmed] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // The school's Shared Drive is connected: nothing for the teacher to do.
+  if (school)
+    return (
+      <p className="mt-4 flex items-start gap-3 rounded-2xl bg-success-soft px-4 py-4 text-lg leading-snug text-success">
+        <CheckCircle2 aria-hidden className="mt-0.5 h-7 w-7 shrink-0" />
+        <span>
+          <b className="block text-xl">PDF ของคุณเก็บใน Drive ของโรงเรียนให้อัตโนมัติ</b>
+          ไม่ต้องเชื่อมต่ออะไร เลือกไฟล์ PDF ได้ตามปกติ
+        </span>
+      </p>
+    );
   if (!connected) return <DriveConnectGuide next="/account" />;
   return (
     <div className="space-y-4">

@@ -1,5 +1,6 @@
 import "server-only";
 import { loadRooms } from "@/lib/accessData";
+import { schoolDriveStatus } from "@/lib/drive";
 import { DEFAULT_ASSUMPTIONS, DEFAULT_OKRS, cleanAssumptions, cleanOkrs, rangeIso, type Assumptions, type Okr } from "@/lib/report";
 import type { PostType, RawDue, RawFeedback, RawLogin, RawPost, ReportRaw, Role } from "@/lib/reportAnalysis";
 import { cleanTags, type Tags } from "@/lib/reportIdeas";
@@ -26,6 +27,8 @@ export type ReportBundle = {
   avgFileBytes: number | null;
   /** 0–1 of the free storage used by teacher files kept in Connext. */
   storageUse: number;
+  /** Drive ของโรงเรียน is connected and in use. */
+  schoolDrive: boolean;
   /** Posts per subject in the current period (every subject, zeros included). */
   subjectPosts: { subject: string; posts: number }[];
   roomLabels: Record<string, string>;
@@ -212,6 +215,7 @@ export async function loadReport(current: Span, previous: Span): Promise<ReportB
     tags: "tags" in tagsSaved ? tagsSaved.tags : {},
     avgFileBytes: sizes.length ? sizes.reduce((a, b) => a + b, 0) / sizes.length : null,
     storageUse: Math.min(1, storageBytes / FREE_LIMITS.storageBytes),
+    schoolDrive: (await schoolDriveStatus()).state === "on",
     subjectPosts: SUBJECTS.map((s) => ({ subject: s.name, posts: cur.posts.filter((p) => p.subject === s.name).length })),
     roomLabels: Object.fromEntries(rooms.map((r) => [r.classroomId, r.label])),
   };

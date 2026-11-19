@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { driveProblem, driveViewUrl, googleReason, isDriveFileId, safeNext } from "./driveCore";
+import { driveProblem, driveViewUrl, googleReason, isDriveFileId, safeNext, schoolFileName, termFolderName } from "./driveCore";
 import { decryptToken, encryptToken } from "./driveCrypto";
 
 const SECRET = "a-long-test-secret-for-drive-keys";
@@ -44,4 +44,27 @@ test("Google errors become a Thai sentence a teacher can act on", () => {
   assert.equal(googleReason({ error: { errors: [{ reason: "storageQuotaExceeded" }] } }), "storageQuotaExceeded");
   assert.equal(googleReason({ error: "invalid_grant" }), "invalid_grant");
   assert.equal(googleReason("nope"), "");
+});
+
+test("school drive: term folders follow the Thai school year", () => {
+  assert.equal(termFolderName(new Date("2026-11-19T05:00:00Z")), "2569 ภาค 2");
+  assert.equal(termFolderName(new Date("2027-02-03T05:00:00Z")), "2569 ภาค 2");
+  assert.equal(termFolderName(new Date("2027-05-01T05:00:00Z")), "2570 ภาค 1");
+  assert.equal(termFolderName(new Date("2026-10-31T16:59:00Z")), "2569 ภาค 1"); // 23:59 Thai time
+  assert.equal(termFolderName(new Date("2026-10-31T17:01:00Z")), "2569 ภาค 2"); // 1 Nov 00:01 Thai time
+});
+
+test("school drive: file names put the rooms first and stay safe", () => {
+  assert.equal(schoolFileName(["ม.5/1"], "ใบงานบทที่ 3"), "ม.5-1 · ใบงานบทที่ 3.pdf");
+  assert.equal(schoolFileName(["ม.4/1", "ม.4/2"], "สรุป"), "ม.4-1, ม.4-2 · สรุป.pdf");
+  assert.equal(schoolFileName([], "ปฏิทินกิจกรรม"), "ทั้งโรงเรียน · ปฏิทินกิจกรรม.pdf");
+  assert.equal(schoolFileName(["a", "b", "c", "d", "e", "f", "g", "h"], "x"), "ทุกห้อง · x.pdf");
+  assert.equal(schoolFileName(["ม.5/1"], "  a/b\\c  "), "ม.5-1 · a-b-c.pdf");
+  assert.equal(schoolFileName(["ม.5/1"], ""), "ม.5-1 · เอกสาร.pdf");
+  assert.ok(schoolFileName(["ม.5/1"], "ก".repeat(500)).length <= 184);
+});
+
+test("safeNext also allows the school drive page", () => {
+  assert.equal(safeNext("/admin/drive"), "/admin/drive");
+  assert.equal(safeNext("/admin/users"), "/teacher");
 });

@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { trashDriveFile } from "@/lib/drive";
+import { expireDriveFile } from "@/lib/drive";
 import { logError } from "@/lib/logs";
 import { MATERIALS_BUCKET } from "@/lib/postForm";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -29,9 +29,9 @@ export async function GET(request: NextRequest) {
     }
     const now = new Date().toISOString();
 
-    // PDFs kept in teachers' own Google Drive (migration 0019): move each to its owner's Drive trash.
-    // If the teacher disconnected, Connext still blocks the link (/files/[id] returns 410), and the file
-    // simply stays in their Drive.
+    // PDFs kept in Google Drive: link sharing off. In the school's Shared Drive the file moves to the "หมดอายุ"
+    // folder (kept as the school's archive); in a teacher's own Drive (migration 0019) it goes to their trash.
+    // If Drive is disconnected, Connext still blocks the link (/files/[id] returns 410).
     const { data: driveData, error: driveError } = await admin
       .from("attachments")
       .select("id, drive_file_id, drive_owner_id")
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
     if (driveError) throw driveError;
     let trashed = 0;
     for (const r of (driveData ?? []) as { id: string; drive_file_id: string; drive_owner_id: string | null }[]) {
-      if (await trashDriveFile(r.drive_owner_id, r.drive_file_id)) trashed++;
+      if (await expireDriveFile(r.drive_owner_id, r.drive_file_id)) trashed++;
       const { error: markError } = await admin.from("attachments").update({ expired_at: new Date().toISOString() }).eq("id", r.id);
       if (markError) await logError("cron/expire-files/drive", markError);
     }

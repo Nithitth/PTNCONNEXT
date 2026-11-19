@@ -4,6 +4,7 @@ import { SignupSwitch } from "@/components/admin/AccessControls";
 import { AdminAlerts, AdminMenu } from "@/components/admin/AdminMenu";
 import { Container, PageHeader, buttonStyles, cx, inputStyles } from "@/components/ui";
 import { loadOverview } from "@/lib/accessData";
+import { schoolDriveStatus } from "@/lib/drive";
 import { alertItems, buildMenu, type MenuCounts } from "@/lib/adminMenu";
 import { requireProfile } from "@/lib/auth";
 import { hoursAgo } from "@/lib/calendar";
@@ -18,7 +19,7 @@ export default async function AdminPage() {
   const supabase = await createClient();
 
   const head = { count: "exact" as const, head: true };
-  const [students, staff, posts, files, newFeedback, errors24, failed24, waiting, overview] = await Promise.all([
+  const [students, staff, posts, files, newFeedback, errors24, failed24, waiting, overview, schoolDrive] = await Promise.all([
     supabase.from("profiles").select("*", head).eq("role", "student"),
     supabase.from("profiles").select("*", head).in("role", ["teacher", "admin"]),
     supabase.from("posts").select("*", head),
@@ -31,6 +32,7 @@ export default async function AdminPage() {
     supabase.from("login_events").select("*", head).eq("success", false).gte("created_at", hoursAgo(24)),
     createAdminClient().from("tcas_roadmap_templates").select("*", head).eq("approved", false),
     loadOverview(),
+    schoolDriveStatus(),
   ]);
 
   const counts: MenuCounts = {
@@ -49,6 +51,8 @@ export default async function AdminPage() {
     errors24: errors24.count ?? 0,
     failedLogins24: failed24.count ?? 0,
     lockedToday: overview.today.lockedLogins,
+    schoolDrive: schoolDrive.configured ? schoolDrive.state : "unset",
+    schoolDriveName: schoolDrive.driveName,
   };
 
   return (

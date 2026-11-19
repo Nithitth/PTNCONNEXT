@@ -145,6 +145,8 @@ export type IdeaContext = {
   subjectPosts: { subject: string; posts: number }[];
   /** 0–1 share of the free storage / database used. */
   storageUse: number;
+  /** The school's Shared Drive takes every PDF: no need to get teachers onto their own Drive. */
+  schoolDrive?: boolean;
 };
 
 const quote = (m: string) => (m.length > 120 ? `${m.slice(0, 117).trim()}…` : m);
@@ -359,7 +361,7 @@ export function ideaCards(c: IdeaContext): IdeaCard[] {
   }
 
   // 9. Few teachers on Google Drive.
-  if (s.teacherAccounts >= 3 && (s.driveTeachersPct ?? 0) < 40) {
+  if (!c.schoolDrive && s.teacherAccounts >= 3 && (s.driveTeachersPct ?? 0) < 40) {
     out.push({
       key: "drive-drive",
       strength: 45 + c.storageUse * 40,

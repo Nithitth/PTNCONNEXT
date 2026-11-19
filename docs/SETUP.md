@@ -108,6 +108,19 @@ Teachers can keep the PDFs they share in **their own Google Drive** instead of i
 
 If a teacher's school Google account can't share files with "anyone with the link" (some school Workspace accounts block it), Connext tells them so; they can connect a personal Gmail instead or keep the file in Connext.
 
+## 3c. Drive ของโรงเรียน: every teacher's PDF in the school's Shared Drive (recommended when the school has Google Workspace)
+
+One admin connects the school's **Shared Drive** once; teachers then connect nothing and every PDF goes there (`ภาคเรียน / วิชา / ห้อง · ชื่อเรื่อง.pdf`). After 180 days the link is switched off and the file moves to a **หมดอายุ** folder (kept). Design: `docs/specs/2026-11-19-school-drive-design.md`. No migration needed.
+
+1. **Google Cloud, with the school account** (it must belong to the school's organisation): <https://console.cloud.google.com> → **New project** (`ptn-connext`, Organization = the school) → **APIs & Services → Library → Google Drive API → Enable**.
+2. **OAuth consent screen / Google Auth Platform → Audience: Internal.** Internal apps need **no Google verification** (only school accounts can sign in). App name **PTN Connext**, support email = the school account. Data access: add `https://www.googleapis.com/auth/drive` and `https://www.googleapis.com/auth/drive.file`.
+3. **Credentials → Create credentials → OAuth client ID → Web application.** Authorised redirect URIs: `http://localhost:3000/api/google/callback` and `https://<the live site>/api/google/callback`.
+4. Put the new **Client ID** and **Client secret** in Vercel (and `.env.production.local` / `.env.local`) as `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`, replacing the old ones (keep `GOOGLE_TOKEN_SECRET`). Redeploy. Teachers who had connected their own Drive with the old keys simply stop using it (the school drive takes over).
+5. **The Shared Drive:** in Google Drive (school account) → **Shared drives → New** (e.g. "PTN Connext"). The account that connects must be its **Manager**. Check that a file in it can be shared **"Anyone with the link"** (if not, ask IT to allow it for this Shared Drive).
+6. On the live site: **คอนโซลผู้พัฒนา → ครู → Drive ของโรงเรียน → เชื่อมต่อ Drive ของโรงเรียน** → sign in with the school account → allow → pick the Shared Drive → **ทดสอบการเชื่อมต่อ**.
+
+Best practice: ask IT for a dedicated account (e.g. `connext@<school>.ac.th`), make it a Manager of the Shared Drive and connect with it, so the system isn't tied to one person. The files belong to the Shared Drive, so reconnecting with another Manager later loses nothing. If the connection breaks, old links keep working, new PDFs go to Connext, and the admin menu shows an alert until someone reconnects.
+
 ## 4. Check it works (5 minutes)
 
 - [ ] Log in as student `90001` with `05052009`. You should see the PDPA page, then a "set a new password" screen. Click **ข้ามไปก่อน** (skip): you land on the calendar with a yellow reminder bar at the top.

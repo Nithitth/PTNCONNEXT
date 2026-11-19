@@ -136,3 +136,8 @@ test("idea rules stay quiet without signal, and cards are sorted", () => {
   const cards = ideaCards(ctx({ storageUse: 0.9 }));
   for (let i = 1; i < cards.length; i++) assert.ok(cards[i - 1].strength >= cards[i].strength);
 });
+
+test("no 'get teachers onto Drive' idea once the school drive is connected", () => {
+  assert.ok(ideaCards(ctx()).some((i) => i.key === "drive-drive"));
+  assert.ok(!ideaCards(ctx({ schoolDrive: true })).some((i) => i.key === "drive-drive"));
+});

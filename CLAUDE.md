@@ -169,6 +169,10 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
   - If Drive fails, the form shows one big "เก็บในระบบ Connext แทน" button. Before leaving for Google from the form, what was typed is kept in `sessionStorage` and restored (the PDF must be picked again).
   - `posts.ts` shows Drive rows as `kind: "file"` with `drive: true` (countdown, `/files/[id]` → 410 after expiry, else redirect to Drive). Replacing/deleting a post and the daily cron switch off the file's link sharing (Google keeps trashed files open to link holders) and move it to the **owner's** Drive trash (`trashDriveFile`).
   - Teacher UI is deliberately extra-large and plain (`bigButtonStyles` in `ui.tsx`, `DriveConnect.tsx`: `DriveBanner` on `/teacher` with "ไว้ทีหลัง", `DriveOffer` in the PDF step, `DriveAccountCard` on `/account`).
+- **Drive ของโรงเรียน** (added 2026-11-19, design `docs/specs/2026-11-19-school-drive-design.md`, set-up `docs/SETUP.md` 3c, **no migration**): when connected it **replaces** per-teacher Drives for new uploads.
+  - An admin connects once at `/admin/drive` (menu group ครู): `/api/google/connect?school=1` (admins only, scope `SCHOOL_DRIVE_SCOPE` = full `drive`, fine because the Google app is **Internal**) → the same `/api/google/callback` (school mode = `next` is `/admin/drive`) → pick a Shared Drive the account manages (`listSharedDrives`/`chooseSharedDrive`). Stored encrypted in `app_settings.school_drive` (`SchoolRow`: token, driveId/name, who, `broken`).
+  - `drive.ts` routes everything: `startUpload` (school: folder `termFolderName()` / subject, name `schoolFileName()` from `driveCore.ts`, `appProperties.connextUser` = uploader), `checkUploaded` (school file must have that uploader and the school `driveId`), `trashDriveFile` (delete/replace → Shared Drive trash; `uploader` option for discards), `expireDriveFile` (cron: link off + move to `หมดอายุ`). A file is "school" if Google says its `driveId` is the school drive, so attachment rows didn't change. All school calls send `supportsAllDrives=true`.
+  - `driveState()` returns `{ configured, connected, school }`; with `school` the teacher banner/offer hide, `/account` shows "เก็บใน Drive ของโรงเรียนให้อัตโนมัติ", the form says "Drive ของโรงเรียน". A refused key marks it `broken` (`school-broken` → Thai message, no reconnect guide for teachers); uploads then fall back to Connext and the admin alert strip shows it.
 - **Capacity on the free plans** (max users, file sizes, requests, PDF downloads): `docs/CAPACITY.md`. Downloads (5 GB/month Supabase egress) run out first.
 - **Editing** replaces the post's targets. The attachment is kept unless the teacher picks a new one.
 - **Who may edit and delete** (migration `0006`):
@@ -336,7 +340,7 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
   - The home page has a third feature card, "Roadmap".
   - On a program page, `RoadmapButton` creates, switches or opens the roadmap.
 - **TCAS tabs:** `src/app/tcas/layout.tsx` renders `TcasTabs` (ค้นหาหลักสูตร | สถิตินักเรียน) for staff only.
-- **PDPA:** `PDPA_VERSION` is 6: the roadmap (3), its proof and room comparison (4), sign-up names/email/phone (5), Google Drive (6).
+- **PDPA:** `PDPA_VERSION` is 7: the roadmap (3), its proof and room comparison (4), sign-up names/email/phone (5), Google Drive (6), the school Shared Drive (7).
 
 **Roadmap levels (migration `0013`; design in `docs/specs/2026-11-13-roadmap-levels-design.md`):**
 - **6 named stages** (สำรวจ → ตั้งเป้า → ปูพื้น → สะสมผลงาน → พร้อมสอบ → พร้อมสมัคร). Each has a **gate checklist**; the stage is the first one whose gate isn't complete. Inside a stage, XP fills **5 steps** (stage sizes 100/150/200/250/300/350). A full bar with an open gate shows "ประตูด่านรออยู่".
@@ -368,7 +372,7 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
 - `tcas_targets` can be read and written only by the student who owns them; admins can't read them either.
 - The limit is 5 per student, enforced by the `tcas_targets_limit` trigger (migration `0008`). `saveTarget` updates an existing target instead of re-inserting it.
 - Programs without a calculator can still be saved, with no scores.
-- `PDPA_VERSION` is 6: TCASter targets (2), the Roadmap (3), Roadmap proof and the room comparison (4), sign-up names, email and phone (5), teachers' Google Drive (6).
+- `PDPA_VERSION` is 7: TCASter targets (2), the Roadmap (3), Roadmap proof and the room comparison (4), sign-up names, email and phone (5), teachers' Google Drive (6), the school Shared Drive (7).
 - **Public privacy policy** at `/privacy` (no log-in, linked in the footer and the guest banner): `PdpaNotice` plus a Google Drive section and an English summary with the Limited Use statement, because Google's OAuth review reads it. Keep it true to `drive.ts`. `GOOGLE_SITE_VERIFICATION` (Vercel) adds the Search Console meta tag in `layout.tsx`.
 
 **Terms of use:** mytcas.com's terms forbid copying content beyond the service's purpose; the team chose to use the data anyway.

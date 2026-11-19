@@ -8,6 +8,7 @@ import {
   FileBarChart2,
   Gauge,
   GraduationCap,
+  HardDrive,
   History,
   KeyRound,
   LayoutDashboard,
@@ -41,6 +42,7 @@ const ICONS: Record<MenuIcon, LucideIcon> = {
   limits: Gauge,
   report: FileBarChart2,
   ideas: Lightbulb,
+  drive: HardDrive,
 };
 
 const DELAYS = ["", "delay-1", "delay-2", "delay-3", "delay-4"];

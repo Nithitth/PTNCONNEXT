@@ -18,6 +18,8 @@ const ZERO: MenuCounts = {
   errors24: 0,
   failedLogins24: 0,
   lockedToday: 0,
+  schoolDrive: "off",
+  schoolDriveName: null,
 };
 const boxes = (c: MenuCounts) => buildMenu(c).flatMap((g) => g.boxes);
 const find = (c: MenuCounts, href: string) => boxes(c).find((b) => b.href === href)!;
@@ -37,7 +39,7 @@ test("buildMenu groups by who it's about, with the three big boxes", () => {
   // Every admin page is reachable exactly once.
   const hrefs = boxes(ZERO).map((b) => b.href);
   assert.equal(new Set(hrefs).size, hrefs.length);
-  assert.equal(hrefs.length, 13);
+  assert.equal(hrefs.length, 14);
 });
 
 test("buildMenu shows no badges when nothing needs a look", () => {
@@ -82,5 +84,17 @@ test("alertItems lists only what needs a look", () => {
       ["/admin/errors", 2],
       ["/admin/access/history", 1],
     ],
+  );
+});
+
+test("the school drive box and alert follow its state", () => {
+  const box = (c: MenuCounts) => boxes(c).find((b) => b.href === "/admin/drive")!;
+  assert.equal(box(ZERO).stat, "ยังไม่ได้เชื่อมต่อ");
+  assert.equal(box({ ...ZERO, schoolDrive: "on", schoolDriveName: "PTN Connext" }).stat, "เชื่อมต่อแล้ว · PTN Connext");
+  assert.equal(box({ ...ZERO, schoolDrive: "broken" }).badge, "หลุดการเชื่อมต่อ");
+  assert.deepEqual(alertItems(ZERO), []);
+  assert.deepEqual(
+    alertItems({ ...ZERO, schoolDrive: "broken" }).map((a) => a.href),
+    ["/admin/drive"],
   );
 });
