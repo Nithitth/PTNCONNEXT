@@ -3,6 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 @AGENTS.md
+@BRAND.md
 
 ## Project
 
@@ -194,32 +195,18 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
 - Unexpected failures go through `logError(route, e)`, which writes to `error_logs` for the Developer Console.
 - Login attempts are recorded with `logLogin()`.
 
-**UI:**
-- **Theme:** matched to the official logo, red `#DB2931` on white. The style is **clean**:
-  - Thin 1px light-grey borders (`border border-line`). Don't use black outlines.
-  - Soft shadows (`shadow-soft-sm`, `shadow-soft`, `shadow-soft-lg`), plus a soft red glow on primary actions (`shadow-brand-glow`, `shadow-brand-glow-lg`).
-  - The red gradient `.bg-brand-gradient` (hot red into deep crimson) for emphasis panels. Add `.speed-lines` on top of it for texture.
-  - Red, white or gradient fills get a matching border or none, never a grey one.
-  - Tokens live in the `@theme` block of `src/app/globals.css`. Use token classes, not raw colors.
-  - Red means "brand", so `info` notices are neutral grey. Errors are always shown with an icon.
-- **Motion:**
-  - Buttons lift slightly on hover and scale down a touch on click (see `PRESS` in `ui.tsx`).
-  - Nav links get a sliding underline.
-  - `src/app/template.tsx` animates every page in (`animate-page`), and there are `animate-rise` (with `.delay-1` to `.delay-4`) and `animate-float` utilities.
-  - Everything respects `prefers-reduced-motion`.
-- **Fonts — a strict rule from the team:**
-  - **Anuphan** (by Cadson Demak, SIL Open Font License, so commercial use is OK) is used for *all* UI text. It's self-hosted via `@font-face` in `globals.css` from `public/fonts/Anuphan-Variable.ttf`, which covers weights 100–700; the license is in `public/fonts/Anuphan-OFL.txt`.
-  - The team originally wanted "Cloud" (by Typomancer), but its license for commercial use is unclear, so it isn't used.
-  - **Prompt** (`next/font/google`, the `font-brand` class or the `<Brand>` component) is used *only* for the "PTN Connext" / "Connext" brand name.
-  - Don't add other fonts.
-- **Logo files:** `public/brand/` holds red and white transparent PNGs of `ptn-connext-*` and `connext-*`, plus the white arrow `arrow-white.png` used as a decorative graphic. `src/app/icon.png` is the arrow-"t" app icon. Use the `Logo` component in `NavBar.tsx` rather than typing the name.
-- **Icons:** `lucide-react`.
+**UI:** the whole brand (colours with hex/CMYK, typography, logo rules, motion, voice, print/slides/social) is defined in **`BRAND.md`** (imported above). Rules for building it in code:
+- **Tokens only:** colours, shadows and glows live in the `@theme` block of `src/app/globals.css`; use token classes, not raw colours (the war room's `.warroom` palette is the one scoped exception). Red, white or gradient fills get a matching border or none, never a grey one. `info` notices are grey because red means brand; errors always show an icon.
+- **Motion:** `PRESS` in `ui.tsx` (lift on hover, scale on press); `src/app/template.tsx` animates every page in (`animate-page`); `animate-rise` with `.delay-1`–`.delay-4`, `animate-float`. Nav: the active link is a solid red pill, inactive links get a sliding underline on hover. Everything respects `prefers-reduced-motion`.
+- **Fonts:** Anuphan (self-hosted `public/fonts/Anuphan-Variable.ttf`, `@font-face` in `globals.css`, OFL in `public/fonts/Anuphan-OFL.txt`) for all text; Prompt (`next/font/google`, `font-brand` / `<Brand>`) only for the brand name. Don't add fonts.
+- **Logo:** use the `Logo` component in `NavBar.tsx` (files in `public/brand/`, app icon `src/app/icon.png`), never type the name.
+- **Icons:** `lucide-react`, `aria-hidden` when decorative.
 - **Shared primitives** are in `src/components/ui.tsx`:
   - `Button` and `buttonStyles`, with variants `primary`, `secondary`, `inverse` (for red backgrounds), `ghost` and `danger`. Use `buttonStyles` to style `<Link>`s as buttons.
   - `smallButtonStyles` (h-9 list/toolbar buttons) and `iconButtonStyles` (square icon buttons, always with `aria-label`). **Don't resize `buttonStyles` by adding classes.** There's no tailwind-merge, so `px-0` next to the built-in `px-5` clashes (an icon button once rendered empty). Use the dedicated style instead.
   - `inputStyles` for text boxes, selects and textareas. It has no width, so add `w-full` or `w-24` yourself.
   - `Brand`, `Card` (`bold` adds a bigger soft shadow), `Field`, `Notice`, `Eyebrow` (`light` for use on red), `PageHeader`, `EmptyState` and `Container`.
-  - Calendar colors: `exam` / `exam-soft` / `exam-tint`, and `event` / `event-strong` / `event-ink`. For deadline dots, use the `BLINK` class from `DayDrawer.tsx`: a blink, or a red ring when reduced motion is on.
+  - Calendar colours: `exam` / `exam-soft` / `exam-tint`, `major-soft` / `major-tint`, `urgent`, and `.bg-event-stripes` with `text-event-ink`. For deadline dots, use the `BLINK` class from `DayDrawer.tsx`: a blink, or a red ring when reduced motion is on.
 - Navigation items per role are defined in `itemsFor()` in `src/components/NavBar.tsx`.
 - **Home feature cards** (ปฏิทินอัจฉริยะ, TCAS) share `.bg-feature-gradient` (red → purple, in `globals.css`).
 - **Home hero buttons depend on the role** (`STUDENT_LINKS` / `STAFF_LINKS` in `src/app/page.tsx`): big tiles with a one-line hint; the first is the main one. Students: TCAS, Roadmap, ปฏิทิน. Teachers/admins: คอนโซลครู, ปฏิทิน, plus "วิธีใช้งาน". The lower shortcut list uses the same lists.
@@ -271,6 +258,17 @@ The test accounts and their passwords are listed in the header of `scripts/seed.
 **TCASter release 2, the Roadmap, is built** (migrations `0011`–`0013`; see the Roadmap section). Its level system (stages, proof, streaks, rewards) was added on 2026-11-13.
 
 **Next:** the pilot (human steps in `docs/PILOT.md`).
+
+## Competition poster (Chulalongkorn University's Innovative Award 2027)
+
+A side project in **Canva**, not in this repo: an **A0 portrait poster** (841 × 1189 mm) presenting PTN Connext, student category (ประเภทนักเรียน).
+- **The design:** Canva design `ChulaInnovatorAwards` (id `DAHbcnu7Q54`), read and edited through the Canva connector (`search-designs`, `read-design`, the edit tools). It started from the competition's template: pink theme, the award title top left, the category box top right, and the Chula and school logos along the bottom. Keep those template parts as they are.
+- **The story, top to bottom:** problem → solution → proof → impact.
+  - **Problem** (already on the poster): 12% of students get career guidance before university (OECD); Thailand below the OECD PISA baseline in maths and reading, 59% (OECD); 44%+ of teachers say workload lowers teaching quality (กสศ.). **Check every figure against its exact source and year before submitting.**
+  - **Solution:** how each feature answers each problem. Guidance → TCAS search, calculator and Roadmap. Teacher workload → post once to many rooms, Drive storage, the teacher guide. Learning → the Smart Calendar (deadlines, exam clashes, materials).
+  - **Proof and impact:** real numbers only, from รายงาน & OKR on the **real** site (`/admin/report`, `/admin/report/warroom`): Connext Score, adoption, posts opened, hours and paper saved (label estimates ประมาณการ, as the report does). Never invent results. Leave a clear placeholder when the data doesn't exist yet.
+- **Images:** screenshots from the **test** project or with names hidden. Never show real students' names, IDs or activity (PDPA). Brand assets come from `public/brand/`. Follow `BRAND.md` (colours with CMYK, A0 type sizes, logo rules, print set-up, marketing voice).
+- **Copy:** Thai, short, large enough to read from 1–2 metres (A0). Ask the team before changing the poster's facts or claims.
 
 ## TCASter (Phase 2)
 
